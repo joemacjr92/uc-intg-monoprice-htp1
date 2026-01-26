@@ -19,7 +19,7 @@ Control your Monoprice HTP-1 AV receiver directly from your Unfolded Circle Remo
 This integration provides comprehensive control of Monoprice HTP-1 AV receivers through the native WebSocket API, delivering seamless integration with your Unfolded Circle Remote for complete home theater control.
 
 ---
-## 💰 Support Development
+## ❤️ Support Development ❤️
 
 If you find this integration useful, consider supporting development:
 
