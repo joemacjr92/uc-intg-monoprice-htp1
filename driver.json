@@ -1,0 +1,38 @@
+{
+  "driver_id": "monoprice_htp1",
+  "version": "1.3.4",
+  "min_core_api": "0.22.0",
+  "name": {
+    "en": "Monoprice HTP-1"
+  },
+  "icon": "uc:cloud-music",
+  "description": {
+    "en": "Integration for Monoprice HTP-1 AV receiver with full media player support"
+  },
+  "developer": {
+    "name": "Meir Miyara",
+    "email": "meir.miyara@gmail.com"
+  },
+  "home_page": "https://github.com/mase1981/uc-intg-monoprice-htp1",
+  "release_date": "2026-01-28",
+  "setup_data_schema": {
+    "title": {
+      "en": "Monoprice HTP-1 Setup"
+    },
+    "settings": [
+      {
+        "id": "info",
+        "label": {
+          "en": "Setup information"
+        },
+        "field": {
+          "label": {
+            "value": {
+              "en": "Enter your Monoprice HTP-1 IP address. The integration connects via WebSocket to provide full control of your AV receiver."
+            }
+          }
+        }
+      }
+    ]
+  }
+}
