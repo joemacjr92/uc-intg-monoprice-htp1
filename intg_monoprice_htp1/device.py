@@ -17,7 +17,7 @@ from ucapi.media_player import Attributes as MediaAttributes, States as MediaSta
 from ucapi.sensor import Attributes as SensorAttributes
 from ucapi.remote import Attributes as RemoteAttributes
 from intg_monoprice_htp1.config import HTP1Config
-from intg_monoprice_htp1.displayvalues import sound_mode_display_values 
+from intg_monoprice_htp1.displayvalues import sound_mode_display_values , sound_mode_native_values
 
 
 _LOG = logging.getLogger(__name__)
@@ -39,6 +39,7 @@ class HTP1Device(WebSocketDevice):
         # Select entity state
         self.current_slot = ""
         self.slot_names = ["0"]
+        self.surround_mode = ""
 
     async def _on_connected(self, identifier: str) -> None:
         """Handle connection established."""
@@ -242,6 +243,7 @@ class HTP1Device(WebSocketDevice):
         if "upmix" in self._state:
             upmix_data = self._state["upmix"]
             sound_mode = upmix_data.get("select")
+            self.surround_mode = sound_mode
             sound_mode_list = [
                 k for k, v in upmix_data.items()
                 if k != "select" and isinstance(v, dict) and v.get("homevis")
@@ -482,6 +484,19 @@ class HTP1Device(WebSocketDevice):
             }
         )
 
+        # Surround Mode select entity
+        surround_mode_entity_id  = f"select.{self.identifier}_surround_mode"
+
+        self.events.emit(
+            DeviceEvents.UPDATE,
+            surround_mode_entity_id,
+            {
+                "state": "ON",
+                "current_option": sound_mode_display_values.get(self.surround_mode, self.surround_mode),
+                "options": ["DIRECT", "DOLBY SURROUND", "DTS NEURAL:X", "AURO-3D", "NATIVE", "STEREO"]
+            }
+        )
+
 
     async def send_message(self, message: str) -> bool:
         """Send message via WebSocket."""
@@ -606,7 +621,7 @@ class HTP1Device(WebSocketDevice):
         """Select sound mode (upmix)."""
         _LOG.info("[%s] Selecting sound mode: %s", self.log_id, sound_mode)
         return await self._send_transaction([
-            {"op": "replace", "path": "/upmix/select", "value": sound_mode}
+            {"op": "replace", "path": "/upmix/select", "value": sound_mode_native_values.get(sound_mode, sound_mode)}
         ])
     
     async def select_calibration(self, slot_name: str) -> bool:

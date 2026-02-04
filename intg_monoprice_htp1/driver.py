@@ -24,10 +24,12 @@ from intg_monoprice_htp1.sensor import (
     HTP1CurrentDiracSlotNameSensor,
     HTP1VideoModeSensor,
     HTP1ConnectionSensor,
-
 )
 
-from intg_monoprice_htp1.selector import HTP1CalibrationSelect
+from intg_monoprice_htp1.selector import (
+    HTP1CalibrationSelect,
+    HTP1SurroundModeSelect,
+)
 
 _LOG = logging.getLogger(__name__)
 
@@ -53,6 +55,7 @@ class HTP1Driver(BaseIntegrationDriver[HTP1Device, HTP1Config]):
                 HTP1VideoModeSensor,
                 HTP1ConnectionSensor,
                 HTP1CalibrationSelect,
+                HTP1SurroundModeSelect,
             ],
             driver_id="monoprice_htp1",
         )
@@ -77,4 +80,5 @@ class HTP1Driver(BaseIntegrationDriver[HTP1Device, HTP1Config]):
             HTP1VideoModeSensor(device_config, device),
             HTP1ConnectionSensor(device_config, device),
             HTP1CalibrationSelect(device_config, device),
+            HTP1SurroundModeSelect(device_config, device),
         ]
