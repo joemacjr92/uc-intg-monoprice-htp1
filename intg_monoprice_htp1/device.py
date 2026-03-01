@@ -38,6 +38,7 @@ class HTP1Device(WebSocketDevice):
 
         # Select entity state
         self.current_slot = ""
+        self.current_source = ""
         self.input_names = ["0"]
         self.slot_names = ["0"]
         self.surround_mode = ""
@@ -228,6 +229,7 @@ class HTP1Device(WebSocketDevice):
                     source_list.append(inp_info.get("label", inp_id))
                 if inp_id == input_id:
                     source = inp_info.get("label", inp_id)
+                    self.current_source = source
             self.input_names=[source_list]
 
         # Get Loudness state
@@ -509,7 +511,7 @@ class HTP1Device(WebSocketDevice):
             input_entity_id,
             {
                 "state": "ON",
-                "current_option": self.current_input,
+                "current_option": self.current_source,
                 "options": self.input_names,
             }
         )

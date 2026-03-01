@@ -37,6 +37,7 @@ SIMPLE_COMMANDS = [
     "Dialog Down",
     "Dirac Toggle",
     "Loudness Toggle",
+    "Dialnorm Toggle",
     "User Input 1",
     "User Input 2",
     "User Input 3",
@@ -268,6 +269,13 @@ class HTP1Remote(Remote):
                     success = await self._device.mute(not muted)
                     return StatusCodes.OK if success else StatusCodes.SERVER_ERROR
                 return StatusCodes.SERVER_ERROR
+             
+            elif cmd_id == "send_cmd" and params.get("command") == "Dialnorm Toggle":
+                if self._device._state:
+                    dialnorm = self._device._state.get("dialnorm", False)
+                    success = await self._device.dialnorm(not dialnorm)
+                    return StatusCodes.OK if success else StatusCodes.SERVER_ERROR
+                return StatusCodes.SERVER_ERROR
             
             elif cmd_id == "send_cmd":
                 c = params.get("command", "");
@@ -357,7 +365,7 @@ map_http_commands = {
 "In Coaxial 2": "2cd3",
 "In Coaxial 3": "48b7",
 "In Roon": "4ab5",
-"Tone control": "708f",
+"Tone control Toggle": "708f",
 "PEQ Toggle": "718e",
 "Tone control Bass +1": "728d",
 "Tone control Bass -1": "738c",
