@@ -505,7 +505,7 @@ class HTP1Device(WebSocketDevice):
         )
 
          # Input select entity
-        input_entity_id  = f"select.{self.identifier}_input"
+        input_entity_id  = f"select.{self.identifier}_inputs"
         self.events.emit(
             DeviceEvents.UPDATE,
             input_entity_id,
