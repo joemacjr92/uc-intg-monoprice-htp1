@@ -24,9 +24,11 @@ from intg_monoprice_htp1.sensor import (
     HTP1CurrentDiracSlotNameSensor,
     HTP1VideoModeSensor,
     HTP1ConnectionSensor,
+    HTP1DialnormSensor
 )
 
 from intg_monoprice_htp1.selector import (
+    HTP1CInputSelect,
     HTP1CalibrationSelect,
     HTP1SurroundModeSelect,
 )
@@ -47,6 +49,7 @@ class HTP1Driver(BaseIntegrationDriver[HTP1Device, HTP1Config]):
                 HTP1VolumeSensor,
                 HTP1LoudnessSensor,
                 HTP1PEQSensor,
+                HTP1DialnormSensor,
                 HTP1MutedSensor,
                 HTP1SoundModeSensor,
                 HTP1AudioFormatSensor,
@@ -54,6 +57,7 @@ class HTP1Driver(BaseIntegrationDriver[HTP1Device, HTP1Config]):
                 HTP1CurrentDiracSlotNameSensor,
                 HTP1VideoModeSensor,
                 HTP1ConnectionSensor,
+                HTP1CInputSelect,
                 HTP1CalibrationSelect,
                 HTP1SurroundModeSelect,
             ],
@@ -72,6 +76,7 @@ class HTP1Driver(BaseIntegrationDriver[HTP1Device, HTP1Config]):
             HTP1VolumeSensor(device_config, device),
             HTP1LoudnessSensor(device_config, device),
             HTP1PEQSensor(device_config, device),
+            HTP1DialnormSensor(device_config, device),
             HTP1MutedSensor(device_config, device),
             HTP1SoundModeSensor(device_config, device),
             HTP1AudioFormatSensor(device_config, device),
@@ -79,6 +84,7 @@ class HTP1Driver(BaseIntegrationDriver[HTP1Device, HTP1Config]):
             HTP1CurrentDiracSlotNameSensor(device_config, device),
             HTP1VideoModeSensor(device_config, device),
             HTP1ConnectionSensor(device_config, device),
+            HTP1CInputSelect(device_config, device),
             HTP1CalibrationSelect(device_config, device),
             HTP1SurroundModeSelect(device_config, device),
         ]

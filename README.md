@@ -45,7 +45,7 @@ Your support helps maintain this integration. Thank you! ❤️
 - **Unmute** - Explicit unmute control
 - **Real-time Updates** - Instant volume feedback via WebSocket
 
-#### **Source Selection**
+#### **Source Selection including select entity**
 Control all available input sources:
 - **HDMI Inputs** - All configured HDMI inputs
 - **Analog Inputs** - Stereo and multichannel analog
@@ -85,6 +85,7 @@ Real-time monitoring of receiver state:
 - **Loudness Sensor** -State of Loudness
 - **Mute Sensor** - Stae of Mute
 - **PEQ Status Sensor** - State of PEQ
+- **Dialnorm Status Sensor - State of Dialnorm  
 - **Audio Format Sensor** - Detected audio codec and channels
 - **Output Audio Format Sensor** - Detected output audio codec and output channels
 - **Current Calibration Sensor** - Displays the Current Dirac Calibration Name, Dirac Bybass, or Dirac Off 
@@ -193,7 +194,7 @@ The media player entity provides complete control:
 - **Volume Control**: Volume slider (-127.5dB to 0dB mapped to 0-100)
 - **Volume Buttons**: Up/Down with real-time feedback
 - **Mute Control**: Toggle, Mute, Unmute
-- **Source Selection**: Dropdown with all available inputs
+- **Source Selection**: Dropdown with all available inputs and select entity
 - **Sound Mode Selection**: Choose upmix/audio mode
 - **State Display**: Current power, volume, source, mute, and audio format
 
@@ -211,6 +212,9 @@ The remote entity provides:
 | Input Sensor | Currently selected input source |
 | Volume Sensor | Current volume level in dB |
 | Sound Mode Sensor | Active sound mode/upmix |
+| Loudness Sensor | On/Off |
+| PEQ Sensor | On/Off |
+| Dialnorm Sensor | On/Off |
 | Audio Format Sensor | Current audio codec and channel count |
 | Output Audio Format Sensor | Current output audio codec and output channel count |
 | Video Mode Sensor | Video resolution and HDR format |
