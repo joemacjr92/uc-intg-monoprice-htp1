@@ -121,6 +121,27 @@ class HTP1PEQSensor(Sensor):
             },
         )
 
+class HTP1DialnormSensor(Sensor):
+    """Sensor for current PEQ status."""
+
+    def __init__(self, device_config: HTP1Config, device: HTP1Device):
+        """Initialize the Dialnorm sensor."""
+        self._device = device
+        self._device_config = device_config
+
+        entity_id = f"sensor.{device_config.identifier}_dialnorm"
+
+        super().__init__(
+            entity_id,
+            f"{device_config.name} Dialnorm",
+            [],  # No features
+            {
+                Attributes.STATE: "Unknown",
+                Attributes.VALUE: None,
+                Attributes.UNIT: None,
+            },
+        )
+
 class HTP1SoundModeSensor(Sensor):
     """Sensor for current sound mode (upmix)."""
 

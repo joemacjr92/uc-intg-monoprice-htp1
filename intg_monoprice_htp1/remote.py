@@ -37,6 +37,7 @@ SIMPLE_COMMANDS = [
     "Dialog Down",
     "Dirac Toggle",
     "Loudness Toggle",
+    "Dialnorm Toggle",
     "User Input 1",
     "User Input 2",
     "User Input 3",
@@ -93,6 +94,22 @@ SIMPLE_COMMANDS = [
     "In Coaxial 2",
     "In Coaxial 3",
     "In Roon",
+    "Tone control Toggle",
+    "PEQ Toggle",
+    "Tone control Bass +1",
+    "Tone control Bass -1",
+    "Tone control Treble +1",
+    "Tone control Treble -1",
+    "Lipsync +1",
+    "Lipsync -1",
+    "Dirac Live filter 1",
+    "Dirac Live filter 2",
+    "Dirac Live filter 3", 
+    "Dirac Live filter 4",
+    "Dirac Live filter 5",
+    "Dirac Live filter 6",
+    "Loudness level +1 ",
+    "Loudness level -1 ",
 ]
 
 
@@ -252,6 +269,13 @@ class HTP1Remote(Remote):
                     success = await self._device.mute(not muted)
                     return StatusCodes.OK if success else StatusCodes.SERVER_ERROR
                 return StatusCodes.SERVER_ERROR
+             
+            elif cmd_id == "send_cmd" and params.get("command") == "Dialnorm Toggle":
+                if self._device._state:
+                    dialnorm = self._device._state.get("dialnorm", False)
+                    success = await self._device.dialnorm(not dialnorm)
+                    return StatusCodes.OK if success else StatusCodes.SERVER_ERROR
+                return StatusCodes.SERVER_ERROR
             
             elif cmd_id == "send_cmd":
                 c = params.get("command", "");
@@ -341,4 +365,20 @@ map_http_commands = {
 "In Coaxial 2": "2cd3",
 "In Coaxial 3": "48b7",
 "In Roon": "4ab5",
+"Tone control Toggle": "708f",
+"PEQ Toggle": "718e",
+"Tone control Bass +1": "728d",
+"Tone control Bass -1": "738c",
+"Tone control Treble +1": "748b",
+"Tone control Treble -1": "758a",
+"Lipsync +1": "7689",
+"Lipsync -1": "7788",
+"Dirac Live filter 1": "7887",
+"Dirac Live filter 2": "7986",
+"Dirac Live filter 3": "7a85", 
+"Dirac Live filter 4": "7b84",
+"Dirac Live filter 5": "7c83",
+"Dirac Live filter 6": "7d82",
+"Loudness level +1 ": "7e81",
+"Loudness level -1 ": "7f80",
 }

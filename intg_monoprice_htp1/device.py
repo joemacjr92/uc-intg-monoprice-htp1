@@ -38,6 +38,8 @@ class HTP1Device(WebSocketDevice):
 
         # Select entity state
         self.current_slot = ""
+        self.current_source = ""
+        self.input_names = ["0"]
         self.slot_names = ["0"]
         self.surround_mode = ""
 
@@ -178,6 +180,7 @@ class HTP1Device(WebSocketDevice):
         input_sensor_id = f"sensor.{self.identifier}_input"
         volume_sensor_id = f"sensor.{self.identifier}_volume"
         loudness_sensor_id = f"sensor.{self.identifier}_loudness"
+        dialnorm_sensor_id = f"sensor.{self.identifier}_dialnorm"
         peq_sensor_id = f"sensor.{self.identifier}_peq"
         mute_sensor_id = f"sensor.{self.identifier}_mute"
         sound_mode_sensor_id = f"sensor.{self.identifier}_sound_mode"
@@ -186,6 +189,7 @@ class HTP1Device(WebSocketDevice):
         current_dirac_slot_name_sensor_id = f"sensor.{self.identifier}_current_dirac_slot_name"
         video_mode_sensor_id = f"sensor.{self.identifier}_video_mode"
         connection_sensor_id = f"sensor.{self.identifier}_connection"
+
 
         if not self._state or not self.is_connected:
             # Device unavailable - update all entities
@@ -225,11 +229,18 @@ class HTP1Device(WebSocketDevice):
                     source_list.append(inp_info.get("label", inp_id))
                 if inp_id == input_id:
                     source = inp_info.get("label", inp_id)
+                    self.current_source = source
+            self.input_names = source_list
 
         # Get Loudness state
         loudness_state = "off"
         if "loudness" in self._state:
             loudness_state = self._state["loudness"]
+
+        # Get Dialnorm state
+        dialnorm_state = "off"
+        if "dialnorm" in self._state:
+            dialnorm_state = self._state["dialnorm"]
 
         # Get PEQ state
         peq_state = "off"
@@ -399,6 +410,15 @@ class HTP1Device(WebSocketDevice):
             }
         )  
 
+        self.events.emit(
+            DeviceEvents.UPDATE,
+            dialnorm_sensor_id,
+            {
+                SensorAttributes.STATE: "On" if dialnorm_state else "Off",
+                SensorAttributes.VALUE: "On" if dialnorm_state else "Off",
+            }
+        )  
+
         # PEQ Sensor
         self.events.emit(
             DeviceEvents.UPDATE,
@@ -481,6 +501,18 @@ class HTP1Device(WebSocketDevice):
                 "state": "ON",
                 "current_option": self.current_slot,
                 "options": self.slot_names,
+            }
+        )
+
+         # Input select entity
+        input_entity_id  = f"select.{self.identifier}_inputs"
+        self.events.emit(
+            DeviceEvents.UPDATE,
+            input_entity_id,
+            {
+                "state": "ON",
+                "current_option": self.current_source,
+                "options": self.input_names,
             }
         )
 
@@ -599,6 +631,13 @@ class HTP1Device(WebSocketDevice):
         _LOG.info("[%s] Setting mute to %s", self.log_id, muted)
         return await self._send_transaction([
             {"op": "replace", "path": "/muted", "value": muted}
+        ])
+    
+    async def dialnorm(self, dialnorm: bool) -> bool:
+        """Set dialnorm state."""
+        _LOG.info("[%s] Setting dialnorm to %s", self.log_id, dialnorm)
+        return await self._send_transaction([
+            {"op": "replace", "path": "/dialnorm", "value": dialnorm    }
         ])
 
     async def select_source(self, source: str) -> bool:
