@@ -294,9 +294,9 @@ class HTP1Remote(Remote):
 
 
 map_http_commands = {
- "Vol Down": "09f6",
+ "VOLUME_DOWN": "09f6",
 "Mute Toggle": "0af5",
-"Vol Up": "0bf4",
+"VOLUME_UP": "0bf4",
 "Mode None": "1be4",
 "Mode Dolby Sur": "1ce3",
 "Mode Neural-X": "1de2",
