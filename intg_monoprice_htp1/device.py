@@ -9,18 +9,21 @@ import asyncio
 import json
 import logging
 from typing import Any
+
 import aiohttp
 import websockets
 from websockets.client import WebSocketClientProtocol
-from ucapi_framework import WebSocketDevice, DeviceEvents
-from ucapi.media_player import Attributes as MediaAttributes, States as MediaStates
-from ucapi.sensor import Attributes as SensorAttributes
-from ucapi.remote import Attributes as RemoteAttributes
-from intg_monoprice_htp1.config import HTP1Config
-from intg_monoprice_htp1.displayvalues import sound_mode_display_values , sound_mode_native_values
 
+from ucapi_framework import WebSocketDevice, DeviceEvents
+from intg_monoprice_htp1.config import HTP1Config
+from intg_monoprice_htp1.displayvalues import sound_mode_display_values, sound_mode_native_values
 
 _LOG = logging.getLogger(__name__)
+
+FILTER_TYPE_MAP = {"PeakingEQ": 0, "LowShelf": 1, "HighShelf": 2}
+BEQ_SLOT_START = 8
+BEQ_SLOT_END = 15
+
 
 class HTP1Device(WebSocketDevice):
     """Monoprice HTP-1 implementation using WebSocketDevice."""
@@ -32,47 +35,45 @@ class HTP1Device(WebSocketDevice):
         self._state_ready = asyncio.Event()
         self._ws: WebSocketClientProtocol | None = None
 
-        # Listen for connection events
         self.events.on(DeviceEvents.CONNECTED, self._on_connected)
         self.events.on(DeviceEvents.DISCONNECTED, self._on_disconnected)
 
-        # Select entity state
-        self.current_slot = ""
-        self.current_source = ""
-        self.input_names = ["0"]
-        self.slot_names = ["0"]
-        self.surround_mode = ""
-        self.vpl = -80
-        self.vph = 12
-        self.volume = -30
-        self.zp = 0
+        self._sensor_data: dict[str, str] = {}
+        self.current_source: str = ""
+        self.source_list: list[str] = []
+        self.slot_names: list[str] = []
+        self.dirac_slot_name: str = ""
+        self.sound_mode_display: str = ""
+        self.surround_mode: str = ""
+        self.volume_db: int = -30
+        self.volume_pct: int = 0
+        self.muted: bool = False
+        self.power: bool = False
+        self.vpl: int = -80
+        self.vph: int = 12
+        self.zp: int = 0
+        self.beq_active: str = ""
 
     async def _on_connected(self, identifier: str) -> None:
-        """Handle connection established."""
         _LOG.info("[%s] WebSocket connected", self.log_id)
         self._state = None
         self._state_ready.clear()
-
-        # Request initial state
-        await asyncio.sleep(0.1)  # Small delay to ensure connection is stable
+        await asyncio.sleep(0.1)
         await self.send_message("getmso")
-
-        # Wait for initial state with timeout
         try:
             await asyncio.wait_for(self._state_ready.wait(), timeout=5.0)
             _LOG.info("[%s] Initial state received", self.log_id)
-            self._emit_update()
-            self._emit_select_updates()
+            self._parse_state()
+            self.push_update()
         except asyncio.TimeoutError:
             _LOG.warning("[%s] Timeout waiting for initial state", self.log_id)
 
     async def _on_disconnected(self, identifier: str) -> None:
-        """Handle disconnection."""
         _LOG.info("[%s] WebSocket disconnected", self.log_id)
         self._state = None
         self._state_ready.clear()
-        self._emit_update()
-        self._emit_select_updates()
+        self._sensor_data = {}
+        self.push_update()
 
     @property
     def identifier(self) -> str:
@@ -92,29 +93,27 @@ class HTP1Device(WebSocketDevice):
 
     @property
     def websocket_url(self) -> str:
-        """Return the WebSocket URL."""
         return f"ws://{self._device_config.host}/ws/controller"
 
+    def get_sensor_value(self, key: str) -> str:
+        return self._sensor_data.get(key, "")
+
     async def create_websocket(self) -> WebSocketClientProtocol:
-        """Create WebSocket connection."""
         _LOG.info("[%s] Creating WebSocket connection to %s", self.log_id, self.websocket_url)
         self._ws = await websockets.connect(
             self.websocket_url,
-            ping_interval=None,  # We handle pings ourselves
+            ping_interval=None,
             close_timeout=5,
         )
         return self._ws
 
     async def close_websocket(self) -> None:
-        """Close WebSocket connection."""
         if self._ws:
             await self._ws.close()
 
     async def receive_message(self) -> str | None:
-        """Receive message from WebSocket."""
         if not self._ws:
             return None
-
         try:
             message = await self._ws.recv()
             return message if isinstance(message, str) else None
@@ -125,12 +124,9 @@ class HTP1Device(WebSocketDevice):
             return None
 
     async def handle_message(self, message: str) -> None:
-        """Process incoming WebSocket message."""
-        # On first message, request initial state if we don't have it
         if self._state is None:
             _LOG.info("[%s] First message received, requesting initial state", self.log_id)
             await self.send_message("getmso")
-
 
         try:
             if " " not in message:
@@ -140,15 +136,13 @@ class HTP1Device(WebSocketDevice):
             data = json.loads(payload)
 
             if cmd == "mso":
-                # Full state update
                 self._state = data
                 self._state_ready.set()
                 _LOG.debug("[%s] Received full state", self.log_id)
-                self._emit_update()
-                self._emit_select_updates()
+                self._parse_state()
+                self.push_update()
 
             elif cmd == "msoupdate":
-                # Incremental state update
                 if not isinstance(data, list):
                     data = [data]
 
@@ -157,6 +151,17 @@ class HTP1Device(WebSocketDevice):
                     path = piece.get("path", "")[1:].split("/")
                     target = self._state
                     final = path.pop()
+
+                    if op == "remove":
+                        for node in path:
+                            if isinstance(target, list):
+                                node = int(node)
+                            target = target[node]
+                        if isinstance(target, dict):
+                            target.pop(final, None)
+                        elif isinstance(target, list):
+                            del target[int(final)]
+                        continue
 
                     if op not in ("add", "replace"):
                         continue
@@ -169,386 +174,128 @@ class HTP1Device(WebSocketDevice):
                     value = piece.get("value")
                     target[final] = value
 
-                self._emit_update()
-                self._emit_select_updates()
+                self._parse_state()
+                self.push_update()
 
         except Exception as err:
             _LOG.error("[%s] Message processing error: %s", self.log_id, err)
 
-    def _emit_update(self) -> None:
-        """Emit entity update events for all entities."""
-        media_player_id = f"media_player.{self.identifier}"
-        remote_id = f"remote.{self.identifier}"
-
-        # Sensor IDs
-        input_sensor_id = f"sensor.{self.identifier}_input"
-        volume_sensor_id = f"sensor.{self.identifier}_volume"
-        loudness_sensor_id = f"sensor.{self.identifier}_loudness"
-        dialnorm_sensor_id = f"sensor.{self.identifier}_dialnorm"
-        peq_sensor_id = f"sensor.{self.identifier}_peq"
-        mute_sensor_id = f"sensor.{self.identifier}_mute"
-        sound_mode_sensor_id = f"sensor.{self.identifier}_sound_mode"
-        audio_format_sensor_id = f"sensor.{self.identifier}_audio_format"
-        output_audio_format_sensor_id = f"sensor.{self.identifier}_output_audio_format"
-        current_dirac_slot_name_sensor_id = f"sensor.{self.identifier}_current_dirac_slot_name"
-        video_mode_sensor_id = f"sensor.{self.identifier}_video_mode"
-        connection_sensor_id = f"sensor.{self.identifier}_connection"
-
-
-        if not self._state or not self.is_connected:
-            # Device unavailable - update all entities
-            self.events.emit(
-                DeviceEvents.UPDATE,
-                media_player_id,
-                {MediaAttributes.STATE: MediaStates.UNAVAILABLE}
-            )
-            self.events.emit(
-                DeviceEvents.UPDATE,
-                remote_id,
-                {RemoteAttributes.STATE: "UNAVAILABLE"}
-            )
-            self.events.emit(
-                DeviceEvents.UPDATE,
-                connection_sensor_id,
-                {
-                    SensorAttributes.STATE: "Disconnected",
-                    SensorAttributes.VALUE: "disconnected",
-                }
-            )
+    def _parse_state(self) -> None:
+        if not self._state:
             return
 
-        # Extract state information
-        power = self._state.get("powerIsOn", False)
+        self.power = self._state.get("powerIsOn", False)
+        self.muted = self._state.get("muted", False)
+
         volume = self._state.get("volume", 0)
         if "cal" in self._state:
             cal = self._state["cal"]
-            zp = cal.get("zeroPoint", 0)
+            self.zp = cal.get("zeroPoint", 0)
+            self.vpl = cal.get("vpl", -80)
+            self.vph = cal.get("vph", 12)
+            volume -= self.zp
+        self.volume_db = volume
 
-            self.zp = zp
-            volume -= zp  # Adjust volume with zero point offset
-            self.volume = volume
-        muted = self._state.get("muted", False)
+        span = self.vph - self.vpl
+        if span > 0:
+            self.volume_pct = int(max(0, min(100, ((volume - self.vpl) / span) * 100)))
+        else:
+            self.volume_pct = 0
+
         input_id = self._state.get("input")
-
-        # Get input name
-        source = None
         source_list = []
+        source = ""
         if "inputs" in self._state:
-            inputs = self._state["inputs"]
-            for inp_id, inp_info in inputs.items():
+            for inp_id, inp_info in self._state["inputs"].items():
                 if inp_info.get("visible"):
                     source_list.append(inp_info.get("label", inp_id))
                 if inp_id == input_id:
                     source = inp_info.get("label", inp_id)
-                    self.current_source = source
-            self.input_names = source_list
+        self.current_source = source
+        self.source_list = source_list
 
-        # Get Loudness state
-        loudness_state = "off"
-        if "loudness" in self._state:
-            loudness_state = self._state["loudness"]
+        loudness_state = self._state.get("loudness", "off")
+        dialnorm_state = self._state.get("dialnorm", False)
+        peq_sw = self._state.get("peq", {}).get("peqsw", False)
+        self.beq_active = self._state.get("peq", {}).get("beqActive", "")
 
-        # Get Dialnorm state
-        dialnorm_state = "off"
-        if "dialnorm" in self._state:
-            dialnorm_state = self._state["dialnorm"]
-
-        # Get PEQ state
-        peq_state = "off"
-        if "peq" in self._state:
-            peq_data = self._state["peq"]
-            peq_state = peq_data.get("peqsw", "off")
-
-        # Get sound mode (upmix)
-        sound_mode = None
-        sound_mode_list = []
+        sound_mode = ""
         if "upmix" in self._state:
-            upmix_data = self._state["upmix"]
-            sound_mode = upmix_data.get("select")
-            self.surround_mode = sound_mode
-            sound_mode_list = [
-                k for k, v in upmix_data.items()
-                if k != "select" and isinstance(v, dict) and v.get("homevis")
-            ]
+            sound_mode = self._state["upmix"].get("select", "")
+        self.surround_mode = sound_mode
+        self.sound_mode_display = sound_mode_display_values.get(sound_mode, sound_mode)
 
-        # Get audio format
         audio_format = "none"
         if "status" in self._state:
             audio_info = self._state["status"]
             codec = audio_info.get("DECSourceProgram", "")
             channels = audio_info.get("DECProgramFormat", "")
             if channels:
-                audio_format = f"{channels}"
-                if codec:
-                    audio_format += f" {codec}"
+                audio_format = f"{channels} {codec}".strip() if codec else channels
 
-        # Get output audio format
         output_audio_format = ""
         if "status" in self._state:
-            output_audio_info = self._state["status"]
-            output_codec = output_audio_info.get("SurroundMode", "")
-            output_channels = audio_info.get("ENCListeningFormat", "")
+            output_info = self._state["status"]
+            output_codec = output_info.get("SurroundMode", "")
+            output_channels = output_info.get("ENCListeningFormat", "")
             if output_channels:
-                output_audio_format = f"{output_channels}"
-                if output_codec:
-                    output_audio_format += f" {output_codec}"
-        
-        # Get current Calibration slot name
-        current_dirac_slot = "None"
-        current_dirac_slot_name = "None"
-        if "cal" in self._state:
-            cal = self._state["cal"]
-            diracstatus = cal.get("diracactive", False)
-            if diracstatus == "on":
-                current_dirac_slot = cal.get("currentdiracslot", "")
-                self.slot_num = str(current_dirac_slot)
-                current_dirac_slot_name = cal.get("slots", "")[current_dirac_slot].get("name", "")
-            elif diracstatus == "bypass":
-                current_dirac_slot_name = "Dirac Bypass"
-            else :
-                current_dirac_slot_name = "Dirac Off"
-            self.current_slot = current_dirac_slot_name
+                output_audio_format = f"{output_channels} {output_codec}".strip() if output_codec else output_channels
 
-        # Get valid slots
+        dirac_slot_name = "None"
         available_slots = []
         if "cal" in self._state:
             cal = self._state["cal"]
-            for slot in cal.get("slots", False):
+            dirac_status = cal.get("diracactive", False)
+            if dirac_status == "on":
+                slot_idx = cal.get("currentdiracslot", 0)
+                slots = cal.get("slots", [])
+                if slots and slot_idx < len(slots):
+                    dirac_slot_name = slots[slot_idx].get("name", "")
+            elif dirac_status == "bypass":
+                dirac_slot_name = "Dirac Bypass"
+            else:
+                dirac_slot_name = "Dirac Off"
+            for slot in cal.get("slots", []):
                 if slot.get("valid", False):
                     available_slots.append(slot.get("name", ""))
-            self.slot_names = available_slots
-        
+        self.dirac_slot_name = dirac_slot_name
+        self.slot_names = available_slots
 
-            
-        # Get video mode
         video_mode = "-----"
         if "videostat" in self._state:
-            video_info = self._state["videostat"]
-            resolution = video_info.get("VideoResolution", "")
-            hdr = video_info.get("HDRstatus", "")
-            colospace = video_info.get("VideoColorSpace", "")
-            videomode = video_info.get("VideoMode", "")
-            videobitdepth = video_info.get("VideoBitDepth", "")     
+            vi = self._state["videostat"]
+            parts = [vi.get("VideoResolution", "")]
+            if vi.get("HDRstatus"):
+                parts.append(vi["HDRstatus"])
+            if vi.get("VideoColorSpace"):
+                parts.append(vi["VideoColorSpace"])
+            if vi.get("VideoMode"):
+                parts.append(vi["VideoMode"])
+            if vi.get("VideoBitDepth"):
+                parts.append(vi["VideoBitDepth"])
+            video_mode = " ".join(p for p in parts if p) or "-----"
 
-            if resolution:
-                video_mode = resolution
-                if hdr:
-                    video_mode += f" {hdr}"
-                if colospace:
-                    video_mode += f" {colospace}"
-                if videomode:
-                    video_mode += f" {videomode}"
-                if videobitdepth:
-                    video_mode += f" {videobitdepth}"
-
-
-        # Calculate volume level (0..1) based on calibration
-        volume_level = None
-        if "cal" in self._state:
-            cal = self._state["cal"]
-            vpl = cal.get("vpl", -80)
-            self.vpl = vpl
-            vph = cal.get("vph", 12)
-            self.vph = vph
-            span = vph - vpl
-            if span > 0:
-                volume_level = max(0.0, min(1.0, (volume - vpl) / span))
-
-        state = MediaStates.ON if power else MediaStates.OFF
-
-        # Update Media Player
-        media_player_attrs = {
-            MediaAttributes.STATE: state,
-            MediaAttributes.VOLUME: volume,
-            MediaAttributes.MUTED: muted,
-            MediaAttributes.SOURCE: source,
-            MediaAttributes.SOURCE_LIST: source_list,
+        self._sensor_data = {
+            "input": source,
+            "volume": f"{self.volume_db} dB",
+            "mute": "On" if self.muted else "Off",
+            "loudness": str(loudness_state).capitalize() if isinstance(loudness_state, str) else ("On" if loudness_state else "Off"),
+            "peq": "On" if peq_sw else "Off",
+            "dialnorm": "On" if dialnorm_state else "Off",
+            "sound_mode": self.sound_mode_display,
+            "audio_format": audio_format,
+            "output_audio_format": output_audio_format,
+            "dirac_slot": dirac_slot_name,
+            "video_mode": video_mode,
+            "connection": "Connected" if self.is_connected else "Disconnected",
+            "beq_active": self.beq_active or "None",
         }
 
-        if sound_mode:
-            media_player_attrs[MediaAttributes.SOUND_MODE] = sound_mode
-        if sound_mode_list:
-            media_player_attrs[MediaAttributes.SOUND_MODE_LIST] = sound_mode_list
-
-        _LOG.debug("[%s] Emitting update: %s", self.log_id, state)
-        self.events.emit(DeviceEvents.UPDATE, media_player_id, media_player_attrs)
-
-        # Update Remote
-        remote_state = "ON" if power else "OFF"
-        self.events.emit(
-            DeviceEvents.UPDATE,
-            remote_id,
-            {RemoteAttributes.STATE: remote_state}
-        )
-
-        # Update Sensors
-        # Input Sensor
-        if source:
-            self.events.emit(
-                DeviceEvents.UPDATE,
-                input_sensor_id,
-                {
-                    SensorAttributes.STATE: source,
-                    SensorAttributes.VALUE: source,
-                }
-            )
-
-        # Volume Sensor
-        self.events.emit(
-            DeviceEvents.UPDATE,
-            volume_sensor_id,
-            {
-                SensorAttributes.STATE: f"{volume} dB",
-                SensorAttributes.VALUE: volume,
-            }
-        )
-
-        # Mute Sensor
-        self.events.emit(
-            DeviceEvents.UPDATE,
-            mute_sensor_id,
-            {
-                SensorAttributes.STATE: "On" if muted else "Off",
-                SensorAttributes.VALUE: "On" if muted else "Off",
-            }
-        )
-
-        # Loudness Sensor
-        self.events.emit(
-            DeviceEvents.UPDATE,
-            loudness_sensor_id,
-            {
-                SensorAttributes.STATE: loudness_state,
-                SensorAttributes.VALUE: loudness_state.capitalize(),
-            }
-        )  
-
-        self.events.emit(
-            DeviceEvents.UPDATE,
-            dialnorm_sensor_id,
-            {
-                SensorAttributes.STATE: "On" if dialnorm_state else "Off",
-                SensorAttributes.VALUE: "On" if dialnorm_state else "Off",
-            }
-        )  
-
-        # PEQ Sensor
-        self.events.emit(
-            DeviceEvents.UPDATE,
-            peq_sensor_id,
-            {
-                 SensorAttributes.STATE: "On" if peq_state else "Off",
-                SensorAttributes.VALUE: "On" if peq_state else "Off",
-            }
-        )  
-
-        # Sound Mode Sensor
-        if sound_mode:
-            self.events.emit(
-                DeviceEvents.UPDATE,
-                sound_mode_sensor_id,
-                {
-                    SensorAttributes.STATE: sound_mode,
-                    SensorAttributes.VALUE: sound_mode_display_values.get(sound_mode, sound_mode),
-                }
-            )
-
-        # Audio Format Sensor
-        self.events.emit(
-            DeviceEvents.UPDATE,
-            audio_format_sensor_id,
-            {
-                SensorAttributes.STATE: audio_format,
-                SensorAttributes.VALUE: audio_format,
-            }
-        )
-
-         # Output Audio Format Sensor
-        self.events.emit(
-            DeviceEvents.UPDATE,
-            output_audio_format_sensor_id,
-            {
-                SensorAttributes.STATE: output_audio_format,
-                SensorAttributes.VALUE: output_audio_format,
-            }
-        )
-
-        # Current Dirac Slot Name Sensor
-        self.events.emit(
-            DeviceEvents.UPDATE,
-            current_dirac_slot_name_sensor_id,
-            {
-                SensorAttributes.STATE: current_dirac_slot_name,
-                SensorAttributes.VALUE: current_dirac_slot_name,
-            }
-        )
-
-        # Video Mode Sensor
-        self.events.emit(
-            DeviceEvents.UPDATE,
-            video_mode_sensor_id,
-            {
-                SensorAttributes.STATE: video_mode,
-                SensorAttributes.VALUE: video_mode,
-            }
-        )
-
-        # Connection Sensor
-        self.events.emit(
-            DeviceEvents.UPDATE,
-            connection_sensor_id,
-            {
-                SensorAttributes.STATE: "Connected",
-                SensorAttributes.VALUE: "connected",
-            }
-        )
-
-    def _emit_select_updates(self):
-        """Emit select entity updates."""
-        # Claibration select entity
-        calibration_entity_id  = f"select.{self.identifier}_calibration"
-        self.events.emit(
-            DeviceEvents.UPDATE,
-            calibration_entity_id,
-            {
-                "state": "ON",
-                "current_option": self.current_slot,
-                "options": self.slot_names,
-            }
-        )
-
-         # Input select entity
-        input_entity_id  = f"select.{self.identifier}_inputs"
-        self.events.emit(
-            DeviceEvents.UPDATE,
-            input_entity_id,
-            {
-                "state": "ON",
-                "current_option": self.current_source,
-                "options": self.input_names,
-            }
-        )
-
-        # Surround Mode select entity
-        surround_mode_entity_id  = f"select.{self.identifier}_surround_mode"
-
-        self.events.emit(
-            DeviceEvents.UPDATE,
-            surround_mode_entity_id,
-            {
-                "state": "ON",
-                "current_option": sound_mode_display_values.get(self.surround_mode, self.surround_mode),
-                "options": ["DIRECT", "DOLBY SURROUND", "DTS NEURAL:X", "AURO-3D", "NATIVE", "STEREO"]
-            }
-        )
-
-
     async def send_message(self, message: str) -> bool:
-        """Send message via WebSocket."""
         try:
             if self._ws and self.is_connected:
                 await self._ws.send(message)
-                _LOG.debug("[%s] Sent: %s", self.log_id, message)
+                _LOG.debug("[%s] Sent: %s", self.log_id, message[:200])
                 return True
             return False
         except Exception as err:
@@ -556,163 +303,122 @@ class HTP1Device(WebSocketDevice):
             return False
 
     async def _send_transaction(self, operations: list[dict[str, Any]]) -> bool:
-        """Send a transaction with multiple operations."""
         payload = json.dumps(operations, separators=(",", ":"))
         return await self.send_message(f"changemso {payload}")
 
     async def turn_on(self) -> bool:
-        """Turn on the receiver."""
         _LOG.info("[%s] Turning on", self.log_id)
         return await self._send_transaction([
             {"op": "replace", "path": "/powerIsOn", "value": True}
         ])
 
     async def turn_off(self) -> bool:
-        """Turn off the receiver."""
         _LOG.info("[%s] Turning off", self.log_id)
         return await self._send_transaction([
             {"op": "replace", "path": "/powerIsOn", "value": False}
         ])
 
     async def set_volume(self, volume: int) -> bool:
-        """Set volume level (in dB)."""
         _LOG.info("[%s] Setting volume to %d", self.log_id, volume)
         return await self._send_transaction([
             {"op": "replace", "path": "/volume", "value": volume}
         ])
 
     async def set_volume_level(self, level: float) -> bool:
-        """Set volume level (0..1) with safety protection against large jumps."""
         if not self._state or "cal" not in self._state:
             return False
 
-        cal = self._state["cal"]
-        vpl = cal.get("vpl", -80)
-        vph = cal.get("vph", 12)
-        span = vph - vpl
-
+        span = self.vph - self.vpl
         if span <= 0:
             return False
 
         level = max(0.0, min(1.0, level))
-        target_db = vpl + (level * span)
-        target_db = int(round(target_db))
-        target_db = max(int(vpl), min(int(vph), target_db))
+        target_db = int(round(self.vpl + (level * span)))
+        target_db = max(int(self.vpl), min(int(self.vph), target_db))
 
-        # Safety protection: prevent large volume jumps that could damage speakers
         current_volume = self._state.get("volume", 0)
         volume_delta = abs(target_db - current_volume)
-        max_safe_jump = 5  # Maximum safe volume change in dB
+        max_safe_jump = 5
 
         if volume_delta > max_safe_jump:
-            # Clamp to safe incremental change
             if target_db > current_volume:
-                clamped_db = current_volume + max_safe_jump
+                target_db = current_volume + max_safe_jump
             else:
-                clamped_db = current_volume - max_safe_jump
-
-            _LOG.warning(
-                "[%s] Volume jump protection: Requested change from %d dB to %d dB (%+d dB) exceeds safe limit. "
-                "Clamping to %d dB (%+d dB) to prevent speaker damage.",
-                self.log_id,
-                current_volume,
-                target_db,
-                target_db - current_volume,
-                clamped_db,
-                clamped_db - current_volume
-            )
-            target_db = clamped_db
+                target_db = current_volume - max_safe_jump
+            _LOG.warning("[%s] Volume jump clamped to %d dB", self.log_id, target_db)
 
         return await self.set_volume(target_db)
 
     async def volume_up(self) -> bool:
-        """Increase volume."""
         if not self._state:
             return False
         current = self._state.get("volume", 0)
         if current >= self.vph:
-            _LOG.info("[%s] Already at Max Volume %s", self.log_id, self)
-            return True # Already at or above max volume
+            return True
         return await self.set_volume(current + 1)
 
     async def volume_down(self) -> bool:
-        """Decrease volume."""
         if not self._state:
             return False
         current = self._state.get("volume", 0)
         limit = self.vpl - self.zp
-        if current - self.zp <= limit :
-            _LOG.info("[%s] Already at Min Volume %s", self.log_id, self)
-            return True  # Already at or below min volume
+        if current - self.zp <= limit:
+            return True
         return await self.set_volume(current - 1)
 
-    async def mute(self, muted: bool) -> bool:
-        """Set mute state."""
+    async def mute_toggle(self, muted: bool) -> bool:
         _LOG.info("[%s] Setting mute to %s", self.log_id, muted)
         return await self._send_transaction([
             {"op": "replace", "path": "/muted", "value": muted}
         ])
-    
-    async def dialnorm(self, dialnorm: bool) -> bool:
-        """Set dialnorm state."""
+
+    async def dialnorm_toggle(self, dialnorm: bool) -> bool:
         _LOG.info("[%s] Setting dialnorm to %s", self.log_id, dialnorm)
         return await self._send_transaction([
-            {"op": "replace", "path": "/dialnorm", "value": dialnorm    }
+            {"op": "replace", "path": "/dialnorm", "value": dialnorm}
         ])
 
     async def select_source(self, source: str) -> bool:
-        """Select input source."""
         _LOG.info("[%s] Selecting source: %s", self.log_id, source)
         if not self._state or "inputs" not in self._state:
             return False
-
-        # Find input ID by label
         for inp_id, inp_info in self._state["inputs"].items():
             if inp_info.get("label") == source:
                 return await self._send_transaction([
                     {"op": "replace", "path": "/input", "value": inp_id}
                 ])
-
         _LOG.warning("[%s] Source not found: %s", self.log_id, source)
         return False
 
     async def select_sound_mode(self, sound_mode: str) -> bool:
-        """Select sound mode (upmix)."""
         _LOG.info("[%s] Selecting sound mode: %s", self.log_id, sound_mode)
+        native = sound_mode_native_values.get(sound_mode, sound_mode)
         return await self._send_transaction([
-            {"op": "replace", "path": "/upmix/select", "value": sound_mode_native_values.get(sound_mode, sound_mode)}
+            {"op": "replace", "path": "/upmix/select", "value": native}
         ])
-    
+
     async def select_calibration(self, slot_name: str) -> bool:
-        """Select calibration slot."""
-        _LOG.info("[%s] Selecting sound mode: %s", self.log_id, slot_name)
+        _LOG.info("[%s] Selecting calibration: %s", self.log_id, slot_name)
+        if slot_name not in self.slot_names:
+            return False
         return await self._send_transaction([
             {"op": "replace", "path": "/cal/currentdiracslot", "value": self.slot_names.index(slot_name)}
         ])
-        
 
     async def send_command(self, command: str) -> bool:
-        """Send menu navigation command."""
         _LOG.info("[%s] Sending menu command: %s", self.log_id, command)
-
-        # Map commands to HTP-1 menu operations
-        # The HTP-1 uses a menu system accessible via the front panel
-        # Commands are sent as button presses
-        avcui_command_map = {
+        avcui_commands = {
             "send_avcui: hpe": "send_avcui: hpe",
             "send_avcui: dialnorm off": "send_avcui: dialnorm off",
             "send_avcui: dialnorm on": "send_avcui: dialnorm on",
         }
-
-        htp1_command = avcui_command_map.get(command)
+        htp1_command = avcui_commands.get(command)
         if not htp1_command:
-                _LOG.warning("[%s] Unknown menu command: %s", self.log_id, command)
-                return False
-        # Send as a simple command (HTP-1 might use different protocol for menu)
+            _LOG.warning("[%s] Unknown menu command: %s", self.log_id, command)
+            return False
         return await self.send_message(htp1_command)
 
     async def send_http_command(self, command: str) -> bool:
-        """Send HTTP IR command."""
         _LOG.info("[%s] Sending http command: %s", self.log_id, command)
         try:
             async with aiohttp.ClientSession() as session:
@@ -721,3 +427,105 @@ class HTP1Device(WebSocketDevice):
         except Exception as err:
             _LOG.error("[%s] HTTP command error: %s", self.log_id, err)
             return False
+
+    def _get_sub_channels(self) -> list[str]:
+        if not self._state:
+            return ["sub1"]
+        speakers = self._state.get("speakers", {}).get("groups", {})
+        subs = []
+        for key, val in speakers.items():
+            if key.startswith("sub") and isinstance(val, dict):
+                if val.get("present", False):
+                    subs.append(key)
+        return subs or ["sub1"]
+
+    def _find_empty_peq_slot(self, start_slot: int = BEQ_SLOT_START) -> int | None:
+        if not self._state:
+            return None
+        peq = self._state.get("peq", {})
+        slots = peq.get("slots", [])
+        sub_channels = self._get_sub_channels()
+        ch = sub_channels[0] if sub_channels else "sub1"
+        for i in range(start_slot, min(BEQ_SLOT_END + 1, len(slots))):
+            ch_data = slots[i].get("channels", {}).get(ch, {})
+            if ch_data.get("gaindB", 0) == 0 and not ch_data.get("beq"):
+                return i
+        return None
+
+    async def clear_beq(self) -> bool:
+        if not self._state:
+            return False
+        ops = []
+        peq = self._state.get("peq", {})
+        slots = peq.get("slots", [])
+        sub_channels = self._get_sub_channels()
+
+        for i in range(BEQ_SLOT_START, min(BEQ_SLOT_END + 1, len(slots))):
+            channels = slots[i].get("channels", {})
+            for ch in sub_channels:
+                ch_data = channels.get(ch, {})
+                if ch_data.get("beq"):
+                    ops.extend([
+                        {"op": "replace", "path": f"/peq/slots/{i}/channels/{ch}/Fc", "value": 100},
+                        {"op": "replace", "path": f"/peq/slots/{i}/channels/{ch}/gaindB", "value": 0},
+                        {"op": "replace", "path": f"/peq/slots/{i}/channels/{ch}/Q", "value": 1},
+                        {"op": "replace", "path": f"/peq/slots/{i}/channels/{ch}/FilterType", "value": 0},
+                        {"op": "remove", "path": f"/peq/slots/{i}/channels/{ch}/beq"},
+                    ])
+
+        if "beqActive" in peq:
+            ops.append({"op": "remove", "path": "/peq/beqActive"})
+
+        if ops:
+            success = await self._send_transaction(ops)
+            if success:
+                self.beq_active = ""
+                _LOG.info("[%s] BEQ cleared", self.log_id)
+            return success
+        self.beq_active = ""
+        return True
+
+    async def load_beq(self, title: str, filters: list[dict]) -> bool:
+        if not self._state:
+            return False
+
+        await self.clear_beq()
+
+        sub_channels = self._get_sub_channels()
+        if not sub_channels:
+            return False
+
+        ops = []
+        next_slot = BEQ_SLOT_START
+
+        for filt in filters:
+            slot_idx = self._find_empty_peq_slot(next_slot)
+            if slot_idx is None:
+                _LOG.warning("[%s] No empty PEQ slot for BEQ filter", self.log_id)
+                break
+
+            ft = FILTER_TYPE_MAP.get(filt.get("type", "PeakingEQ"), 0)
+            freq = filt.get("freq", 100)
+            gain = filt.get("gain", 0)
+            q = filt.get("q", 1)
+
+            for ch in sub_channels:
+                ops.extend([
+                    {"op": "replace", "path": f"/peq/slots/{slot_idx}/channels/{ch}/Fc", "value": freq},
+                    {"op": "replace", "path": f"/peq/slots/{slot_idx}/channels/{ch}/gaindB", "value": gain},
+                    {"op": "replace", "path": f"/peq/slots/{slot_idx}/channels/{ch}/Q", "value": q},
+                    {"op": "replace", "path": f"/peq/slots/{slot_idx}/channels/{ch}/FilterType", "value": ft},
+                    {"op": "add", "path": f"/peq/slots/{slot_idx}/channels/{ch}/beq", "value": True},
+                ])
+            next_slot = slot_idx + 1
+
+        ops.extend([
+            {"op": "add", "path": "/peq/beqActive", "value": title},
+            {"op": "replace", "path": "/peq/peqsw", "value": True},
+        ])
+
+        success = await self._send_transaction(ops)
+        if success:
+            self.beq_active = title
+            _LOG.info("[%s] BEQ loaded: %s (%d filters)", self.log_id, title, len(filters))
+        return success

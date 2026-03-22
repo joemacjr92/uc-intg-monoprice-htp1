@@ -53,6 +53,11 @@ jobs:
                 --hidden-import intg_${INTG_NAME}.device \
                 --hidden-import intg_${INTG_NAME}.config \
                 --hidden-import intg_${INTG_NAME}.media_player \
+                --hidden-import intg_${INTG_NAME}.remote \
+                --hidden-import intg_${INTG_NAME}.sensor \
+                --hidden-import intg_${INTG_NAME}.selector \
+                --hidden-import intg_${INTG_NAME}.browser \
+                --hidden-import intg_${INTG_NAME}.displayvalues \
                 --hidden-import intg_${INTG_NAME}.setup_flow \
                 --paths . \
                 intg_${INTG_NAME}/__init__.py"

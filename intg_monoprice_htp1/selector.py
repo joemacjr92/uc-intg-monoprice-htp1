@@ -1,145 +1,113 @@
+"""
+Monoprice HTP-1 Select entities.
 
+:copyright: (c) 2026 by Meir Miyara.
+:license: MPL-2.0, see LICENSE for more details.
+"""
+
+from __future__ import annotations
 
 import logging
-from typing import Any
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Any
 
 from ucapi import StatusCodes
-from ucapi.select import Attributes, Features, Select, States
+from ucapi.select import Attributes, Commands, States
+from ucapi_framework import SelectEntity
 
-from intg_monoprice_htp1.config import HTP1Config
-from intg_monoprice_htp1.device import HTP1Device
+if TYPE_CHECKING:
+    from intg_monoprice_htp1.config import HTP1Config
+    from intg_monoprice_htp1.device import HTP1Device
 
 _LOG = logging.getLogger(__name__)
 
-class HTP1CInputSelect(Select):
-    """Select entity for Input control."""
 
-    def __init__(self, device_config: HTP1Config, device: HTP1Device):
-        """Initialize select entity."""
-        self._device = device
-        self._device_config = device_config
+class HTP1Select(SelectEntity):
+    """Generic HTP-1 select entity using subscribe/sync_state pattern."""
 
-        entity_id = f"select.{device_config.identifier}_inputs"
-        entity_name = f"{device_config.name} Inputs"
-
-        attributes = {
-            Attributes.STATE: States.UNAVAILABLE,
-            Attributes.CURRENT_OPTION: "",
-            Attributes.OPTIONS: [""]
-        }
-
+    def __init__(
+        self,
+        entity_id: str,
+        name: str,
+        device: HTP1Device,
+        get_options_fn: Callable[[], list[str]],
+        get_current_fn: Callable[[], str],
+        command_fn: Callable[[str], Awaitable[bool]],
+    ):
         super().__init__(
             entity_id,
-            entity_name,
-            attributes,
-            cmd_handler=self.handle_command,
+            name,
+            {
+                Attributes.STATE: States.UNKNOWN,
+                Attributes.OPTIONS: [],
+                Attributes.CURRENT_OPTION: "",
+            },
+            cmd_handler=self._handle_command,
         )
-
-        _LOG.info("[%s] Input select entity initialized", self.id)
-
-    async def handle_command(
-        self, entity: Select, cmd_id: str, params: dict[str, Any] | None
-    ) -> StatusCodes:
-        """Handle select commands."""
-        _LOG.info("[%s] Command: %s %s", self.id, cmd_id, params or "")
-
-        try:
-            if cmd_id == "select_option" and params and "option" in params:
-                state = params["option"]
-                success = await self._device.select_source(state)
-                return StatusCodes.OK if success else StatusCodes.SERVER_ERROR
-
-            return StatusCodes.NOT_IMPLEMENTED
-
-        except Exception as err:
-            _LOG.error("[%s] Command error: %s", self.id, err)
-            return StatusCodes.SERVER_ERROR
- 
-
-class HTP1CalibrationSelect(Select):
-    """Select entity for Calibration control."""
-
-    def __init__(self, device_config: HTP1Config, device: HTP1Device):
-        """Initialize select entity."""
         self._device = device
-        self._device_config = device_config
+        self._get_options = get_options_fn
+        self._get_current = get_current_fn
+        self._command_fn = command_fn
+        self.subscribe_to_device(device)
 
-        entity_id = f"select.{device_config.identifier}_calibration"
-        entity_name = f"{device_config.name} Calibration"
+    async def sync_state(self):
+        if not self._device.is_connected:
+            self.update({Attributes.STATE: States.UNAVAILABLE})
+            return
+        self.update({
+            Attributes.STATE: States.ON,
+            Attributes.OPTIONS: self._get_options(),
+            Attributes.CURRENT_OPTION: self._get_current(),
+        })
 
-        attributes = {
-            Attributes.STATE: States.UNAVAILABLE,
-            Attributes.CURRENT_OPTION: "",
-            Attributes.OPTIONS: [""]
-        }
-
-        super().__init__(
-            entity_id,
-            entity_name,
-            attributes,
-            cmd_handler=self.handle_command,
-        )
-
-        _LOG.info("[%s] Calibration select entity initialized", self.id)
-
-    async def handle_command(
-        self, entity: Select, cmd_id: str, params: dict[str, Any] | None
+    async def _handle_command(
+        self, entity: Any, cmd_id: str, params: dict[str, Any] | None
     ) -> StatusCodes:
-        """Handle select commands."""
-        _LOG.info("[%s] Command: %s %s", self.id, cmd_id, params or "")
-
-        try:
-            if cmd_id == "select_option" and params and "option" in params:
-                state = params["option"]
-                success = await self._device.select_calibration(state)
-                return StatusCodes.OK if success else StatusCodes.SERVER_ERROR
-
+        if cmd_id != Commands.SELECT_OPTION:
             return StatusCodes.NOT_IMPLEMENTED
+        option = params.get("option") if params else None
+        if not option:
+            return StatusCodes.BAD_REQUEST
+        _LOG.info("[%s] Setting %s to: %s", self._device.log_id, self.name, option)
+        success = await self._command_fn(option)
+        return StatusCodes.OK if success else StatusCodes.SERVER_ERROR
 
-        except Exception as err:
-            _LOG.error("[%s] Command error: %s", self.id, err)
-            return StatusCodes.SERVER_ERROR
-        
-class HTP1SurroundModeSelect(Select):
-    """Select entity for Surround Mode control."""
 
-    def __init__(self, device_config: HTP1Config, device: HTP1Device):
-        """Initialize select entity."""
-        self._device = device
-        self._device_config = device_config
+def create_selects(config: HTP1Config, device: HTP1Device) -> list[HTP1Select]:
+    """Create select entities for HTP-1 device."""
+    from intg_monoprice_htp1.displayvalues import sound_mode_display_values
 
-        entity_id = f"select.{device_config.identifier}_surround_mode"
-        entity_name = f"{device_config.name} Surround Mode"
+    device_id = config.identifier
+    name = config.name
 
-        attributes = {
-            Attributes.STATE: States.UNAVAILABLE,
-            Attributes.CURRENT_OPTION: "",
-            Attributes.OPTIONS: ["DIRECT", "DOLBY SURROUND", "DTS NEURAL:X", "AURO-3D", "NATIVE", "STEREO"]
-        }
+    surround_options = list(sound_mode_display_values.values())
 
-        super().__init__(
-            entity_id,
-            entity_name,
-            attributes,
-            cmd_handler=self.handle_command,
-        )
+    entities = [
+        HTP1Select(
+            f"select.{device_id}.input",
+            f"{name} Input",
+            device,
+            lambda: device.source_list,
+            lambda: device.current_source,
+            lambda opt: device.select_source(opt),
+        ),
+        HTP1Select(
+            f"select.{device_id}.calibration",
+            f"{name} Calibration",
+            device,
+            lambda: device.slot_names,
+            lambda: device.dirac_slot_name,
+            lambda opt: device.select_calibration(opt),
+        ),
+        HTP1Select(
+            f"select.{device_id}.surround_mode",
+            f"{name} Surround Mode",
+            device,
+            lambda opts=surround_options: opts,
+            lambda: device.sound_mode_display,
+            lambda opt: device.select_sound_mode(opt),
+        ),
+    ]
 
-        _LOG.info("[%s] Surround Mode select entity initialized", self.id)
-
-    async def handle_command(
-        self, entity: Select, cmd_id: str, params: dict[str, Any] | None
-    ) -> StatusCodes:
-        """Handle select commands."""
-        _LOG.info("[%s] Command: %s %s", self.id, cmd_id, params or "")
-
-        try:
-            if cmd_id == "select_option" and params and "option" in params:
-                selection = params["option"]
-                success = await self._device.select_sound_mode(selection)
-                return StatusCodes.OK if success else StatusCodes.SERVER_ERROR
-
-            return StatusCodes.NOT_IMPLEMENTED
-
-        except Exception as err:
-            _LOG.error("[%s] Command error: %s", self.id, err)
-            return StatusCodes.SERVER_ERROR
+    _LOG.info("Created %d select entities for %s", len(entities), name)
+    return entities

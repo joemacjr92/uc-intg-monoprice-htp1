@@ -2,7 +2,8 @@ FROM python:3.11-slim-bullseye
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY ./lib ./lib
+COPY ./requirements.txt requirements.txt
 RUN pip3 install --no-cache-dir --upgrade -r requirements.txt
 
 RUN mkdir -p /config
@@ -17,7 +18,7 @@ ENV UC_CONFIG_HOME="/config"
 ENV PYTHONPATH=/app
 
 LABEL org.opencontainers.image.source=https://github.com/mase1981/uc-intg-monoprice-htp1
-LABEL org.opencontainers.image.description="Monoprice HTP-1 AV Receiver integration for Unfolded Circle Remote"
+LABEL org.opencontainers.image.description="Monoprice HTP-1 AV Processor integration for Unfolded Circle Remote"
 LABEL org.opencontainers.image.licenses=MPL-2.0
 
 CMD ["python3", "-u", "-m", "intg_monoprice_htp1"]

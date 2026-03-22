@@ -5,35 +5,13 @@ Monoprice HTP-1 driver for Unfolded Circle Remote.
 :license: MPL-2.0, see LICENSE for more details.
 """
 
-import logging
-from ucapi import Entity
 from ucapi_framework import BaseIntegrationDriver
 from intg_monoprice_htp1.config import HTP1Config
 from intg_monoprice_htp1.device import HTP1Device
 from intg_monoprice_htp1.media_player import HTP1MediaPlayer
 from intg_monoprice_htp1.remote import HTP1Remote
-from intg_monoprice_htp1.sensor import (
-    HTP1InputSensor,
-    HTP1VolumeSensor,
-    HTP1LoudnessSensor,
-    HTP1PEQSensor,
-    HTP1MutedSensor,
-    HTP1SoundModeSensor,
-    HTP1AudioFormatSensor,
-    HTP1OutputAudioFormatSensor,
-    HTP1CurrentDiracSlotNameSensor,
-    HTP1VideoModeSensor,
-    HTP1ConnectionSensor,
-    HTP1DialnormSensor
-)
-
-from intg_monoprice_htp1.selector import (
-    HTP1CInputSelect,
-    HTP1CalibrationSelect,
-    HTP1SurroundModeSelect,
-)
-
-_LOG = logging.getLogger(__name__)
+from intg_monoprice_htp1.sensor import create_sensors
+from intg_monoprice_htp1.selector import create_selects
 
 
 class HTP1Driver(BaseIntegrationDriver[HTP1Device, HTP1Config]):
@@ -45,46 +23,9 @@ class HTP1Driver(BaseIntegrationDriver[HTP1Device, HTP1Config]):
             entity_classes=[
                 HTP1MediaPlayer,
                 HTP1Remote,
-                HTP1InputSensor,
-                HTP1VolumeSensor,
-                HTP1LoudnessSensor,
-                HTP1PEQSensor,
-                HTP1DialnormSensor,
-                HTP1MutedSensor,
-                HTP1SoundModeSensor,
-                HTP1AudioFormatSensor,
-                HTP1OutputAudioFormatSensor,
-                HTP1CurrentDiracSlotNameSensor,
-                HTP1VideoModeSensor,
-                HTP1ConnectionSensor,
-                HTP1CInputSelect,
-                HTP1CalibrationSelect,
-                HTP1SurroundModeSelect,
+                lambda cfg, dev: create_sensors(cfg, dev),
+                lambda cfg, dev: create_selects(cfg, dev),
             ],
             driver_id="monoprice_htp1",
+            require_connection_before_registry=True,
         )
-
-    def create_entities(
-        self, device_config: HTP1Config, device: HTP1Device
-    ) -> list[Entity]:
-        """Create entity instances."""
-        _LOG.info("Creating entities for %s", device_config.name)
-        return [
-            HTP1MediaPlayer(device_config, device),
-            HTP1Remote(device_config, device),
-            HTP1InputSensor(device_config, device),
-            HTP1VolumeSensor(device_config, device),
-            HTP1LoudnessSensor(device_config, device),
-            HTP1PEQSensor(device_config, device),
-            HTP1DialnormSensor(device_config, device),
-            HTP1MutedSensor(device_config, device),
-            HTP1SoundModeSensor(device_config, device),
-            HTP1AudioFormatSensor(device_config, device),
-            HTP1OutputAudioFormatSensor(device_config, device),
-            HTP1CurrentDiracSlotNameSensor(device_config, device),
-            HTP1VideoModeSensor(device_config, device),
-            HTP1ConnectionSensor(device_config, device),
-            HTP1CInputSelect(device_config, device),
-            HTP1CalibrationSelect(device_config, device),
-            HTP1SurroundModeSelect(device_config, device),
-        ]

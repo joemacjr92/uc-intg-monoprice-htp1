@@ -5,268 +5,78 @@ Monoprice HTP-1 Sensor entities.
 :license: MPL-2.0, see LICENSE for more details.
 """
 
+from __future__ import annotations
+
 import logging
-from ucapi.sensor import Sensor, Attributes, DeviceClasses
-from intg_monoprice_htp1.config import HTP1Config
-from intg_monoprice_htp1.device import HTP1Device
+from typing import TYPE_CHECKING
+
+from ucapi.sensor import Attributes, DeviceClasses, Options, States
+from ucapi_framework import SensorEntity
+
+if TYPE_CHECKING:
+    from intg_monoprice_htp1.config import HTP1Config
+    from intg_monoprice_htp1.device import HTP1Device
 
 _LOG = logging.getLogger(__name__)
 
 
-class HTP1InputSensor(Sensor):
-    """Sensor for current input source."""
+class HTP1Sensor(SensorEntity):
+    """Generic HTP-1 sensor entity using subscribe/sync_state pattern."""
 
-    def __init__(self, device_config: HTP1Config, device: HTP1Device):
-        """Initialize the input sensor."""
-        self._device = device
-        self._device_config = device_config
-
-        entity_id = f"sensor.{device_config.identifier}_input"
-
+    def __init__(
+        self,
+        entity_id: str,
+        name: str,
+        device: HTP1Device,
+        sensor_key: str,
+        unit: str,
+    ):
         super().__init__(
             entity_id,
-            f"{device_config.name} Input",
-            [],  # No features
+            name,
+            [],
             {
-                Attributes.STATE: "Unknown",
-                Attributes.VALUE: None,
-                Attributes.UNIT: None,
-            },
-        )
-
-
-class HTP1VolumeSensor(Sensor):
-    """Sensor for current volume level in dB."""
-
-    def __init__(self, device_config: HTP1Config, device: HTP1Device):
-        """Initialize the volume sensor."""
-        self._device = device
-        self._device_config = device_config
-
-        entity_id = f"sensor.{device_config.identifier}_volume"
-
-        super().__init__(
-            entity_id,
-            f"{device_config.name} Volume",
-            [],  # No features
-            {
-                Attributes.STATE: "Unknown",
-                Attributes.VALUE: None,
-                Attributes.UNIT: "dB",
+                Attributes.STATE: States.UNKNOWN,
+                Attributes.VALUE: "",
             },
             device_class=DeviceClasses.CUSTOM,
+            options={Options.CUSTOM_UNIT: unit},
         )
-
-class HTP1MutedSensor(Sensor):
-    """Sensor for mute status."""
-
-    def __init__(self, device_config: HTP1Config, device: HTP1Device):
-        """Initialize the volume sensor."""
         self._device = device
-        self._device_config = device_config
+        self._sensor_key = sensor_key
+        self.subscribe_to_device(device)
 
-        entity_id = f"sensor.{device_config.identifier}_mute"
-
-        super().__init__(
-            entity_id,
-            f"{device_config.name} Mute",
-            [],  # No features
-            {
-                Attributes.STATE: "Unknown",
-                Attributes.VALUE: None,
-
-            },
-            device_class=DeviceClasses.CUSTOM,
-        )
-
-class HTP1LoudnessSensor(Sensor):
-    """Sensor for current loudness status."""
-
-    def __init__(self, device_config: HTP1Config, device: HTP1Device):
-        """Initialize the sound mode sensor."""
-        self._device = device
-        self._device_config = device_config
-
-        entity_id = f"sensor.{device_config.identifier}_loudness"
-
-        super().__init__(
-            entity_id,
-            f"{device_config.name} Loudness",
-            [],  # No features
-            {
-                Attributes.STATE: "Unknown",
-                Attributes.VALUE: None,
-                Attributes.UNIT: None,
-            },
-        )
-
-class HTP1PEQSensor(Sensor):
-    """Sensor for current PEQ status."""
-
-    def __init__(self, device_config: HTP1Config, device: HTP1Device):
-        """Initialize the PEQ sensor."""
-        self._device = device
-        self._device_config = device_config
-
-        entity_id = f"sensor.{device_config.identifier}_peq"
-
-        super().__init__(
-            entity_id,
-            f"{device_config.name} PEQ",
-            [],  # No features
-            {
-                Attributes.STATE: "Unknown",
-                Attributes.VALUE: None,
-                Attributes.UNIT: None,
-            },
-        )
-
-class HTP1DialnormSensor(Sensor):
-    """Sensor for current PEQ status."""
-
-    def __init__(self, device_config: HTP1Config, device: HTP1Device):
-        """Initialize the Dialnorm sensor."""
-        self._device = device
-        self._device_config = device_config
-
-        entity_id = f"sensor.{device_config.identifier}_dialnorm"
-
-        super().__init__(
-            entity_id,
-            f"{device_config.name} Dialnorm",
-            [],  # No features
-            {
-                Attributes.STATE: "Unknown",
-                Attributes.VALUE: None,
-                Attributes.UNIT: None,
-            },
-        )
-
-class HTP1SoundModeSensor(Sensor):
-    """Sensor for current sound mode (upmix)."""
-
-    def __init__(self, device_config: HTP1Config, device: HTP1Device):
-        """Initialize the sound mode sensor."""
-        self._device = device
-        self._device_config = device_config
-
-        entity_id = f"sensor.{device_config.identifier}_sound_mode"
-
-        super().__init__(
-            entity_id,
-            f"{device_config.name} Sound Mode",
-            [],  # No features
-            {
-                Attributes.STATE: "Unknown",
-                Attributes.VALUE: None,
-                Attributes.UNIT: None,
-            },
-        )
+    async def sync_state(self):
+        if not self._device.is_connected:
+            self.update({Attributes.STATE: States.UNAVAILABLE})
+            return
+        value = self._device.get_sensor_value(self._sensor_key) or "Unknown"
+        self.update({
+            Attributes.STATE: States.ON,
+            Attributes.VALUE: value,
+        })
 
 
-class HTP1AudioFormatSensor(Sensor):
-    """Sensor for current audio format."""
+def create_sensors(config: HTP1Config, device: HTP1Device) -> list[HTP1Sensor]:
+    """Create sensor entities for HTP-1 device."""
+    device_id = config.identifier
+    name = config.name
 
-    def __init__(self, device_config: HTP1Config, device: HTP1Device):
-        """Initialize the audio format sensor."""
-        self._device = device
-        self._device_config = device_config
+    sensors = [
+        HTP1Sensor(f"sensor.{device_id}.input", f"{name} Input", device, "input", "source"),
+        HTP1Sensor(f"sensor.{device_id}.volume", f"{name} Volume", device, "volume", "dB"),
+        HTP1Sensor(f"sensor.{device_id}.mute", f"{name} Mute", device, "mute", ""),
+        HTP1Sensor(f"sensor.{device_id}.loudness", f"{name} Loudness", device, "loudness", ""),
+        HTP1Sensor(f"sensor.{device_id}.peq", f"{name} PEQ", device, "peq", ""),
+        HTP1Sensor(f"sensor.{device_id}.dialnorm", f"{name} Dialnorm", device, "dialnorm", ""),
+        HTP1Sensor(f"sensor.{device_id}.sound_mode", f"{name} Sound Mode", device, "sound_mode", ""),
+        HTP1Sensor(f"sensor.{device_id}.audio_format", f"{name} Audio Format", device, "audio_format", ""),
+        HTP1Sensor(f"sensor.{device_id}.output_audio_format", f"{name} Output Audio Format", device, "output_audio_format", ""),
+        HTP1Sensor(f"sensor.{device_id}.dirac_slot", f"{name} Dirac Slot", device, "dirac_slot", ""),
+        HTP1Sensor(f"sensor.{device_id}.video_mode", f"{name} Video Mode", device, "video_mode", ""),
+        HTP1Sensor(f"sensor.{device_id}.connection", f"{name} Connection", device, "connection", ""),
+        HTP1Sensor(f"sensor.{device_id}.beq_active", f"{name} BEQ Filter", device, "beq_active", ""),
+    ]
 
-        entity_id = f"sensor.{device_config.identifier}_audio_format"
-
-        super().__init__(
-            entity_id,
-            f"{device_config.name} Audio Format",
-            [],  # No features
-            {
-                Attributes.STATE: "Unknown",
-                Attributes.VALUE: None,
-                Attributes.UNIT: None,
-            },
-        )
-
-class HTP1OutputAudioFormatSensor(Sensor):
-    """Sensor for current output audio format."""
-
-    def __init__(self, device_config: HTP1Config, device: HTP1Device):
-        """Initialize the output audio format sensor."""
-        self._device = device
-        self._device_config = device_config
-
-        entity_id = f"sensor.{device_config.identifier}_output_audio_format"
-
-        super().__init__(
-            entity_id,
-            f"{device_config.name} Output Audio Format",
-            [],  # No features
-            {
-                Attributes.STATE: "Unknown",
-                Attributes.VALUE: None,
-                Attributes.UNIT: None,
-            },
-        )
-
-class HTP1CurrentDiracSlotNameSensor(Sensor):
-    """Sensor for current output audio format."""
-
-    def __init__(self, device_config: HTP1Config, device: HTP1Device):
-        """Initialize the output audio format sensor."""
-        self._device = device
-        self._device_config = device_config
-
-        entity_id = f"sensor.{device_config.identifier}_current_dirac_slot_name"
-
-        super().__init__(
-            entity_id,
-            f"{device_config.name} Current Dirac Slot Name",
-            [],  # No features
-            {
-                Attributes.STATE: "Unknown",
-                Attributes.VALUE: None,
-                Attributes.UNIT: None,
-            },
-        )
-
-class HTP1VideoModeSensor(Sensor):
-    """Sensor for current video mode."""
-
-    def __init__(self, device_config: HTP1Config, device: HTP1Device):
-        """Initialize the video mode sensor."""
-        self._device = device
-        self._device_config = device_config
-
-        entity_id = f"sensor.{device_config.identifier}_video_mode"
-
-        super().__init__(
-            entity_id,
-            f"{device_config.name} Video Mode",
-            [],  # No features
-            {
-                Attributes.STATE: "Unknown",
-                Attributes.VALUE: None,
-                Attributes.UNIT: None,
-            },
-        )
-
-
-class HTP1ConnectionSensor(Sensor):
-    """Sensor for connection state."""
-
-    def __init__(self, device_config: HTP1Config, device: HTP1Device):
-        """Initialize the connection sensor."""
-        self._device = device
-        self._device_config = device_config
-
-        entity_id = f"sensor.{device_config.identifier}_connection"
-
-        super().__init__(
-            entity_id,
-            f"{device_config.name} Connection",
-            [],  # No features
-            {
-                Attributes.STATE: "Disconnected",
-                Attributes.VALUE: "disconnected",
-                Attributes.UNIT: None,
-            },
-            device_class=DeviceClasses.CUSTOM,
-        )
+    _LOG.info("Created %d sensor entities for %s", len(sensors), name)
+    return sensors
