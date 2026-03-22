@@ -63,7 +63,7 @@ def create_sensors(config: HTP1Config, device: HTP1Device) -> list[HTP1Sensor]:
     name = config.name
 
     sensors = [
-        HTP1Sensor(f"sensor.{device_id}.input", f"{name} Input", device, "input", "source"),
+        HTP1Sensor(f"sensor.{device_id}.input", f"{name} Input", device, "input", ""),
         HTP1Sensor(f"sensor.{device_id}.volume", f"{name} Volume", device, "volume", "dB"),
         HTP1Sensor(f"sensor.{device_id}.mute", f"{name} Mute", device, "mute", ""),
         HTP1Sensor(f"sensor.{device_id}.loudness", f"{name} Loudness", device, "loudness", ""),

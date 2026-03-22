@@ -277,7 +277,7 @@ class HTP1Device(WebSocketDevice):
 
         self._sensor_data = {
             "input": source,
-            "volume": f"{self.volume_db} dB",
+            "volume": f"{self.volume_db}",
             "mute": "On" if self.muted else "Off",
             "loudness": str(loudness_state).capitalize() if isinstance(loudness_state, str) else ("On" if loudness_state else "Off"),
             "peq": "On" if peq_sw else "Off",
