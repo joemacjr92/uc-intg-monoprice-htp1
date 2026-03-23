@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 import aiohttp
 
+from aiohttp.web_routedef import options
 from ucapi import StatusCodes
 from ucapi.api_definitions import (
     BrowseMediaItem,
@@ -82,14 +83,14 @@ def _entry_to_item(entry: dict) -> BrowseMediaItem:
     image_url = images[0] if images else ""
 
     return BrowseMediaItem(
-        title=title,
+        title=title+" " + author,
         media_class=MediaClass.TRACK,
         media_type="beq_entry",
         media_id=_build_beq_media_id(entry),
         can_play=True,
         can_browse=False,
         subtitle=subtitle,
-        image_url=image_url,
+        #image_url=image_url,
     )
 
 
@@ -104,7 +105,12 @@ async def browse(device: HTP1Device, options: BrowseOptions) -> BrowseResults | 
         return await _browse_categories()
 
     if media_type == "beq_category":
-        page = options.page if hasattr(options, "page") and options.page else 1
+        paging = options.paging
+        limit: int = int(
+        (paging.limit if paging and paging.limit else None)
+        or ITEMS_PER_PAGE
+    )
+        page: int = int((paging.page if paging and paging.page else None) or 1)
         return await _browse_category(media_id, page)
 
     return StatusCodes.NOT_FOUND
@@ -114,6 +120,13 @@ async def search(device: HTP1Device, options: SearchOptions) -> SearchResults | 
     query = options.query.lower().strip()
     if not query:
         return SearchResults(media=[], pagination=Pagination(page=1, limit=0, count=0))
+
+    paging = options.paging
+    limit: int = int(
+        (paging.limit if paging and paging.limit else None)
+        or ITEMS_PER_PAGE
+    )
+    page: int = int((paging.page if paging and paging.page else None) or 1)
 
     catalogue = await _fetch_beq_catalogue()
     results = []
@@ -126,7 +139,7 @@ async def search(device: HTP1Device, options: SearchOptions) -> SearchResults | 
 
     return SearchResults(
         media=results,
-        pagination=Pagination(page=1, limit=len(results), count=len(results)),
+        pagination=Pagination(page, limit=len(results), count=len(results)),
     )
 
 
