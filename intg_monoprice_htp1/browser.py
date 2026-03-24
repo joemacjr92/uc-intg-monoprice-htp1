@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
 _LOG = logging.getLogger(__name__)
 
-BEQ_DB_URL = "http://beqcatalogue.readthedocs.io/en/latest/database.json"
+BEQ_DB_URL = "https://beqcatalogue.readthedocs.io/en/latest/database.json"
 ITEMS_PER_PAGE = 50
 
 _beq_cache: list[dict] | None = None
@@ -43,7 +43,9 @@ async def _fetch_beq_catalogue() -> list[dict]:
 
     _LOG.info("Fetching BEQ catalogue from %s", BEQ_DB_URL)
     try:
-        async with aiohttp.ClientSession() as session:
+        # Bypass SSL Check
+        connector = aiohttp.TCPConnector(ssl=False) 
+        async with aiohttp.ClientSession(connector=connector) as session:
             async with session.get(BEQ_DB_URL, timeout=aiohttp.ClientTimeout(total=30)) as resp:
                 if resp.status != 200:
                     _LOG.error("BEQ catalogue fetch URL: %s", BEQ_DB_URL)
