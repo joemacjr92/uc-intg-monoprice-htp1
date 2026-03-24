@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
 _LOG = logging.getLogger(__name__)
 
-BEQ_DB_URL = "https://beqcatalogue.readthedocs.io/en/latest/database.json"
+BEQ_DB_URL = "http://beqcatalogue.readthedocs.io/en/latest/database.json"
 ITEMS_PER_PAGE = 50
 
 _beq_cache: list[dict] | None = None
