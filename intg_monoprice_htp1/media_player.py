@@ -163,7 +163,7 @@ class HTP1MediaPlayer(MediaPlayerEntity):
             beq_data = media_id[4:]
             try:
                 entry = json.loads(beq_data)
-                title = entry.get("title", "Unknown")
+                title = entry.get("underlying", "Unknown")
                 filters = entry.get("filters", [])
                 if not filters:
                     return StatusCodes.BAD_REQUEST

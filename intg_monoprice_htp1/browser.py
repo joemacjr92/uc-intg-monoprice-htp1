@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 import aiohttp
 
+from aiohttp.web_routedef import options
 from ucapi import StatusCodes
 from ucapi.api_definitions import (
     BrowseMediaItem,
@@ -42,9 +43,12 @@ async def _fetch_beq_catalogue() -> list[dict]:
 
     _LOG.info("Fetching BEQ catalogue from %s", BEQ_DB_URL)
     try:
-        async with aiohttp.ClientSession() as session:
+        # Bypass SSL Check
+        connector = aiohttp.TCPConnector(ssl=False) 
+        async with aiohttp.ClientSession(connector=connector) as session:
             async with session.get(BEQ_DB_URL, timeout=aiohttp.ClientTimeout(total=30)) as resp:
                 if resp.status != 200:
+                    _LOG.error("BEQ catalogue fetch URL: %s", BEQ_DB_URL)
                     _LOG.error("BEQ catalogue fetch failed: %d", resp.status)
                     return []
                 data = await resp.json(content_type=None)
@@ -60,6 +64,7 @@ async def _fetch_beq_catalogue() -> list[dict]:
 def _build_beq_media_id(entry: dict) -> str:
     compact = {
         "title": entry.get("title", "Unknown"),
+        "underlying": entry.get("underlying", ""),
         "filters": entry.get("filters", []),
     }
     for f in compact["filters"]:
@@ -75,21 +80,19 @@ def _entry_to_item(entry: dict) -> BrowseMediaItem:
     subtitle = f"{year}"
     if audio_types:
         subtitle += f" | {audio_types}"
-    if author:
-        subtitle += f" | by {author}"
 
     images = entry.get("images", [])
     image_url = images[0] if images else ""
 
     return BrowseMediaItem(
-        title=title,
+        title=title + " " + author + "\n" + audio_types,
         media_class=MediaClass.TRACK,
         media_type="beq_entry",
         media_id=_build_beq_media_id(entry),
         can_play=True,
         can_browse=False,
         subtitle=subtitle,
-        image_url=image_url,
+        #image_url=image_url,
     )
 
 
@@ -104,7 +107,12 @@ async def browse(device: HTP1Device, options: BrowseOptions) -> BrowseResults | 
         return await _browse_categories()
 
     if media_type == "beq_category":
-        page = options.page if hasattr(options, "page") and options.page else 1
+        paging = options.paging
+        limit: int = int(
+        (paging.limit if paging and paging.limit else None)
+        or ITEMS_PER_PAGE
+    )
+        page: int = int((paging.page if paging and paging.page else None) or 1)
         return await _browse_category(media_id, page)
 
     return StatusCodes.NOT_FOUND
@@ -115,18 +123,29 @@ async def search(device: HTP1Device, options: SearchOptions) -> SearchResults | 
     if not query:
         return SearchResults(media=[], pagination=Pagination(page=1, limit=0, count=0))
 
+    paging = options.paging
+    page =paging.page
+    limit: int = int(
+        (paging.limit if paging and paging.limit else None)
+        or ITEMS_PER_PAGE
+    )
+    #page: int = int((paging.page if paging and paging.page else None) or 1)
+
     catalogue = await _fetch_beq_catalogue()
+    start_index = (page - 1) * ITEMS_PER_PAGE
+    end_index = start_index + ITEMS_PER_PAGE
+
     results = []
     for entry in catalogue:
         title = entry.get("title", "").lower()
         if query in title:
             results.append(_entry_to_item(entry))
-            if len(results) >= ITEMS_PER_PAGE:
+            if len(results) >= end_index:
                 break
 
     return SearchResults(
-        media=results,
-        pagination=Pagination(page=1, limit=len(results), count=len(results)),
+        media=results[start_index:end_index],
+        pagination=Pagination(page, limit=len(results), count=len(results)),
     )
 
 
