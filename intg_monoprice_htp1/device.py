@@ -21,8 +21,14 @@ from intg_monoprice_htp1.displayvalues import sound_mode_display_values, sound_m
 _LOG = logging.getLogger(__name__)
 
 FILTER_TYPE_MAP = {"PeakingEQ": 0, "LowShelf": 1, "HighShelf": 2}
-BEQ_SLOT_START = 8
+BEQ_SLOT_START = 0
 BEQ_SLOT_END = 15
+
+def _num(v):
+        """Convert float to int when the value is a whole number (e.g. 10.0 -> 10)."""
+        if isinstance(v, float) and v == int(v):
+            return int(v)
+        return v
 
 
 class HTP1Device(WebSocketDevice):
@@ -427,6 +433,16 @@ class HTP1Device(WebSocketDevice):
         except Exception as err:
             _LOG.error("[%s] HTTP command error: %s", self.log_id, err)
             return False
+        
+    async def send_raw_ops(self, ops: list[dict]) -> bool:
+        """Send a list of raw JSON-Patch ops via changemso."""
+        if not ops:
+            return True
+        if not self._is_connected:
+            raise Exception("Not connected")
+        payload = json.dumps(ops, separators=(",", ":"))
+        await self._send_transaction(f"changemso {payload}")
+        return True
 
     def _get_sub_channels(self) -> list[str]:
         if not self._state:
@@ -444,25 +460,29 @@ class HTP1Device(WebSocketDevice):
             return None
         peq = self._state.get("peq", {})
         slots = peq.get("slots", [])
-        sub_channels = self._get_sub_channels()
-        ch = sub_channels[0] if sub_channels else "sub1"
-        for i in range(start_slot, min(BEQ_SLOT_END + 1, len(slots))):
-            ch_data = slots[i].get("channels", {}).get(ch, {})
-            if ch_data.get("gaindB", 0) == 0 and not ch_data.get("beq"):
-                return i
-        return None
+
+        all_subs = self._get_sub_channels() 
+
+        for ch in all_subs:
+            for i in range(start_slot, min(BEQ_SLOT_END + 1, len(slots))):
+                channels = slots[i].get("channels", {})
+                ch_data = channels.get(ch, {})
+                if ch_data.get("gaindB", 0) == 0 or  ch_data.get("beq"):
+                    return i
+            return None
 
     async def clear_beq(self) -> bool:
+        """Clear all BEQ-tagged filters from all PEQ slots on all sub channels."""
         if not self._state:
             return False
-        ops = []
+        ops: list[dict] = []
         peq = self._state.get("peq", {})
         slots = peq.get("slots", [])
-        sub_channels = self._get_sub_channels()
+        all_subs = ["sub1", "sub2", "sub3", "sub4", "sub5"]
 
-        for i in range(BEQ_SLOT_START, min(BEQ_SLOT_END + 1, len(slots))):
+        for i in range(min(16, len(slots))):
             channels = slots[i].get("channels", {})
-            for ch in sub_channels:
+            for ch in all_subs:
                 ch_data = channels.get(ch, {})
                 if ch_data.get("beq"):
                     ops.extend([
@@ -477,12 +497,7 @@ class HTP1Device(WebSocketDevice):
             ops.append({"op": "remove", "path": "/peq/beqActive"})
 
         if ops:
-            success = await self._send_transaction(ops)
-            if success:
-                self.beq_active = ""
-                _LOG.info("[%s] BEQ cleared", self.log_id)
-            return success
-        self.beq_active = ""
+            return await self._send_transaction(ops)
         return True
 
     async def load_beq(self, title: str, filters: list[dict]) -> bool:

@@ -61,6 +61,7 @@ async def _fetch_beq_catalogue() -> list[dict]:
 def _build_beq_media_id(entry: dict) -> str:
     compact = {
         "title": entry.get("title", "Unknown"),
+        "underlying": entry.get("underlying", ""),
         "filters": entry.get("filters", []),
     }
     for f in compact["filters"]:
@@ -76,14 +77,12 @@ def _entry_to_item(entry: dict) -> BrowseMediaItem:
     subtitle = f"{year}"
     if audio_types:
         subtitle += f" | {audio_types}"
-    if author:
-        subtitle += f" | by {author}"
 
     images = entry.get("images", [])
     image_url = images[0] if images else ""
 
     return BrowseMediaItem(
-        title=title+" " + author,
+        title=title + " " + author + "\n" + audio_types,
         media_class=MediaClass.TRACK,
         media_type="beq_entry",
         media_id=_build_beq_media_id(entry),
