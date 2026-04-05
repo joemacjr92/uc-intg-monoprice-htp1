@@ -7,7 +7,6 @@ Monoprice HTP-1 media browser for BEQ catalogue.
 
 from __future__ import annotations
 
-from ast import If
 import json
 import logging
 import time
