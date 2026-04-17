@@ -7,7 +7,6 @@ Monoprice HTP-1 Media Player entity.
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -168,17 +167,17 @@ class HTP1MediaPlayer(MediaPlayerEntity):
             return StatusCodes.OK if success else StatusCodes.SERVER_ERROR
 
         if media_id.startswith("beq:"):
-            beq_data = media_id[4:]
-            try:
-                entry = json.loads(beq_data)
-                title = entry.get("underlying", "Unknown")
-                filters = entry.get("filters", [])
-                if not filters:
-                    return StatusCodes.BAD_REQUEST
-                success = await self._device.load_beq(title, filters)
-                return StatusCodes.OK if success else StatusCodes.SERVER_ERROR
-            except (json.JSONDecodeError, KeyError) as err:
-                _LOG.error("[%s] Invalid BEQ data: %s", self.id, err)
+            from intg_monoprice_htp1.browser import get_beq_entry
+            key = media_id[4:]
+            entry = get_beq_entry(key)
+            if not entry:
+                _LOG.error("[%s] BEQ entry not found for key: %s", self.id, key)
                 return StatusCodes.BAD_REQUEST
+            title = entry.get("underlying", "Unknown")
+            filters = entry.get("filters", [])
+            if not filters:
+                return StatusCodes.BAD_REQUEST
+            success = await self._device.load_beq(title, filters)
+            return StatusCodes.OK if success else StatusCodes.SERVER_ERROR
 
         return StatusCodes.NOT_IMPLEMENTED

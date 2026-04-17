@@ -7,6 +7,7 @@ Monoprice HTP-1 media browser for BEQ catalogue.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import time
@@ -36,6 +37,7 @@ ITEMS_PER_PAGE = 50
 BEQ_CACHE_LIFE = 86400  # seconds
 _beq_cache: list[dict] | None = None
 _beq_cache_timestamp: int | None = None
+_beq_lookup: dict[str, dict] = {}
 
 
 async def _fetch_beq_catalogue() -> list[dict]:
@@ -68,6 +70,7 @@ async def _fetch_beq_catalogue() -> list[dict]:
 
 
 def _build_beq_media_id(entry: dict) -> str:
+    global _beq_lookup
     compact = {
         "title": entry.get("title", "Unknown"),
         "underlying": entry.get("underlying", ""),
@@ -75,7 +78,14 @@ def _build_beq_media_id(entry: dict) -> str:
     }
     for f in compact["filters"]:
         f.pop("biquads", None)
-    return "beq:" + json.dumps(compact, separators=(",", ":"))
+    key = hashlib.md5(json.dumps(compact, separators=(",", ":"), sort_keys=True).encode()).hexdigest()[:16]
+    media_id = f"beq:{key}"
+    _beq_lookup[key] = compact
+    return media_id
+
+
+def get_beq_entry(key: str) -> dict | None:
+    return _beq_lookup.get(key)
 
 
 def _entry_to_item(entry: dict) -> BrowseMediaItem:
@@ -87,19 +97,22 @@ def _entry_to_item(entry: dict) -> BrowseMediaItem:
     if audio_types:
         subtitle += f" | {audio_types}"
 
+    display_title = f"{title} {author}".strip()[:255]
+
     return BrowseMediaItem(
-        title=title + " " + author + "\n" + audio_types,
+        title=display_title,
         media_class=MediaClass.TRACK,
         media_type="beq_entry",
         media_id=_build_beq_media_id(entry),
         can_play=True,
         can_browse=False,
-        subtitle=subtitle,
+        subtitle=subtitle[:255] if subtitle else None,
     )
 
 async def clear_cache() -> bool:
-    global _beq_cache
+    global _beq_cache, _beq_lookup
     _beq_cache = None
+    _beq_lookup = {}
     return True
 
 
