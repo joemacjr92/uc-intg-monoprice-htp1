@@ -149,6 +149,7 @@ async def clear_cache() -> bool:
     _beq_cache = None
     _beq_cache_timestamp = None
     _beq_lookup = {}
+    await _wait_for_cache()
     return True
 
 
