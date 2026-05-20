@@ -300,7 +300,7 @@ async def _wait_for_cache() -> bool:
         return True
     if not _beq_fetching.locked():
         asyncio.create_task(prefetch_catalogue())
-        time.sleep(3)  # Give the fetch task a moment to start
+        time.sleep(2)
     return False
 
 
