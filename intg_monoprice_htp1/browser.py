@@ -149,6 +149,7 @@ async def clear_cache() -> bool:
     _beq_cache = None
     _beq_cache_timestamp = None
     _beq_lookup = {}
+    await _fetch_beq_catalogue()
     return True
 
 
@@ -299,6 +300,7 @@ async def _wait_for_cache() -> bool:
         return True
     if not _beq_fetching.locked():
         asyncio.create_task(prefetch_catalogue())
+        time.sleep(3)  # Give the fetch task a moment to start
     return False
 
 
