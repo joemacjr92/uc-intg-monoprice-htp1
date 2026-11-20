@@ -17,6 +17,8 @@ def test_static_entities_do_not_wait_for_receiver_connection():
     import asyncio
 
     async def check():
+        from intg_monoprice_htp1.driver import HTP1Driver
+
         driver = HTP1Driver()
         # ucapi-framework has no public accessor for this constructor option.
         assert driver._require_connection_before_registry is False
