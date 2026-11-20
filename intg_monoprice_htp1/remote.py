@@ -431,5 +431,9 @@ class HTP1Remote(RemoteEntity):
             success = await self._device.select_ss_preset(int(preset_num_str) - 1)
             return StatusCodes.OK if success else StatusCodes.SERVER_ERROR
 
+        if command not in SIMPLE_COMMANDS and command != "send_avcui: hpe":
+            _LOG.warning("[%s] Unsupported remote command: %s", self.id, command)
+            return StatusCodes.BAD_REQUEST
+
         success = await self._device.send_command(command)
         return StatusCodes.OK if success else StatusCodes.SERVER_ERROR
