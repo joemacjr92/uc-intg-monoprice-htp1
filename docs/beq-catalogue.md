@@ -10,6 +10,10 @@ The hosted layout is versioned:
 - `beq/<version>/index.json` contains browse/search metadata and compact integer category offsets.
 - `beq/<version>/entries/<id>.json` contains only the filter data needed to
   apply that selected BEQ.
+- `beq/filterless-entries.txt` and `beq/filterless-entries.json` are
+  downloadable reports of upstream records with no filters. These records are
+  excluded from the Remote browse/search index and are not published as entry
+  payloads, because they cannot be applied to the HTP-1.
 
 The integration verifies the index SHA-256 before using it and fetches an
 individual entry only when selected. It keeps a bounded 12-entry in-memory
