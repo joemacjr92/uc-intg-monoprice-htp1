@@ -10,6 +10,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import math
 import time
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any
@@ -138,8 +139,20 @@ async def get_beq_entry(key: str) -> dict[str, Any] | None:
         payload = await _get_json(url)
         if not isinstance(payload, dict) or not isinstance(payload.get("filters"), list):
             raise ValueError("invalid BEQ entry payload")
-        if not payload["filters"]:
-            raise ValueError("BEQ entry has no filters")
+        filters = payload["filters"]
+        if not filters or len(filters) > 16:
+            raise ValueError("BEQ entry filter count is outside the HTP-1's 1-16 slot range")
+        for item in filters:
+            if not isinstance(item, dict) or item.get("type") not in {
+                "PeakingEQ", "LowShelf", "HighShelf"
+            }:
+                raise ValueError("BEQ entry contains an unsupported filter type")
+            for field in ("freq", "gain", "q"):
+                value = item.get(field)
+                if not isinstance(value, (int, float)) or not math.isfinite(value):
+                    raise ValueError(f"BEQ entry contains an invalid {field}")
+            if item["freq"] <= 0 or item["q"] <= 0:
+                raise ValueError("BEQ entry frequency and Q must be positive")
         _entry_cache[key] = payload
         _entry_cache.move_to_end(key)
         while len(_entry_cache) > ENTRY_CACHE_MAX:
@@ -209,15 +222,17 @@ async def search(device: HTP1Device, options: SearchOptions) -> SearchResults | 
     paging = options.paging
     page = max(1, int(paging.page if paging and paging.page else 1))
     limit = max(1, min(1000, int(paging.limit if paging and paging.limit else ITEMS_PER_PAGE)))
-    matches = [
-        entry for entry in _index["entries"]
-        if query in entry.get("search_title", "")
-    ]
     start = (page - 1) * limit
-    items = [_entry_to_item(entry) for entry in matches[start:start + limit]]
+    items: list[SearchMediaItem] = []
+    total_matches = 0
+    for entry in _index["entries"]:
+        if query in entry.get("search_title", ""):
+            if start <= total_matches < start + limit:
+                items.append(_entry_to_item(entry))
+            total_matches += 1
     return SearchResults(
         media=items,
-        pagination=Pagination(page=page, limit=len(items), count=len(matches)),
+        pagination=Pagination(page=page, limit=len(items), count=total_matches),
     )
 
 
