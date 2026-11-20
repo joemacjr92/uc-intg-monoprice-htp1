@@ -384,6 +384,13 @@ def test_beq_operations_reject_malformed_nested_state_and_filter_payloads():
         assert await device.clear_beq()
         assert sent == []
 
+        device._state = {
+            "peq": {"location": "post", "slots": [{}], "beqActive": "Active"},
+            "speakers": {"groups": []},
+        }
+        assert not await device.clear_beq()
+        assert sent == []
+
         device._state = {"shaker": {}}
         assert not await device.load_beq("Invalid", [{"freq": "bad", "gain": 1, "q": 1}])
         assert not await device.load_beq("Invalid", [{"freq": 100, "gain": float("nan"), "q": 1}])
