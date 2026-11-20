@@ -280,7 +280,7 @@ def test_media_player_rejects_malformed_command_parameters():
 
 def test_remote_dispatches_direct_simple_commands_from_ui_and_button_mappings():
     import asyncio
-    from intg_monoprice_htp1.remote import HTP1Remote, HTTP_COMMANDS
+    from intg_monoprice_htp1.remote import HTP1Remote, HTTP_COMMANDS, SIMPLE_COMMANDS
     from ucapi import StatusCodes
 
     class Device:
@@ -301,6 +301,7 @@ def test_remote_dispatches_direct_simple_commands_from_ui_and_button_mappings():
             self.menu_commands.append(command)
             return True
 
+    assert "Mute Toggle" in SIMPLE_COMMANDS
     device = Device()
     remote = HTP1Remote.__new__(HTP1Remote)
     remote.id = "remote.test"
