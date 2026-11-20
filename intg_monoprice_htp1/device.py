@@ -444,7 +444,7 @@ class HTP1Device(WebSocketDevice):
 
     async def ss_mute_toggle(self, muted: bool) -> bool:
         _LOG.info("[%s] Setting seat shaker mute to %s", self.log_id, muted)
-        status = "on" if self.ss_mute == "off" else "off"
+        status = "on" if muted else "off"
         return await self._send_transaction([
             {"op": "replace", "path": "/shaker/mute", "value": status}
         ])
@@ -460,7 +460,7 @@ class HTP1Device(WebSocketDevice):
         if not self._state or "inputs" not in self._state:
             return False
         for inp_id, inp_info in self._state["inputs"].items():
-            if inp_info.get("label") == source:
+            if isinstance(inp_info, dict) and inp_info.get("label") == source:
                 return await self._send_transaction([
                     {"op": "replace", "path": "/input", "value": inp_id}
                 ])
@@ -469,14 +469,17 @@ class HTP1Device(WebSocketDevice):
 
     async def select_sound_mode(self, sound_mode: str) -> bool:
         _LOG.info("[%s] Selecting sound mode: %s", self.log_id, sound_mode)
-        native = sound_mode_native_values.get(sound_mode, sound_mode)
+        native = sound_mode_native_values.get(sound_mode)
+        if native is None:
+            _LOG.warning("[%s] Unsupported sound mode: %s", self.log_id, sound_mode)
+            return False
         return await self._send_transaction([
             {"op": "replace", "path": "/upmix/select", "value": native}
         ])
     
     async def select_ss_preset(self, preset_index: int) -> bool:
         _LOG.info("[%s] Selecting seat shaker preset: %d", self.log_id, preset_index)
-        if not self._state or "shaker" not in self._state:
+        if not self._state or "shaker" not in self._state or not 0 <= preset_index <= 5:
             return False
         return await self._send_transaction([
             {"op": "replace", "path": "/shaker/activePreset", "value": preset_index}
@@ -503,6 +506,13 @@ class HTP1Device(WebSocketDevice):
         return await self.send_message(htp1_command)
 
     async def send_http_command(self, command: str) -> bool:
+        if (
+            not isinstance(command, str)
+            or len(command) != 4
+            or any(char not in "0123456789abcdefABCDEF" for char in command)
+        ):
+            _LOG.warning("[%s] Rejecting invalid IR command code", self.log_id)
+            return False
         _LOG.info("[%s] Sending http command: %s", self.log_id, command)
         try:
             async with aiohttp.ClientSession() as session:
