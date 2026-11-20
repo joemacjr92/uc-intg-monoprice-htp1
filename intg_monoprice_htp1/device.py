@@ -9,6 +9,7 @@ import asyncio
 import json
 import logging
 import math
+import re
 from typing import Any
 
 import aiohttp
@@ -685,34 +686,59 @@ class HTP1Device(WebSocketDevice):
 
 def apply_json_patch(target: dict | list, op: str, path_str: str, value: Any = None) -> None:
     """Apply a single JSON patch operation to a target dictionary/list."""
-    if not path_str.startswith("/"):
-        return
-        
-    path = path_str[1:].split("/")
+    if not isinstance(target, (dict, list)) or not isinstance(path_str, str) or not path_str.startswith("/"):
+        raise ValueError("Invalid JSON patch target or path")
+    if op not in ("add", "remove", "replace"):
+        raise ValueError(f"Unsupported JSON patch operation: {op}")
+
+    raw_path = path_str[1:].split("/")
+    path = []
+    for segment in raw_path:
+        if re.search(r"~(?![01])", segment):
+            raise ValueError("Invalid JSON pointer escape")
+        path.append(segment.replace("~1", "/").replace("~0", "~"))
     final_key = path.pop()
 
     current = target
     for node in path:
         if isinstance(current, list):
-            node = int(node)
-        current = current[node]
+            if not node.isdecimal():
+                raise ValueError("Invalid JSON patch array index")
+            index = int(node)
+            if index >= len(current):
+                raise IndexError("JSON patch array index out of range")
+            current = current[index]
+        elif isinstance(current, dict):
+            current = current[node]
+        else:
+            raise TypeError("JSON patch path traverses a scalar value")
 
-    if op == "remove":
-        if isinstance(current, dict):
+    if isinstance(current, list):
+        if op == "add" and final_key == "-":
+            current.append(value)
+            return
+        if not final_key.isdecimal():
+            raise ValueError("Invalid JSON patch array index")
+        index = int(final_key)
+        if op == "add":
+            if index > len(current):
+                raise IndexError("JSON patch insertion index out of range")
+            current.insert(index, value)
+        elif index >= len(current):
+            raise IndexError("JSON patch array index out of range")
+        elif op == "remove":
+            del current[index]
+        else:
+            current[index] = value
+    elif isinstance(current, dict):
+        if op == "remove":
             current.pop(final_key, None)
-        elif isinstance(current, list):
-            del current[int(final_key)]
-    elif op == "add":
-        if isinstance(current, list):
-            if final_key == "-":
-                current.append(value)
-            else:
-                current.insert(int(final_key), value)
+        elif op == "replace":
+            if final_key not in current:
+                raise KeyError(final_key)
+            current[final_key] = value
         else:
             current[final_key] = value
-    elif op == "replace":
-        if isinstance(current, list):
-            current[int(final_key)] = value
-        else:
-            current[final_key] = value
+    else:
+        raise TypeError("JSON patch target is a scalar value")
 
