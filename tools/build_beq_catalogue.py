@@ -85,7 +85,7 @@ def build(source: Path, output: Path) -> dict[str, Any]:
     entries_dir.mkdir(parents=True, exist_ok=True)
 
     index_entries: list[dict[str, Any]] = []
-    categories: dict[str, list[str]] = defaultdict(list)
+    categories: dict[str, list[int]] = defaultdict(list)
     seen_ids: set[str] = set()
     for record in records:
         if not isinstance(record, dict):
@@ -95,19 +95,18 @@ def build(source: Path, output: Path) -> dict[str, Any]:
             raise ValueError(f"duplicate BEQ entry id: {item['id']}")
         seen_ids.add(item["id"])
         index_entries.append(item)
-        categories[item["content_type"]].append(item["id"])
+        categories[item["content_type"]].append(len(index_entries) - 1)
         (entries_dir / f"{item['id']}.json").write_bytes(_canonical(payload))
 
     index_entries.sort(key=lambda item: (item["title"].casefold(), item["id"]))
-    titles_by_id = {item["id"]: item["title"].casefold() for item in index_entries}
+    category_indexes: dict[str, list[int]] = defaultdict(list)
+    for entry_index, item in enumerate(index_entries):
+        category_indexes[item["content_type"]].append(entry_index)
     index = {
         "schema_version": SCHEMA_VERSION,
         "version": version,
         "entries": index_entries,
-        "categories": {
-            key: sorted(ids, key=titles_by_id.__getitem__)
-            for key, ids in sorted(categories.items())
-        },
+        "categories": dict(sorted(category_indexes.items())),
     }
     index_bytes = _canonical(index)
     (output / version / "index.json").write_bytes(index_bytes)
