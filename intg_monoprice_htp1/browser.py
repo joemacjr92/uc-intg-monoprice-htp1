@@ -300,7 +300,7 @@ async def search(device: HTP1Device, options: SearchOptions) -> SearchResults | 
             total_matches += 1
     return SearchResults(
         media=items,
-        pagination=Pagination(page=page, limit=len(items), count=total_matches),
+        pagination=Pagination(page=page, limit=limit, count=total_matches),
     )
 
 
@@ -376,5 +376,5 @@ async def _browse_category(
             media_type="beq_category", media_id=content_type,
             can_browse=True, can_search=True, items=items,
         ),
-        pagination=Pagination(page=page, limit=len(items), count=len(entry_indexes)),
+        pagination=Pagination(page=page, limit=limit, count=len(entry_indexes)),
     )
