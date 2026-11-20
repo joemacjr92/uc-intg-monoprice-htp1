@@ -51,6 +51,53 @@ async def _get_json(url: str) -> Any:
             return await response.json(content_type=None)
 
 
+def _validate_index(index: Any, version: str) -> None:
+    """Reject malformed index data before browse/search can consume it."""
+    if (
+        not isinstance(index, dict)
+        or index.get("schema_version") != 1
+        or index.get("version") != version
+        or not isinstance(index.get("entries"), list)
+        or not isinstance(index.get("categories"), dict)
+    ):
+        raise ValueError("invalid BEQ index")
+
+    entries = index["entries"]
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise ValueError("BEQ index contains a non-object entry")
+        entry_id = entry.get("id")
+        if (not isinstance(entry_id, str) or len(entry_id) != 16
+                or any(char not in "0123456789abcdef" for char in entry_id)):
+            raise ValueError("BEQ index contains an invalid entry ID")
+        if not isinstance(entry.get("title"), str) or not entry["title"].strip():
+            raise ValueError("BEQ index contains an invalid title")
+        if not isinstance(entry.get("author"), str) or not isinstance(entry.get("year"), str):
+            raise ValueError("BEQ index contains invalid author/year metadata")
+        audio_types = entry.get("audioTypes")
+        if not isinstance(audio_types, list) or any(
+            not isinstance(value, str) for value in audio_types
+        ):
+            raise ValueError("BEQ index contains invalid audio type metadata")
+
+    entry_count = len(entries)
+    categorized: set[int] = set()
+    for category, offsets in index["categories"].items():
+        if not isinstance(category, str) or not category:
+            raise ValueError("BEQ index contains an invalid category name")
+        if not isinstance(offsets, list):
+            raise ValueError("BEQ index contains invalid category offsets")
+        for offset in offsets:
+            # bool is a subclass of int, but is never a valid array offset.
+            if (isinstance(offset, bool) or not isinstance(offset, int)
+                    or offset < 0 or offset >= entry_count or offset in categorized):
+                raise ValueError("BEQ index contains an invalid or duplicate category offset")
+            categorized.add(offset)
+
+    if len(categorized) != entry_count:
+        raise ValueError("BEQ index categories do not cover every entry")
+
+
 async def _load_index() -> bool:
     """Load and validate the compact index, retaining a last-known-good copy."""
     global _index, _manifest, _index_loaded_at
@@ -66,45 +113,23 @@ async def _load_index() -> bool:
                 raise ValueError("unsupported BEQ manifest schema")
             version = manifest.get("version")
             index_path = manifest.get("index")
+            index_sha256 = manifest.get("index_sha256")
             if (not isinstance(version, str) or len(version) != 16
                     or any(char not in "0123456789abcdef" for char in version)
-                    or not isinstance(index_path, str)):
+                    or index_path != f"{version}/index.json"
+                    or not isinstance(index_sha256, str) or len(index_sha256) != 64
+                    or any(char not in "0123456789abcdef" for char in index_sha256)):
                 raise ValueError("invalid BEQ manifest")
-            if not index_path.startswith(version + "/") or ".." in index_path.split("/"):
-                raise ValueError("unsafe BEQ index path")
 
             async with aiohttp.ClientSession(timeout=REQUEST_TIMEOUT) as session:
                 async with session.get(CATALOGUE_BASE_URL + index_path) as response:
                     response.raise_for_status()
                     index_bytes = await response.read()
-            if hashlib.sha256(index_bytes).hexdigest() != manifest.get("index_sha256"):
+            if hashlib.sha256(index_bytes).hexdigest() != index_sha256:
                 raise ValueError("BEQ index checksum mismatch")
 
             index = json.loads(index_bytes)
-            if (
-                not isinstance(index, dict)
-                or index.get("schema_version") != 1
-                or index.get("version") != version
-                or not isinstance(index.get("entries"), list)
-                or not isinstance(index.get("categories"), dict)
-            ):
-                raise ValueError("invalid BEQ index")
-            if any(
-                not isinstance(entry, dict)
-                or not isinstance(entry.get("id"), str)
-                or len(entry["id"]) != 16
-                or any(char not in "0123456789abcdef" for char in entry["id"])
-                for entry in index["entries"]
-            ):
-                raise ValueError("BEQ index contains an invalid entry ID")
-            # Legacy media IDs intentionally collapse identical filter records
-            # even if catalogue metadata such as author differs.
-            entry_count = len(index["entries"])
-            if any(not isinstance(indexes, list) or any(
-                not isinstance(index_value, int) or index_value < 0 or index_value >= entry_count
-                for index_value in indexes
-            ) for indexes in index["categories"].values()):
-                raise ValueError("BEQ index contains invalid category offsets")
+            _validate_index(index, version)
 
             previous_version = _manifest.get("version") if _manifest else None
             _manifest, _index = manifest, index
