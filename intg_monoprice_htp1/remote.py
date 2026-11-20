@@ -332,22 +332,32 @@ class HTP1Remote(RemoteEntity):
                 return StatusCodes.OK if success else StatusCodes.SERVER_ERROR
             
             if cmd_id == Commands.SEND_CMD:
-                command = params.get("command", "") if params else ""
-                if not command:
+                command = params.get("command") if params else None
+                if not isinstance(command, str) or not command.strip():
                     return StatusCodes.BAD_REQUEST
-                repeat, delay = self._repeat_delay(params)
-                return await self._send_commands([command], repeat, delay)
+                repeat_delay = self._repeat_delay(params)
+                if repeat_delay is None:
+                    return StatusCodes.BAD_REQUEST
+                repeat, delay = repeat_delay
+                return await self._send_commands([command.strip()], repeat, delay)
 
             if cmd_id == Commands.SEND_CMD_SEQUENCE:
                 sequence = params.get("sequence") if params else None
                 if isinstance(sequence, str):
                     sequence = sequence.split(",")
-                if not isinstance(sequence, list):
+                if (
+                    not isinstance(sequence, list)
+                    or not sequence
+                    or any(not isinstance(command, str) for command in sequence)
+                ):
                     return StatusCodes.BAD_REQUEST
-                commands = [str(c).strip() for c in sequence if str(c).strip()]
-                if not commands:
+                commands = [command.strip() for command in sequence if command.strip()]
+                if not commands or len(commands) > 50:
                     return StatusCodes.BAD_REQUEST
-                repeat, delay = self._repeat_delay(params)
+                repeat_delay = self._repeat_delay(params)
+                if repeat_delay is None:
+                    return StatusCodes.BAD_REQUEST
+                repeat, delay = repeat_delay
                 return await self._send_commands(commands, repeat, delay)
 
             return StatusCodes.NOT_IMPLEMENTED
@@ -357,18 +367,21 @@ class HTP1Remote(RemoteEntity):
             return StatusCodes.SERVER_ERROR
 
     @staticmethod
-    def _repeat_delay(params: dict[str, Any] | None) -> tuple[int, float]:
-        """Return (repeat count, delay in seconds) from send_cmd params."""
+    def _repeat_delay(params: dict[str, Any] | None) -> tuple[int, float] | None:
+        """Validate repeat/delay and return (repeat count, delay in seconds)."""
         params = params or {}
-        try:
-            repeat = max(1, int(params.get("repeat", 1) or 1))
-        except (TypeError, ValueError):
-            repeat = 1
-        try:
-            delay = max(0, int(params.get("delay", 0) or 0)) / 1000.0
-        except (TypeError, ValueError):
-            delay = 0.0
-        return repeat, delay
+        repeat = params.get("repeat", 1)
+        delay_ms = params.get("delay", 0)
+        if (
+            isinstance(repeat, bool)
+            or not isinstance(repeat, int)
+            or not 1 <= repeat <= 20
+            or isinstance(delay_ms, bool)
+            or not isinstance(delay_ms, int)
+            or not 0 <= delay_ms <= 5000
+        ):
+            return None
+        return repeat, delay_ms / 1000.0
 
     async def _send_commands(
         self, commands: list[str], repeat: int, delay: float
