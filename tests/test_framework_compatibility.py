@@ -380,7 +380,7 @@ def test_beq_operations_reject_malformed_nested_state_and_filter_payloads():
         device._send_transaction = capture
         device._state = {"peq": {"slots": [None, {"channels": []}]}, "speakers": {"groups": []}}
         assert device._get_sub_channels() == ["sub1"]
-        assert device._find_empty_peq_slot(0, "sub1") == 0
+        assert device._find_empty_peq_slot(0, "sub1") is None
         assert await device.clear_beq()
         assert sent == []
 
@@ -440,5 +440,129 @@ def test_source_selection_handles_malformed_input_state():
         assert await device.select_source("HDMI 1")
         assert sent[-1][0]["value"] == "input1"
         assert not await device.select_source(123)
+
+    asyncio.run(exercise())
+
+
+
+def _make_peq_test_state(sub1_free, sub2_free, sub1_beq=(), sub2_beq=()):
+    slots = []
+    for index in range(16):
+        channels = {}
+        for channel, free, beq in (
+            ("sub1", sub1_free, sub1_beq),
+            ("sub2", sub2_free, sub2_beq),
+        ):
+            channels[channel] = {
+                "Fc": 100,
+                "gaindB": 0 if index in free else -5,
+                "Q": 1,
+                "FilterType": 0,
+            }
+            if index in beq:
+                channels[channel]["beq"] = True
+        slots.append({"channels": channels})
+    return {
+        "peq": {"location": "post", "peqsw": False, "slots": slots},
+        "speakers": {"groups": {
+            "sub1": {"present": True},
+            "sub2": {"present": True},
+        }},
+    }
+
+
+def test_beq_allocates_independently_per_subwoofer_and_replaces_in_one_transaction():
+    import asyncio
+    from intg_monoprice_htp1.config import HTP1Config
+    from intg_monoprice_htp1.device import HTP1Device
+
+    async def exercise():
+        device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
+        device._state = _make_peq_test_state(
+            sub1_free=(0, 1), sub2_free=(4, 5),
+            sub1_beq=(2,), sub2_beq=(6,),
+        )
+        sent = []
+
+        async def capture(operations):
+            sent.append(operations)
+            return True
+
+        device._send_transaction = capture
+        assert await device.load_beq("Test BEQ", [
+            {"type": "PeakingEQ", "freq": 30, "gain": 4, "q": 1},
+            {"type": "LowShelf", "freq": 40, "gain": 3, "q": 0.7},
+            {"type": "HighShelf", "freq": 60, "gain": -2, "q": 1.2},
+        ])
+
+        assert len(sent) == 1
+        operations = sent[0]
+        assert {"op": "remove", "path": "/peq/slots/2/channels/sub1/beq"} in operations
+        assert {"op": "remove", "path": "/peq/slots/6/channels/sub2/beq"} in operations
+        assert {"op": "replace", "path": "/peq/slots/0/channels/sub1/Fc", "value": 30} in operations
+        assert {"op": "replace", "path": "/peq/slots/4/channels/sub2/Fc", "value": 30} in operations
+        assert {"op": "replace", "path": "/peq/slots/1/channels/sub1/Fc", "value": 40} in operations
+        assert {"op": "replace", "path": "/peq/slots/5/channels/sub2/Fc", "value": 40} in operations
+        assert {"op": "replace", "path": "/peq/slots/2/channels/sub1/Fc", "value": 60} in operations
+        assert {"op": "replace", "path": "/peq/slots/6/channels/sub2/Fc", "value": 60} in operations
+        assert operations[-2] == {"op": "add", "path": "/peq/beqActive", "value": "Test BEQ"}
+        assert operations[-1] == {"op": "replace", "path": "/peq/peqsw", "value": True}
+
+    asyncio.run(exercise())
+
+
+def test_beq_capacity_failure_preserves_current_filter_without_sending():
+    import asyncio
+    from intg_monoprice_htp1.config import HTP1Config
+    from intg_monoprice_htp1.device import HTP1Device
+
+    async def exercise():
+        device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
+        device._state = _make_peq_test_state(
+            sub1_free=(0,), sub2_free=(0,), sub1_beq=(0,), sub2_beq=(0,),
+        )
+        sent = []
+
+        async def capture(operations):
+            sent.append(operations)
+            return True
+
+        device._send_transaction = capture
+        assert not await device.load_beq("Too Many", [
+            {"freq": 30, "gain": 4, "q": 1},
+            {"freq": 40, "gain": 3, "q": 1},
+        ])
+        assert sent == []
+
+    asyncio.run(exercise())
+
+
+def test_beq_rejects_filters_outside_htp1_peq_limits_and_more_than_16_bands():
+    import asyncio
+    from intg_monoprice_htp1.config import HTP1Config
+    from intg_monoprice_htp1.device import HTP1Device
+
+    async def exercise():
+        device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
+        device._state = _make_peq_test_state(sub1_free=range(16), sub2_free=range(16))
+        sent = []
+
+        async def capture(operations):
+            sent.append(operations)
+            return True
+
+        device._send_transaction = capture
+        invalid_filters = [
+            {"freq": 14.9, "gain": 0, "q": 1},
+            {"freq": 20001, "gain": 0, "q": 1},
+            {"freq": 100, "gain": -63.1, "q": 1},
+            {"freq": 100, "gain": 20.1, "q": 1},
+            {"freq": 100, "gain": 0, "q": 0.09},
+            {"freq": 100, "gain": 0, "q": 10.1},
+        ]
+        for filt in invalid_filters:
+            assert not await device.load_beq("Out of range", [filt])
+        assert not await device.load_beq("Too many", [{"freq": 100, "gain": 1, "q": 1}] * 17)
+        assert sent == []
 
     asyncio.run(exercise())
