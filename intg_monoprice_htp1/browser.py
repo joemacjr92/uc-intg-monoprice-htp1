@@ -230,13 +230,13 @@ async def get_beq_entry(key: str) -> dict[str, Any] | None:
 async def clear_cache() -> bool:
     """Clear index and payloads; next browse reloads the latest published version."""
     global _index, _manifest, _index_loaded_at
-    if _index_lock.locked():
-        _LOG.debug("BEQ index load in progress; cache clear deferred")
-        return False
-    _index = None
-    _manifest = None
-    _index_loaded_at = 0.0
-    _entry_cache.clear()
+    # Wait for an in-flight index refresh instead of reporting a spurious
+    # failure to the user's explicit Refresh Catalogue command.
+    async with _index_lock:
+        _index = None
+        _manifest = None
+        _index_loaded_at = 0.0
+        _entry_cache.clear()
     return True
 
 
