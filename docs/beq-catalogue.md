@@ -46,7 +46,7 @@ generated static files; Pages itself does not execute refresh logic.
 The manifest is published with the immutable versioned data in the same Pages
 deployment, so clients cannot combine an index and entry files from different
 catalogue versions. It includes counts and report paths for both filterless and
-HTP-1-incompatible entries. A failed fetch, validation, or transform prevents deployment.
+integration-unsupported entries. A failed fetch, validation, or transform prevents deployment.
 
 ## Upstream data and attribution
 
