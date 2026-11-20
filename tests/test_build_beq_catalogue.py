@@ -30,6 +30,9 @@ def test_build_writes_compact_index_and_on_demand_entries(tmp_path: Path):
     index = json.loads((output / manifest["index"]).read_text(encoding="utf-8"))
     assert index["categories"] == {"film": [0]}
     assert index["entries"][0]["title"] == "Example Film"
+    assert index["entries"][0]["author"] == "Author"
+    assert "content_type" not in index["entries"][0]
+    assert "search_title" not in index["entries"][0]
     legacy_id_material = {
         "title": "Example Film",
         "underlying": "Example Film (2024)",
@@ -79,6 +82,7 @@ def test_identical_filter_records_keep_legacy_duplicate_ids(tmp_path: Path):
     index = json.loads((output / manifest["index"]).read_text(encoding="utf-8"))
     assert manifest["entry_count"] == 2
     assert index["entries"][0]["id"] == index["entries"][1]["id"]
+    assert [item["author"] for item in index["entries"]] == ["Author A", "Author B"]
 
 
 
