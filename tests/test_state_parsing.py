@@ -1,11 +1,21 @@
 import asyncio
+import json
+
+import pytest
 
 from intg_monoprice_htp1.config import HTP1Config
 from intg_monoprice_htp1.device import HTP1Device
 
 
-def make_device():
-    return HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
+@pytest.fixture
+def device():
+    loop = asyncio.new_event_loop()
+    instance = HTP1Device(
+        HTP1Config("test", "Test HTP-1", "127.0.0.1"),
+        loop=loop,
+    )
+    yield instance
+    loop.close()
 
 
 def receiver_state(**overrides):
@@ -60,8 +70,7 @@ def receiver_state(**overrides):
     return state
 
 
-def test_parses_power_volume_mute_inputs_modes_and_audio_formats():
-    device = make_device()
+def test_parses_power_volume_mute_inputs_modes_and_audio_formats(device):
     device._state = receiver_state()
 
     device._parse_state()
@@ -91,8 +100,7 @@ def test_parses_power_volume_mute_inputs_modes_and_audio_formats():
     assert device.get_sensor_value("night_mode") == "Off"
 
 
-def test_dirac_slot_parsing_filters_invalid_slots_and_handles_modes():
-    device = make_device()
+def test_dirac_slot_parsing_filters_invalid_slots_and_handles_modes(device):
     state = receiver_state()
     device._state = state
 
@@ -115,8 +123,7 @@ def test_dirac_slot_parsing_filters_invalid_slots_and_handles_modes():
     assert device.dirac_slot_name == "Dirac Off"
 
 
-def test_seat_shaker_preset_trim_and_mute_parsing():
-    device = make_device()
+def test_seat_shaker_preset_trim_and_mute_parsing(device):
     device._state = receiver_state()
     device._parse_state()
 
@@ -128,11 +135,10 @@ def test_seat_shaker_preset_trim_and_mute_parsing():
     assert device.get_sensor_value("ss_trim") == "4"
 
 
-def test_mso_and_incremental_patch_update_power_volume_mute_and_input():
+def test_mso_and_incremental_patch_update_power_volume_mute_and_input(device):
     async def exercise():
-        device = make_device()
         device.push_update = lambda: None
-        await device.handle_message("mso " + __import__("json").dumps(receiver_state()))
+        await device.handle_message("mso " + json.dumps(receiver_state()))
         assert device.power is True
         assert device.volume_db == -14
         assert device.current_source == "Apple TV"
@@ -148,11 +154,10 @@ def test_mso_and_incremental_patch_update_power_volume_mute_and_input():
         assert device.volume_db == -20
         assert device.current_source == "Game"
 
-    asyncio.run(exercise())
+    device._loop.run_until_complete(exercise())
 
 
-def test_malformed_or_missing_state_sections_reset_to_safe_defaults():
-    device = make_device()
+def test_malformed_or_missing_state_sections_reset_to_safe_defaults(device):
     device._state = receiver_state()
     device._parse_state()
 
