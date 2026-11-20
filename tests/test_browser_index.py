@@ -123,6 +123,41 @@ def test_entry_cache_is_bounded_lru(monkeypatch):
     assert len(calls) == browser.ENTRY_CACHE_MAX + 1
 
 
+def test_entry_payload_validation_enforces_htp1_peq_ranges(monkeypatch):
+    import pytest
+
+    invalid_filters = [
+        {"type": "PeakingEQ", "freq": 14.9, "gain": 0, "q": 1},
+        {"type": "PeakingEQ", "freq": 20000.1, "gain": 0, "q": 1},
+        {"type": "PeakingEQ", "freq": 100, "gain": -63.1, "q": 1},
+        {"type": "PeakingEQ", "freq": 100, "gain": 20.1, "q": 1},
+        {"type": "PeakingEQ", "freq": 100, "gain": 0, "q": 0.09},
+        {"type": "PeakingEQ", "freq": 100, "gain": 0, "q": 10.1},
+    ]
+
+    async def exercise():
+        for filt in invalid_filters:
+            async def fetch(url, filt=filt):
+                return {"title": "Film", "underlying": "Film", "filters": [filt]}
+
+            monkeypatch.setattr(browser, "_get_json", fetch)
+            with pytest.raises(ValueError):
+                await browser._fetch_entry_payload("0123456789abcdef", "0000000000000001")
+
+        async def valid_fetch(url):
+            return {
+                "title": "Film",
+                "underlying": "Film",
+                "filters": [{"type": "PeakingEQ", "freq": 15, "gain": -63, "q": 0.1}],
+            }
+
+        monkeypatch.setattr(browser, "_get_json", valid_fetch)
+        payload = await browser._fetch_entry_payload("0123456789abcdef", "0000000000000001")
+        assert payload["filters"][0]["freq"] == 15
+
+    asyncio.run(exercise())
+
+
 def test_entry_fetch_retries_after_catalogue_version_changes(monkeypatch):
     import aiohttp
     from collections import OrderedDict
