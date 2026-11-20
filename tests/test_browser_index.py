@@ -8,14 +8,13 @@ from intg_monoprice_htp1 import browser
 def _seed_index(monkeypatch):
     entries = [
         {"id": f"{index:016x}", "title": title, "author": "", "year": "2024",
-         "audioTypes": [], "content_type": "film", "search_title": title.casefold()}
+         "audioTypes": []}
         for index, title in enumerate(["Alpha", "Alpine", "Beta"])
     ]
     monkeypatch.setattr(browser, "_index", {
         "entries": entries,
         "categories": {"film": [0, 1, 2]},
     })
-    monkeypatch.setattr(browser, "_entries_by_id", {entry["id"]: entry for entry in entries})
     monkeypatch.setattr(browser, "_manifest", {"version": "0123456789abcdef"})
     monkeypatch.setattr(browser, "_index_loaded_at", time.monotonic())
 
@@ -40,3 +39,19 @@ def test_category_browse_uses_precomputed_offsets_and_limit(monkeypatch):
     assert result.pagination.page == 2
     assert result.pagination.limit == 1
     assert result.pagination.count == 3
+
+
+def test_search_matches_original_title_not_author(monkeypatch):
+    _seed_index(monkeypatch)
+    browser._index["entries"][0]["author"] = "Preferred Author"
+    options = SimpleNamespace(query="preferred", paging=SimpleNamespace(page=1, limit=10))
+    result = asyncio.run(browser.search(None, options))
+    assert result.media == []
+
+
+def test_search_returns_author_in_display_title(monkeypatch):
+    _seed_index(monkeypatch)
+    browser._index["entries"][0]["author"] = "Preferred Author"
+    options = SimpleNamespace(query="alpha", paging=SimpleNamespace(page=1, limit=10))
+    result = asyncio.run(browser.search(None, options))
+    assert [item.title for item in result.media] == ["Alpha Preferred Author"]
