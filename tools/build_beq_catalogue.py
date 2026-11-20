@@ -56,6 +56,8 @@ def _compact_record(record: dict[str, Any]) -> tuple[dict[str, Any], dict[str, A
         filters.append(item)
 
     underlying = record.get("underlying") or ""
+    if not isinstance(underlying, str):
+        raise ValueError(f"record {title!r} has invalid underlying identifier")
     legacy_id_filters = [
         {key: value for key, value in raw_filter.items() if key != "biquads"}
         for raw_filter in raw_filters
