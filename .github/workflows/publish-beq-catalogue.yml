@@ -18,8 +18,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # The publisher workflow is also available from main, but its builder and
+      # catalogue source files live on the hosted-catalogue feature branch.
       - name: Checkout integration
         uses: actions/checkout@v4
+        with:
+          ref: perf/hosted-beq-catalogue
 
       - name: Set up Python
         uses: actions/setup-python@v5
