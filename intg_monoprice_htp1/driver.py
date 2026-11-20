@@ -29,5 +29,5 @@ class HTP1Driver(BaseIntegrationDriver[HTP1Device, HTP1Config]):
             driver_id="monoprice_htp1",
             # All HTP-1 entities are static; register them even when the receiver
             # is offline, then let the framework manage connection state.
-            require_connection_before_registry=False,
+            require_connection_before_registry=True,
         )
