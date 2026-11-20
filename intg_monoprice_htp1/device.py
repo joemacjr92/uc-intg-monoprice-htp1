@@ -184,6 +184,9 @@ class HTP1Device(WebSocketDevice):
             return
 
         if cmd == "mso":
+            if not isinstance(data, dict):
+                _LOG.error("[%s] Ignoring invalid full-state payload (%s)", self.log_id, type(data).__name__)
+                return
             self._state = data
             self._state_ready.set()
             _LOG.debug("[%s] Received full state", self.log_id)
@@ -199,10 +202,16 @@ class HTP1Device(WebSocketDevice):
                 data = [data]
 
             for piece in data:
+                if not isinstance(piece, dict):
+                    _LOG.warning("[%s] Ignoring invalid JSON patch entry (%s)", self.log_id, type(piece).__name__)
+                    continue
                 op = piece.get("op")
                 path_str = piece.get("path", "")
                 value = piece.get("value")
-                
+                if not isinstance(op, str) or not isinstance(path_str, str):
+                    _LOG.warning("[%s] Ignoring JSON patch with invalid operation/path: %s", self.log_id, piece)
+                    continue
+
                 try:
                     apply_json_patch(self._state, op, path_str, value)
                 except (KeyError, IndexError, TypeError, ValueError) as err:
