@@ -1,3 +1,4 @@
+import asyncio
 import json
 from pathlib import Path
 
@@ -71,22 +72,29 @@ def test_mso_and_msoupdate_messages_keep_beq_state_in_sync():
 
 
 def test_clear_beq_fixture_clears_only_beq_tagged_channels():
-    device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
-    device._state = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    loop = asyncio.new_event_loop()
+    try:
+        device = HTP1Device(
+            HTP1Config("test", "Test HTP-1", "127.0.0.1"),
+            loop=loop,
+        )
+        device._state = json.loads(FIXTURE.read_text(encoding="utf-8"))
 
-    operations = device._build_clear_beq_ops()
-    assert operations is not None
+        operations = device._build_clear_beq_ops()
+        assert operations is not None
 
-    removed_tags = {
-        operation["path"]
-        for operation in operations
-        if operation["op"] == "remove" and operation["path"].endswith("/beq")
-    }
-    assert removed_tags == {
-        "/peq/slots/0/channels/sub1/beq",
-        "/peq/slots/2/channels/sub1/beq",
-        "/peq/slots/3/channels/sub1/beq",
-    }
-    assert not any("/channels/sub2/" in path or "/channels/sub3/" in path
-                   for path in removed_tags)
-    assert operations[-1] == {"op": "remove", "path": "/peq/beqActive"}
+        removed_tags = {
+            operation["path"]
+            for operation in operations
+            if operation["op"] == "remove" and operation["path"].endswith("/beq")
+        }
+        assert removed_tags == {
+            "/peq/slots/0/channels/sub1/beq",
+            "/peq/slots/2/channels/sub1/beq",
+            "/peq/slots/3/channels/sub1/beq",
+        }
+        assert not any("/channels/sub2/" in path or "/channels/sub3/" in path
+                       for path in removed_tags)
+        assert operations[-1] == {"op": "remove", "path": "/peq/beqActive"}
+    finally:
+        loop.close()
