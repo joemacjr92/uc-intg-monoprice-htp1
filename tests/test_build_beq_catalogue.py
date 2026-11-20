@@ -36,6 +36,7 @@ def test_build_writes_compact_index_and_on_demand_entries(tmp_path: Path):
          f"{index['entries'][0]['id']}.json").read_text(encoding="utf-8")
     )
     assert payload["underlying"] == "Example Film (2024)"
+    assert "biquads" not in payload["filters"][0]
     assert payload["filters"] == [{
         "type": "PeakingEQ", "freq": 20, "gain": 4.5, "q": 1.2,
     }]
