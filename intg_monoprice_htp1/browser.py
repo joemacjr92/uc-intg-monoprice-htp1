@@ -270,16 +270,17 @@ async def _browse_category(
 ) -> BrowseResults | StatusCodes:
     if not await _load_index():
         return StatusCodes.SERVER_ERROR
-    ids = _index["categories"].get(content_type, [])
+    entry_indexes = _index["categories"].get(content_type, [])
     start = (page - 1) * limit
-    page_entries = (_entries_by_id[entry_id] for entry_id in ids[start:start + limit]
-                    if entry_id in _entries_by_id)
+    page_entries = (_index["entries"][entry_index]
+                    for entry_index in entry_indexes[start:start + limit])
     items = [_entry_to_item(entry) for entry in page_entries]
+
     return BrowseResults(
         media=BrowseMediaItem(
             title=content_type.title(), media_class=MediaClass.DIRECTORY,
             media_type="beq_category", media_id=content_type,
             can_browse=True, can_search=True, items=items,
         ),
-        pagination=Pagination(page=page, limit=len(items), count=len(ids)),
+        pagination=Pagination(page=page, limit=len(items), count=len(entry_indexes)),
     )
