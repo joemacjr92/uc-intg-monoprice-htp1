@@ -82,7 +82,7 @@ def test_identical_filter_records_keep_legacy_duplicate_ids(tmp_path: Path):
 
 
 
-def test_metadata_only_records_remain_browsable_but_not_playable(tmp_path: Path):
+def test_filterless_records_are_excluded_and_written_to_downloadable_report(tmp_path: Path):
     source = tmp_path / "source.json"
     output = tmp_path / "public"
     source.write_text(json.dumps([{
@@ -96,12 +96,16 @@ def test_metadata_only_records_remain_browsable_but_not_playable(tmp_path: Path)
 
     manifest = build(source, output)
     index = json.loads((output / manifest["index"]).read_text(encoding="utf-8"))
-    entry = index["entries"][0]
-    assert entry["title"] == "8mm"
-    assert entry["has_filters"] is False
+    assert manifest["entry_count"] == 0
+    assert manifest["filterless_count"] == 1
+    assert index["entries"] == []
+    assert index["categories"] == {}
 
-    payload = json.loads(
-        (output / manifest["version"] / "entries" / f"{entry['id']}.json")
-        .read_text(encoding="utf-8")
-    )
-    assert payload["filters"] == []
+    report = json.loads((output / "filterless-entries.json").read_text(encoding="utf-8"))
+    assert report["count"] == 1
+    assert report["entries"] == [{
+        "title": "8mm", "author": "", "year": "", "content_type": "film",
+    }]
+    text_report = (output / "filterless-entries.txt").read_text(encoding="utf-8")
+    assert "Excluded entries: 1" in text_report
+    assert "8mm [film]" in text_report
