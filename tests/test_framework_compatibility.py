@@ -478,7 +478,7 @@ def _make_peq_test_state(sub1_free, sub2_free, sub1_beq=(), sub2_beq=()):
     }
 
 
-def test_beq_uses_pre_dirac_lfe_channel_and_replaces_in_one_transaction():
+def test_beq_uses_all_active_subwoofer_channels_and_replaces_in_one_transaction():
     import asyncio
     from intg_monoprice_htp1.config import HTP1Config
     from intg_monoprice_htp1.device import HTP1Device
@@ -505,17 +505,14 @@ def test_beq_uses_pre_dirac_lfe_channel_and_replaces_in_one_transaction():
         assert len(sent) == 1
         operations = sent[0]
         assert {"op": "remove", "path": "/peq/slots/2/channels/sub1/beq"} in operations
-        # Remove legacy BEQ tags from per-subwoofer Post PEQ channels too,
-        # but never allocate the replacement BEQ there.
         assert {"op": "remove", "path": "/peq/slots/6/channels/sub2/beq"} in operations
-        assert {"op": "replace", "path": "/peq/slots/0/channels/sub1/Fc", "value": 30} in operations
-        assert {"op": "replace", "path": "/peq/slots/1/channels/sub1/Fc", "value": 40} in operations
-        assert {"op": "replace", "path": "/peq/slots/2/channels/sub1/Fc", "value": 60} in operations
-        assert not any(
-            "/channels/sub2/" in op.get("path", "")
-            and op.get("value") in (30, 40, 60)
-            for op in operations
-        )
+        for channel, slots in (("sub1", (0, 1, 2)), ("sub2", (4, 5, 6))):
+            for slot, freq in zip(slots, (30, 40, 60)):
+                assert {
+                    "op": "replace",
+                    "path": f"/peq/slots/{slot}/channels/{channel}/Fc",
+                    "value": freq,
+                } in operations
         assert operations[-2] == {"op": "add", "path": "/peq/beqActive", "value": "Test BEQ"}
         assert operations[-1] == {"op": "replace", "path": "/peq/peqsw", "value": True}
 
@@ -572,7 +569,7 @@ def test_beq_capacity_failure_preserves_current_filter_without_sending():
     asyncio.run(exercise())
 
 
-def test_beq_rejects_filters_outside_htp1_peq_limits_and_more_than_16_bands():
+def test_beq_clamps_imported_values_and_rejects_malformed_values_and_more_than_16_bands():
     import asyncio
     from intg_monoprice_htp1.config import HTP1Config
     from intg_monoprice_htp1.device import HTP1Device
@@ -587,18 +584,36 @@ def test_beq_rejects_filters_outside_htp1_peq_limits_and_more_than_16_bands():
             return True
 
         device._send_transaction = capture
-        invalid_filters = [
-            {"freq": 14.9, "gain": 0, "q": 1},
-            {"freq": 20001, "gain": 0, "q": 1},
-            {"freq": 100, "gain": -63.1, "q": 1},
-            {"freq": 100, "gain": 20.1, "q": 1},
-            {"freq": 100, "gain": 0, "q": 0.09},
-            {"freq": 100, "gain": 0, "q": 10.1},
+        malformed_filters = [
             {"type": [], "freq": 100, "gain": 0, "q": 1},
+            {"freq": True, "gain": 0, "q": 1},
             {"freq": 10**10000, "gain": 0, "q": 1},
         ]
-        for filt in invalid_filters:
-            assert not await device.load_beq("Out of range", [filt])
+        for filt in malformed_filters:
+            assert not await device.load_beq("Malformed", [filt])
+        assert sent == []
+
+        assert await device.load_beq("Normalized", [
+            {"type": "PeakingEQ", "freq": 9, "gain": 25.7, "q": 11},
+        ])
+        operations = sent.pop()
+        for channel in ("sub1", "sub2"):
+            assert {
+                "op": "replace",
+                "path": f"/peq/slots/0/channels/{channel}/Fc",
+                "value": 10,
+            } in operations
+            assert {
+                "op": "replace",
+                "path": f"/peq/slots/0/channels/{channel}/gaindB",
+                "value": 20,
+            } in operations
+            assert {
+                "op": "replace",
+                "path": f"/peq/slots/0/channels/{channel}/Q",
+                "value": 10,
+            } in operations
+
         assert not await device.load_beq("Too many", [{"freq": 100, "gain": 1, "q": 1}] * 17)
         assert sent == []
 
