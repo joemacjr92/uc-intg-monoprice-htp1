@@ -592,15 +592,15 @@ class HTP1Device(WebSocketDevice):
         if not self._state:
             return False
         ops: list[dict] = []
-        peq = self._state.get("peq", {})
-        slots = peq.get("slots", [])
+        peq = _as_dict(self._state.get("peq"))
+        slots = _as_list(peq.get("slots"))
         all_subs = self._get_sub_channels()
 
         for i in range(min(16, len(slots))):
-            channels = slots[i].get("channels", {})
+            channels = _as_dict(_as_dict(slots[i]).get("channels"))
             for ch in all_subs:
-                ch_data = channels.get(ch, {})
-                if ch_data.get("beq"):
+                ch_data = _as_dict(channels.get(ch))
+                if ch_data.get("beq") is True:
                     ops.extend([
                         {"op": "replace", "path": self._get_peq_path(i, ch, "Fc"), "value": 100},
                         {"op": "replace", "path": self._get_peq_path(i, ch, "gaindB"), "value": 0},
@@ -617,7 +617,24 @@ class HTP1Device(WebSocketDevice):
         return True
 
     async def load_beq(self, title: str, filters: list[dict]) -> bool:
-        if not self._state:
+        if not self._state or not isinstance(title, str) or not title:
+            return False
+        if not isinstance(filters, list) or not filters:
+            return False
+        if any(
+            not isinstance(filt, dict)
+            or filt.get("type", "PeakingEQ") not in FILTER_TYPE_MAP
+            or any(
+                isinstance(filt.get(key, default), bool)
+                or not isinstance(filt.get(key, default), (int, float))
+                or not math.isfinite(filt.get(key, default))
+                for key, default in (("freq", 100), ("gain", 0), ("q", 1))
+            )
+            or filt.get("freq", 100) <= 0
+            or filt.get("q", 1) <= 0
+            for filt in filters
+        ):
+            _LOG.warning("[%s] Rejecting malformed BEQ filter payload", self.log_id)
             return False
 
         sub_channels = self._get_sub_channels()
