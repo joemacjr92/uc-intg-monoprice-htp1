@@ -11,3 +11,14 @@ def test_pinned_ucapi_and_framework_imports():
     assert issubclass(HTP1Device, WebSocketDevice)
     assert issubclass(HTP1Driver, BaseIntegrationDriver)
     assert HTP1MediaPlayer is not None
+
+
+def test_static_entities_do_not_wait_for_receiver_connection():
+    import asyncio
+
+    async def check():
+        driver = HTP1Driver()
+        # ucapi-framework has no public accessor for this constructor option.
+        assert driver._require_connection_before_registry is False
+
+    asyncio.run(check())
