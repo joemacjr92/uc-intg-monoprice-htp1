@@ -297,36 +297,40 @@ class HTP1Device(WebSocketDevice):
                 self.current_source = label
 
     def _parse_audio_and_dirac(self) -> None:
-        audio_info = self._state.get("status", {})
-        codec = audio_info.get("DECSourceProgram", "")
-        channels = audio_info.get("DECProgramFormat", "")
+        state = _as_dict(self._state)
+        audio = _as_dict(state.get("status"))
+        codec = audio.get("DECSourceProgram", "")
+        channels = audio.get("DECProgramFormat", "")
+        codec = codec if isinstance(codec, str) else ""
+        channels = channels if isinstance(channels, str) else ""
         self.audio_format = f"{channels} {codec}".strip() if codec else (channels or "none")
-
-        output_codec = audio_info.get("SurroundMode", "")
-        output_channels = audio_info.get("ENCListeningFormat", "")
-        self.output_audio_format = f"{output_channels} {output_codec}".strip() if output_codec else output_channels
-
-        upmix = self._state.get("upmix", {})
-        self.surround_mode = upmix.get("select", "")
+        out_codec = audio.get("SurroundMode", "")
+        out_channels = audio.get("ENCListeningFormat", "")
+        out_codec = out_codec if isinstance(out_codec, str) else ""
+        out_channels = out_channels if isinstance(out_channels, str) else ""
+        self.output_audio_format = f"{out_channels} {out_codec}".strip() if out_codec else out_channels
+        upmix = _as_dict(state.get("upmix"))
+        selected = upmix.get("select", "")
+        self.surround_mode = selected if isinstance(selected, str) else ""
         self.sound_mode_display = sound_mode_display_values.get(self.surround_mode, self.surround_mode)
-
-        cal = self._state.get("cal", {})
+        cal = _as_dict(state.get("cal"))
         dirac_status = cal.get("diracactive", False)
         self.slot_names = []
         self._slot_index = {}
         self.dirac_slot_name = "Dirac Off"
-
-        slots = cal.get("slots", [])
+        slots = _as_list(cal.get("slots"))
         for idx, slot in enumerate(slots):
-            if isinstance(slot, dict) and slot.get("valid", False):
-                name = slot.get("name", "")
+            if not isinstance(slot, dict) or slot.get("valid") is not True:
+                continue
+            name = slot.get("name", "")
+            if isinstance(name, str) and name:
                 self.slot_names.append(name)
                 self._slot_index.setdefault(name, idx)
-
-        if dirac_status == "on":
-            slot_idx = cal.get("currentdiracslot", 0)
-            if slots and 0 <= slot_idx < len(slots):
-                self.dirac_slot_name = slots[slot_idx].get("name", "Unknown")
+        slot_idx = cal.get("currentdiracslot", 0)
+        if dirac_status == "on" and isinstance(slot_idx, int) and not isinstance(slot_idx, bool):
+            if 0 <= slot_idx < len(slots):
+                name = _as_dict(slots[slot_idx]).get("name", "Unknown")
+                self.dirac_slot_name = name if isinstance(name, str) else "Unknown"
         elif dirac_status == "bypass":
             self.dirac_slot_name = "Dirac Bypass"
 
