@@ -28,12 +28,18 @@ The hosted layout is versioned:
   The original filter values remain part of the legacy media-ID calculation.
   Malformed or non-finite source values still fail the build.
 
-BEQ application requires PEQ Pre placement. The integration applies the same
-  filter set to available zero-gain PEQ bands on every active subwoofer channel,
-  matching the HTP-1 Bass EQ page. Post placement is for speaker/output
-  correction and cannot be used for BEQ. Clearing BEQ resets only the bands
-  marked as BEQ; it does not restore their previous values, alter other PEQ
-  bands, or switch PEQ off.
+BEQ application requires PEQ Pre placement. Pre PEQ operates on the
+decoded LFE channel before bass management and Dirac Live, not on individual
+subwoofer speaker outputs. The integration therefore writes the BEQ filter set
+only to available zero-gain bands on the LFE PEQ channel. It does not duplicate
+the filters across physical subwoofer channels. Post placement is for
+speaker/output correction and cannot be used for BEQ.
+
+When clearing or replacing a BEQ, the integration resets only BEQ-marked bands;
+it does not restore their previous values, alter other PEQ bands, or switch PEQ
+off. Cleanup also recognizes legacy BEQ markers on subwoofer channels created
+by earlier integration versions, but new filters are never written to those
+channels.
 
 The integration verifies the index SHA-256 before using it and fetches an
 individual entry only when selected. It keeps a bounded 12-entry in-memory
