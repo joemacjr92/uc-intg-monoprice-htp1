@@ -24,3 +24,28 @@ def test_static_entities_do_not_wait_for_receiver_connection():
         assert driver._require_connection_before_registry is False
 
     asyncio.run(check())
+
+
+def test_connection_loss_clears_stale_state_and_notifies_entities():
+    import asyncio
+    from intg_monoprice_htp1.config import HTP1Config
+    from intg_monoprice_htp1.device import HTP1Device
+
+    async def exercise():
+        device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
+        device._is_connected = True
+        device._state = {"powerIsOn": True}
+        device._sensor_data = {"volume": "-20", "input": "HDMI 1"}
+        device._state_ready.set()
+        updates = []
+        device.push_update = lambda: updates.append(True)
+
+        device._on_connection_lost()
+
+        assert device.is_connected is False
+        assert device._state is None
+        assert device._sensor_data == {}
+        assert not device._state_ready.is_set()
+        assert updates == [True]
+
+    asyncio.run(exercise())
