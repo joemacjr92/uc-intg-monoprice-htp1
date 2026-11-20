@@ -125,8 +125,37 @@ async def _load_index() -> bool:
             return False
 
 
+async def _fetch_entry_payload(version: str, key: str) -> dict[str, Any]:
+    url = f"{CATALOGUE_BASE_URL}{version}/entries/{key}.json"
+    payload = await _get_json(url)
+    if not isinstance(payload, dict) or not isinstance(payload.get("filters"), list):
+        raise ValueError("invalid BEQ entry payload")
+    filters = payload["filters"]
+    if not filters or len(filters) > 16:
+        raise ValueError("BEQ entry filter count is outside the HTP-1's 1-16 slot range")
+    for item in filters:
+        if not isinstance(item, dict) or item.get("type") not in {
+            "PeakingEQ", "LowShelf", "HighShelf"
+        }:
+            raise ValueError("BEQ entry contains an unsupported filter type")
+        for field in ("freq", "gain", "q"):
+            value = item.get(field)
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"BEQ entry contains an invalid {field}")
+            try:
+                finite = math.isfinite(value)
+            except OverflowError:
+                finite = False
+            if not finite:
+                raise ValueError(f"BEQ entry contains a non-finite {field}")
+        if item["freq"] <= 0 or item["q"] <= 0:
+            raise ValueError("BEQ entry frequency and Q must be positive")
+    return payload
+
+
 async def get_beq_entry(key: str) -> dict[str, Any] | None:
-    """Fetch a selected BEQ's filter payload; cache at most ENTRY_CACHE_MAX."""
+    """Fetch a selected payload, retrying once if a Pages deployment changed."""
+    global _index_loaded_at
     if not await _load_index() or _manifest is None or key not in _entries_by_id:
         return None
     if key in _entry_cache:
@@ -134,35 +163,38 @@ async def get_beq_entry(key: str) -> dict[str, Any] | None:
         return _entry_cache[key]
 
     version = _manifest["version"]
-    url = f"{CATALOGUE_BASE_URL}{version}/entries/{key}.json"
     try:
-        payload = await _get_json(url)
-        if not isinstance(payload, dict) or not isinstance(payload.get("filters"), list):
-            raise ValueError("invalid BEQ entry payload")
-        filters = payload["filters"]
-        if not filters or len(filters) > 16:
-            raise ValueError("BEQ entry filter count is outside the HTP-1's 1-16 slot range")
-        for item in filters:
-            if not isinstance(item, dict) or item.get("type") not in {
-                "PeakingEQ", "LowShelf", "HighShelf"
-            }:
-                raise ValueError("BEQ entry contains an unsupported filter type")
-            for field in ("freq", "gain", "q"):
-                value = item.get(field)
-                if not isinstance(value, (int, float)) or not math.isfinite(value):
-                    raise ValueError(f"BEQ entry contains an invalid {field}")
-            if item["freq"] <= 0 or item["q"] <= 0:
-                raise ValueError("BEQ entry frequency and Q must be positive")
-        _entry_cache[key] = payload
-        _entry_cache.move_to_end(key)
-        while len(_entry_cache) > ENTRY_CACHE_MAX:
-            _entry_cache.popitem(last=False)
-        return payload
+        payload = await _fetch_entry_payload(version, key)
+    except aiohttp.ClientResponseError as err:
+        if err.status != 404:
+            _LOG.error("Unable to load BEQ entry %s: %s", key, err)
+            return None
+        # A Pages deployment may replace the previous version while an old
+        # browse result is still open. Refresh and retry if this ID survived.
+        _index_loaded_at = 0.0
+        if not await _load_index() or _manifest is None or _manifest["version"] == version:
+            return None
+        if key not in _entries_by_id:
+            _LOG.info("BEQ entry %s changed during catalogue refresh; browse again", key)
+            return None
+        try:
+            payload = await _fetch_entry_payload(_manifest["version"], key)
+        except asyncio.CancelledError:
+            raise
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError, json.JSONDecodeError) as retry_err:
+            _LOG.error("Unable to load BEQ entry %s after catalogue refresh: %s", key, retry_err)
+            return None
     except asyncio.CancelledError:
         raise
     except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError, json.JSONDecodeError) as err:
         _LOG.error("Unable to load BEQ entry %s: %s", key, err)
         return None
+
+    _entry_cache[key] = payload
+    _entry_cache.move_to_end(key)
+    while len(_entry_cache) > ENTRY_CACHE_MAX:
+        _entry_cache.popitem(last=False)
+    return payload
 
 
 async def clear_cache() -> bool:
