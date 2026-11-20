@@ -417,3 +417,28 @@ def test_json_patch_validates_operations_paths_and_array_bounds():
 
     with pytest.raises(KeyError):
         apply_json_patch(state, "replace", "/missing", True)
+
+
+
+def test_source_selection_handles_malformed_input_state():
+    import asyncio
+    from intg_monoprice_htp1.config import HTP1Config
+    from intg_monoprice_htp1.device import HTP1Device
+
+    async def exercise():
+        device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
+        sent = []
+
+        async def capture(operations):
+            sent.append(operations)
+            return True
+
+        device._send_transaction = capture
+        device._state = {"inputs": []}
+        assert not await device.select_source("HDMI 1")
+        device._state = {"inputs": {"input1": {"label": "HDMI 1"}}}
+        assert await device.select_source("HDMI 1")
+        assert sent[-1][0]["value"] == "input1"
+        assert not await device.select_source(123)
+
+    asyncio.run(exercise())
