@@ -553,25 +553,21 @@ class HTP1Device(WebSocketDevice):
             return False
 
     def _get_sub_channels(self) -> list[str]:
-        """Return the PEQ channels used by the current placement.
+        """Return every active subwoofer PEQ channel.
 
-        Pre-Dirac PEQ is upstream of bass management, so the HTP-1 exposes
-        the shared LFE signal through sub1. Post-Dirac PEQ is per output
-        subwoofer, although BEQ itself is only valid in Pre placement.
+        The HTP-1 Bass EQ feature writes the filter to the available zero-gain
+        PEQ bands on each active subwoofer channel. BEQ itself is only allowed
+        while PEQ placement is Pre.
         """
         if not self._state:
             return []
 
-        peq_location = _as_dict(self._state.get("peq")).get("location", "")
-        if peq_location == "pre":
-            return ["sub1"]
-
         speakers = _as_dict(_as_dict(self._state.get("speakers")).get("groups"))
-        return [
+        return sorted(
             key for key, value in speakers.items()
             if isinstance(key, str) and key.startswith("sub")
             and isinstance(value, dict) and value.get("present") is True
-        ]
+        )
 
     def _find_empty_peq_slot(self, start_slot: int = BEQ_SLOT_START, ch: str | None = None) -> int | None:
         """Find a reusable band with a complete PEQ record for this channel."""
@@ -620,8 +616,6 @@ class HTP1Device(WebSocketDevice):
             if isinstance(key, str) and key.startswith("sub")
             and isinstance(value, dict) and value.get("present") is True
         )
-        if _as_dict(_as_dict(self._state).get("peq")).get("location") == "pre":
-            channels.add("sub1")
         return sorted(channels)
 
     def _build_clear_beq_ops(self) -> list[dict[str, Any]] | None:
@@ -680,7 +674,9 @@ class HTP1Device(WebSocketDevice):
         if not isinstance(filters, list) or not 1 <= len(filters) <= BEQ_SLOT_END + 1:
             return False
 
-        # HTP-1 PEQ supports 15–20,000 Hz, -63–20 dB and Q 0.1–10.
+        # Match the HTP-1 BEQ application path: normalize numeric values to
+        # the processor limits rather than rejecting imported catalogue data.
+        normalized_filters: list[dict[str, Any]] = []
         for filt in filters:
             if not isinstance(filt, dict):
                 return False
@@ -695,12 +691,12 @@ class HTP1Device(WebSocketDevice):
                 for value in values.values()
             ):
                 return False
-            if not 15 <= values["freq"] <= 20000:
-                return False
-            if not -63 <= values["gain"] <= 20:
-                return False
-            if not 0.1 <= values["q"] <= 10:
-                return False
+            normalized_filters.append({
+                "type": filter_type,
+                "freq": min(max(values["freq"], 10), 20000),
+                "gain": min(max(values["gain"], -99), 20),
+                "q": min(max(values["q"], 0.1), 10),
+            })
 
         peq = self._state.get("peq")
         if (
@@ -718,11 +714,10 @@ class HTP1Device(WebSocketDevice):
         if not sub_channels or any(not isinstance(channel, str) for channel in sub_channels):
             return False
 
-        # Pre placement exposes one shared LFE PEQ channel (sub1), before
-        # bass management distributes the signal to physical subwoofers.
+        # Apply the same BEQ curve to every active subwoofer channel.
         next_slot = {channel: BEQ_SLOT_START for channel in sub_channels}
         filter_ops: list[dict[str, Any]] = []
-        for filt in filters:
+        for filt in normalized_filters:
             for channel in sub_channels:
                 slot_idx = self._find_empty_peq_slot(next_slot[channel], channel)
                 if slot_idx is None:
@@ -733,9 +728,9 @@ class HTP1Device(WebSocketDevice):
                     return False
 
                 filter_ops.extend([
-                    {"op": "replace", "path": self._get_peq_path(slot_idx, channel, "Fc"), "value": filt.get("freq", 100)},
-                    {"op": "replace", "path": self._get_peq_path(slot_idx, channel, "gaindB"), "value": filt.get("gain", 0)},
-                    {"op": "replace", "path": self._get_peq_path(slot_idx, channel, "Q"), "value": filt.get("q", 1)},
+                    {"op": "replace", "path": self._get_peq_path(slot_idx, channel, "Fc"), "value": filt["freq"]},
+                    {"op": "replace", "path": self._get_peq_path(slot_idx, channel, "gaindB"), "value": filt["gain"]},
+                    {"op": "replace", "path": self._get_peq_path(slot_idx, channel, "Q"), "value": filt["q"]},
                     {"op": "replace", "path": self._get_peq_path(slot_idx, channel, "FilterType"), "value": FILTER_TYPE_MAP[filt.get("type", "PeakingEQ")]},
                     {"op": "add", "path": self._get_peq_path(slot_idx, channel, "beq"), "value": True},
                 ])
