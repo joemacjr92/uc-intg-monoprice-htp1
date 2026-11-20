@@ -498,10 +498,17 @@ def test_beq_uses_pre_dirac_lfe_channel_and_replaces_in_one_transaction():
         assert len(sent) == 1
         operations = sent[0]
         assert {"op": "remove", "path": "/peq/slots/2/channels/sub1/beq"} in operations
+        # Remove legacy BEQ tags from per-subwoofer Post PEQ channels too,
+        # but never allocate the replacement BEQ there.
+        assert {"op": "remove", "path": "/peq/slots/6/channels/sub2/beq"} in operations
         assert {"op": "replace", "path": "/peq/slots/0/channels/sub1/Fc", "value": 30} in operations
         assert {"op": "replace", "path": "/peq/slots/1/channels/sub1/Fc", "value": 40} in operations
         assert {"op": "replace", "path": "/peq/slots/2/channels/sub1/Fc", "value": 60} in operations
-        assert not any("/channels/sub2/" in op.get("path", "") for op in operations)
+        assert not any(
+            "/channels/sub2/" in op.get("path", "")
+            and op.get("op") == "replace"
+            for op in operations
+        )
         assert operations[-2] == {"op": "add", "path": "/peq/beqActive", "value": "Test BEQ"}
         assert operations[-1] == {"op": "replace", "path": "/peq/peqsw", "value": True}
 
