@@ -156,3 +156,50 @@ def test_remote_rejects_unadvertised_commands_as_bad_request():
 
     import asyncio
     asyncio.run(exercise())
+
+
+
+def test_select_commands_validate_advertised_options_and_connection():
+    import asyncio
+    from intg_monoprice_htp1.selector import HTP1Select
+    from ucapi import StatusCodes
+    from ucapi.select import Commands
+
+    class Device:
+        log_id = "test"
+        is_connected = True
+
+    device = Device()
+    calls = []
+
+    async def command(option):
+        calls.append(option)
+        return True
+
+    # Avoid framework registration; exercise the command boundary directly.
+    select = HTP1Select.__new__(HTP1Select)
+    select._device = device
+    select._get_options = lambda: ["Option A", "Option B"]
+    select._command_fn = command
+    select.name = "Test Select"
+
+    async def exercise():
+        assert await select._handle_command(
+            select, Commands.SELECT_OPTION, {"option": "Option B"}
+        ) == StatusCodes.OK
+        assert calls == ["Option B"]
+        assert await select._handle_command(
+            select, Commands.SELECT_OPTION, {"option": "Not Advertised"}
+        ) == StatusCodes.BAD_REQUEST
+        assert await select._handle_command(
+            select, Commands.SELECT_OPTION, {"option": 1}
+        ) == StatusCodes.BAD_REQUEST
+        assert calls == ["Option B"]
+
+        device.is_connected = False
+        assert await select._handle_command(
+            select, Commands.SELECT_OPTION, {"option": "Option A"}
+        ) == StatusCodes.SERVER_ERROR
+        assert calls == ["Option B"]
+
+    asyncio.run(exercise())
