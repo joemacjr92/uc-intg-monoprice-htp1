@@ -383,3 +383,29 @@ def test_beq_operations_reject_malformed_nested_state_and_filter_payloads():
         assert sent == []
 
     asyncio.run(exercise())
+
+
+
+def test_json_patch_validates_operations_paths_and_array_bounds():
+    import pytest
+    from intg_monoprice_htp1.device import apply_json_patch
+
+    state = {"a/b": {"items": [1, 2]}, "tilde~key": True}
+    apply_json_patch(state, "replace", "/a~1b/items/1", 3)
+    apply_json_patch(state, "add", "/a~1b/items/-", 4)
+    apply_json_patch(state, "remove", "/tilde~0key")
+
+    assert state == {"a/b": {"items": [1, 3, 4]}}
+
+    for operation, path in (
+        ("move", "/a~1b/items/0"),
+        ("replace", "/a~1b/items/8"),
+        ("add", "/a~1b/items/8"),
+        ("replace", "/a~1b/items/-"),
+        ("replace", "/a~2b"),
+    ):
+        with pytest.raises((ValueError, IndexError)):
+            apply_json_patch(state, operation, path, 99)
+
+    with pytest.raises(KeyError):
+        apply_json_patch(state, "replace", "/missing", True)
