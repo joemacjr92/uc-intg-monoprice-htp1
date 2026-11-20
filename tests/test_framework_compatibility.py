@@ -245,3 +245,33 @@ def test_remote_rejects_malformed_and_excessive_command_sequences():
         assert dispatched == [(["POWER"] * 5, 20, 0.0)]
 
     asyncio.run(exercise())
+
+
+
+def test_media_player_rejects_malformed_command_parameters():
+    import asyncio
+    from intg_monoprice_htp1.media_player import HTP1MediaPlayer
+    from ucapi import StatusCodes
+    from ucapi.media_player import Commands
+
+    player = HTP1MediaPlayer.__new__(HTP1MediaPlayer)
+    player.id = "media_player.test"
+    player._device = object()
+
+    async def exercise():
+        assert await player._handle_command(
+            player, Commands.VOLUME, ["not", "a", "mapping"]
+        ) == StatusCodes.BAD_REQUEST
+        assert await player._handle_command(
+            player, Commands.SELECT_SOURCE, ["not", "a", "mapping"]
+        ) == StatusCodes.BAD_REQUEST
+        assert await player._handle_command(
+            player, Commands.SELECT_SOUND_MODE, ["not", "a", "mapping"]
+        ) == StatusCodes.BAD_REQUEST
+        assert await player._handle_command(
+            player, Commands.PLAY_MEDIA, ["not", "a", "mapping"]
+        ) == StatusCodes.BAD_REQUEST
+        assert await player._handle_play_media({"media_id": 123}) == StatusCodes.BAD_REQUEST
+        assert await player._handle_play_media({"media_id": "   "}) == StatusCodes.BAD_REQUEST
+
+    asyncio.run(exercise())
