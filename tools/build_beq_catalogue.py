@@ -17,6 +17,28 @@ from typing import Any
 
 SCHEMA_VERSION = 1
 FILTER_FIELDS = ("type", "freq", "gain", "q")
+SUPPORTED_FILTER_TYPES = {"PeakingEQ", "LowShelf", "HighShelf"}
+MAX_FILTERS = 16
+MIN_FREQUENCY = 15
+MAX_FREQUENCY = 20000
+MIN_GAIN = -63
+MAX_GAIN = 20
+MIN_Q = 0.1
+MAX_Q = 10
+
+
+class IncompatibleCatalogueEntry(ValueError):
+    """A valid BEQ record that cannot be represented by HTP-1 PEQ."""
+
+    def __init__(self, title: str, author: str, year: str, content_type: str, issues: list[dict[str, Any]]):
+        super().__init__(f"BEQ entry {title!r} is incompatible with HTP-1 PEQ")
+        self.report = {
+            "title": title,
+            "author": author,
+            "year": year,
+            "content_type": content_type,
+            "issues": issues,
+        }
 
 
 def _canonical(value: Any) -> bytes:
@@ -33,14 +55,15 @@ def _compact_record(record: dict[str, Any]) -> tuple[dict[str, Any], dict[str, A
         raise ValueError(f"record {title!r} has invalid filters")
 
     filters: list[dict[str, Any]] = []
-    for raw_filter in raw_filters:
+    issues: list[dict[str, Any]] = []
+    for filter_index, raw_filter in enumerate(raw_filters):
         if not isinstance(raw_filter, dict):
             raise ValueError(f"record {title!r} contains a non-object filter")
         item = {field: raw_filter[field] for field in FILTER_FIELDS if field in raw_filter}
         if not all(field in item for field in FILTER_FIELDS):
             raise ValueError(f"record {title!r} contains an incomplete filter")
-        if item["type"] not in {"PeakingEQ", "LowShelf", "HighShelf"}:
-            raise ValueError(f"record {title!r} contains an unsupported filter type")
+        if not isinstance(item["type"], str):
+            raise ValueError(f"record {title!r} has an invalid filter type")
         for field in ("freq", "gain", "q"):
             value = item[field]
             if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -51,9 +74,32 @@ def _compact_record(record: dict[str, Any]) -> tuple[dict[str, Any], dict[str, A
                 finite = False
             if not finite:
                 raise ValueError(f"record {title!r} has a non-finite filter {field}")
-        if item["freq"] <= 0 or item["q"] <= 0:
-            raise ValueError(f"record {title!r} has non-positive frequency or Q")
         filters.append(item)
+
+        reasons = []
+        if item["type"] not in SUPPORTED_FILTER_TYPES:
+            reasons.append(f"unsupported filter type: {item['type']}")
+        if not MIN_FREQUENCY <= item["freq"] <= MAX_FREQUENCY:
+            reasons.append(f"frequency outside {MIN_FREQUENCY}–{MAX_FREQUENCY} Hz")
+        if not MIN_GAIN <= item["gain"] <= MAX_GAIN:
+            reasons.append(f"gain outside {MIN_GAIN}–{MAX_GAIN} dB")
+        if not MIN_Q <= item["q"] <= MAX_Q:
+            reasons.append(f"Q outside {MIN_Q}–{MAX_Q}")
+        if reasons:
+            issues.append({
+                "filter_index": filter_index,
+                "type": item["type"],
+                "freq": item["freq"],
+                "gain": item["gain"],
+                "q": item["q"],
+                "reasons": reasons,
+            })
+
+    if len(filters) > MAX_FILTERS:
+        issues.append({
+            "filter_count": len(filters),
+            "reasons": [f"entry has more than {MAX_FILTERS} filters per channel"],
+        })
 
     underlying = record.get("underlying") or ""
     if not isinstance(underlying, str):
@@ -77,6 +123,15 @@ def _compact_record(record: dict[str, Any]) -> tuple[dict[str, Any], dict[str, A
     content_type = record.get("content_type") or "other"
     if not isinstance(content_type, str):
         raise ValueError(f"record {title!r} has invalid content_type")
+
+    if issues:
+        raise IncompatibleCatalogueEntry(
+            title,
+            str(record.get("author") or ""),
+            str(record.get("year") or ""),
+            content_type,
+            issues,
+        )
 
     index_item = {
         "id": entry_id,
@@ -105,10 +160,15 @@ def build(source: Path, output: Path) -> dict[str, Any]:
 
     index_entries: list[dict[str, Any]] = []
     filterless_entries: list[dict[str, str]] = []
+    unsupported_entries: list[dict[str, Any]] = []
     for record in records:
         if not isinstance(record, dict):
             raise ValueError("source catalogue contains a non-object record")
-        item, payload = _compact_record(record)
+        try:
+            item, payload = _compact_record(record)
+        except IncompatibleCatalogueEntry as err:
+            unsupported_entries.append(err.report)
+            continue
         if not payload["filters"]:
             filterless_entries.append({
                 "title": item["title"],
@@ -146,6 +206,31 @@ def build(source: Path, output: Path) -> dict[str, Any]:
         "\n".join(report_lines) + "\n", encoding="utf-8"
     )
 
+    unsupported_entries.sort(key=lambda item: (
+        item["title"].casefold(), item["author"].casefold(), item["year"]
+    ))
+    unsupported_report = {
+        "source_version": version,
+        "count": len(unsupported_entries),
+        "entries": unsupported_entries,
+    }
+    (output / "unsupported-entries.json").write_bytes(_canonical(unsupported_report))
+    unsupported_lines = [
+        "BEQ catalogue entries incompatible with HTP-1 PEQ",
+        f"Source version: {version}",
+        f"Excluded entries: {len(unsupported_entries)}",
+        "",
+    ]
+    for entry in unsupported_entries:
+        label = entry["title"] + (f" — {entry['author']}" if entry["author"] else "")
+        for issue in entry["issues"]:
+            reasons = "; ".join(issue["reasons"])
+            filter_label = f"filter {issue['filter_index'] + 1}" if "filter_index" in issue else "filter count"
+            unsupported_lines.append(f"{label}: {filter_label}: {reasons}")
+    (output / "unsupported-entries.txt").write_text(
+        "\\n".join(unsupported_lines) + "\\n", encoding="utf-8"
+    )
+
     index_entries.sort(key=lambda item: (
         item["title"].casefold(), item["author"].casefold(), item["id"]
     ))
@@ -170,6 +255,8 @@ def build(source: Path, output: Path) -> dict[str, Any]:
         "entry_count": len(index_entries),
         "filterless_count": len(filterless_entries),
         "filterless_report": "filterless-entries.json",
+        "unsupported_count": len(unsupported_entries),
+        "unsupported_report": "unsupported-entries.json",
         "index": f"{version}/index.json",
         "index_sha256": hashlib.sha256(index_bytes).hexdigest(),
     }
