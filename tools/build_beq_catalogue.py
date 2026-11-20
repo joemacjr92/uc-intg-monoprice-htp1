@@ -28,7 +28,7 @@ MAX_Q = 10
 
 
 class IncompatibleCatalogueEntry(ValueError):
-    """A valid BEQ record that cannot be represented by HTP-1 PEQ."""
+    """A valid BEQ record not supported by the current integration."""
 
     def __init__(self, title: str, author: str, year: str, content_type: str, issues: list[dict[str, Any]]):
         super().__init__(f"BEQ entry {title!r} is incompatible with HTP-1 PEQ")
@@ -78,7 +78,7 @@ def _compact_record(record: dict[str, Any]) -> tuple[dict[str, Any], dict[str, A
 
         reasons = []
         if item["type"] not in SUPPORTED_FILTER_TYPES:
-            reasons.append(f"unsupported filter type: {item['type']}")
+            reasons.append(f"filter type not supported by integration: {item['type']}")
         if not MIN_FREQUENCY <= item["freq"] <= MAX_FREQUENCY:
             reasons.append(f"frequency outside {MIN_FREQUENCY}–{MAX_FREQUENCY} Hz")
         if not MIN_GAIN <= item["gain"] <= MAX_GAIN:
@@ -216,7 +216,7 @@ def build(source: Path, output: Path) -> dict[str, Any]:
     }
     (output / "unsupported-entries.json").write_bytes(_canonical(unsupported_report))
     unsupported_lines = [
-        "BEQ catalogue entries incompatible with HTP-1 PEQ",
+        "BEQ catalogue entries not supported by the current integration",
         f"Source version: {version}",
         f"Excluded entries: {len(unsupported_entries)}",
         "",
