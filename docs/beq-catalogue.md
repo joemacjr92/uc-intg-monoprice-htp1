@@ -14,6 +14,12 @@ The hosted layout is versioned:
   downloadable reports of upstream records with no filters. These records are
   excluded from the Remote browse/search index and are not published as entry
   payloads, because they cannot be applied to the HTP-1.
+- `beq/unsupported-entries.txt` and `beq/unsupported-entries.json` report
+  records that have filters but cannot be represented by the HTP-1 integration.
+  The builder excludes an entire entry if it uses an unsupported filter type,
+  exceeds 16 filters per channel, or has a frequency, gain, or Q outside the
+  HTP-1 PEQ ranges (15–20,000 Hz, −63 to +20 dB, and Q 0.1–10). Malformed
+  source data still fails the build rather than being silently discarded.
 
 The integration verifies the index SHA-256 before using it and fetches an
 individual entry only when selected. It keeps a bounded 12-entry in-memory
@@ -31,7 +37,8 @@ generated static files; Pages itself does not execute refresh logic.
 
 The manifest is published with the immutable versioned data in the same Pages
 deployment, so clients cannot combine an index and entry files from different
-catalogue versions. A failed fetch, validation, or transform prevents deployment.
+catalogue versions. It includes counts and report paths for both filterless and
+HTP-1-incompatible entries. A failed fetch, validation, or transform prevents deployment.
 
 ## Upstream data and attribution
 
