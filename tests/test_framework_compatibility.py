@@ -355,6 +355,10 @@ def test_malformed_nested_state_sections_do_not_crash_state_parsing():
         assert device.slot_names == []
         assert device._slot_index == {}
         assert device.video_mode == "-----"
+        assert device.audio_format == "none"
+        assert device.output_audio_format == ""
+        assert device.sound_mode_display == ""
+        assert device.dirac_slot_name == "Dirac Off"
         assert device._sensor_data["peq"] == "Off"
 
     asyncio.run(exercise())
