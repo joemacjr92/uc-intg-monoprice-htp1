@@ -55,3 +55,36 @@ def test_search_returns_author_in_display_title(monkeypatch):
     options = SimpleNamespace(query="alpha", paging=SimpleNamespace(page=1, limit=10))
     result = asyncio.run(browser.search(None, options))
     assert [item.title for item in result.media] == ["Alpha Preferred Author"]
+
+import pytest
+
+
+@pytest.mark.parametrize("index", [
+    {"entries": [{"id": "0000000000000001", "title": 7, "author": "", "year": "", "audioTypes": []}],
+     "categories": {"film": [0]}},
+    {"entries": [{"id": "0000000000000001", "title": "Film", "author": "", "year": "", "audioTypes": "Atmos"}],
+     "categories": {"film": [0]}},
+    {"entries": [{"id": "0000000000000001", "title": "Film", "author": "", "year": "", "audioTypes": []}],
+     "categories": {"film": [True]}},
+    {"entries": [{"id": "0000000000000001", "title": "Film", "author": "", "year": "", "audioTypes": []}],
+     "categories": {"film": []}},
+    {"entries": [{"id": "0000000000000001", "title": "Film", "author": "", "year": "", "audioTypes": []}],
+     "categories": {"film": [0], "tv": [0]}},
+])
+def test_index_validation_rejects_malformed_metadata_and_offsets(index):
+    index = {
+        "schema_version": 1,
+        "version": "0123456789abcdef",
+        **index,
+    }
+    with pytest.raises(ValueError):
+        browser._validate_index(index, "0123456789abcdef")
+
+
+def test_index_validation_accepts_empty_catalogue():
+    browser._validate_index({
+        "schema_version": 1,
+        "version": "0123456789abcdef",
+        "entries": [],
+        "categories": {},
+    }, "0123456789abcdef")
