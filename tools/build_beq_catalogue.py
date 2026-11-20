@@ -28,9 +28,9 @@ def _compact_record(record: dict[str, Any]) -> tuple[dict[str, Any], dict[str, A
     if not isinstance(title, str) or not title.strip():
         raise ValueError("record has no valid title")
 
-    raw_filters = record.get("filters")
-    if not isinstance(raw_filters, list) or not raw_filters:
-        raise ValueError(f"record {title!r} has no filters")
+    raw_filters = record.get("filters", [])
+    if not isinstance(raw_filters, list):
+        raise ValueError(f"record {title!r} has invalid filters")
 
     filters: list[dict[str, Any]] = []
     for raw_filter in raw_filters:
@@ -86,6 +86,9 @@ def _compact_record(record: dict[str, Any]) -> tuple[dict[str, Any], dict[str, A
         "audioTypes": [str(value) for value in audio_types],
         "content_type": content_type,
         "search_title": title.casefold(),
+        # Keep metadata-only catalogue records visible, but do not advertise
+        # them as playable BEQ filters.
+        "has_filters": bool(filters),
     }
     return index_item, entry_payload
 
