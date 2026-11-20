@@ -13,7 +13,7 @@ def test_pinned_ucapi_and_framework_imports():
     assert HTP1MediaPlayer is not None
 
 
-def test_static_entities_do_not_wait_for_receiver_connection():
+def test_driver_waits_for_receiver_connection_before_registry():
     import asyncio
 
     async def check():
@@ -21,7 +21,7 @@ def test_static_entities_do_not_wait_for_receiver_connection():
 
         driver = HTP1Driver()
         # ucapi-framework has no public accessor for this constructor option.
-        assert driver._require_connection_before_registry is False
+        assert driver._require_connection_before_registry is True
 
     asyncio.run(check())
 
