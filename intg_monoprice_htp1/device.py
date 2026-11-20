@@ -471,10 +471,11 @@ class HTP1Device(WebSocketDevice):
         ])
 
     async def select_source(self, source: str) -> bool:
-        _LOG.info("[%s] Selecting source: %s", self.log_id, source)
-        if not self._state or "inputs" not in self._state:
+        if not isinstance(source, str) or not source.strip() or not self._state:
             return False
-        for inp_id, inp_info in self._state["inputs"].items():
+        _LOG.info("[%s] Selecting source: %s", self.log_id, source)
+        inputs = _as_dict(self._state.get("inputs"))
+        for inp_id, inp_info in inputs.items():
             if isinstance(inp_info, dict) and inp_info.get("label") == source:
                 return await self._send_transaction([
                     {"op": "replace", "path": "/input", "value": inp_id}
