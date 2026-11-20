@@ -84,6 +84,7 @@ def _compact_record(record: dict[str, Any]) -> tuple[dict[str, Any], dict[str, A
         "author": str(record.get("author") or ""),
         "year": str(record.get("year") or ""),
         "audioTypes": [str(value) for value in audio_types],
+        "content_type": content_type,
     }
     return index_item, entry_payload
 
@@ -113,7 +114,7 @@ def build(source: Path, output: Path) -> dict[str, Any]:
                 "content_type": item["content_type"],
             })
             continue
-        index_entries.append(item)
+        index_entries.append({key: value for key, value in item.items() if key != "content_type"})
         (entries_dir / f"{item['id']}.json").write_bytes(_canonical(payload))
 
     filterless_entries.sort(key=lambda item: (
