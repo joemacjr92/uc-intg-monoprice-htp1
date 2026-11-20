@@ -40,7 +40,7 @@ def _compact_record(record: dict[str, Any]) -> tuple[dict[str, Any], dict[str, A
             raise ValueError(f"record {title!r} contains an incomplete filter")
         filters.append(item)
 
-    underlying = record.get("underlying") or title
+    underlying = record.get("underlying") or ""
     compact_payload = {
         "title": title,
         "underlying": underlying,
