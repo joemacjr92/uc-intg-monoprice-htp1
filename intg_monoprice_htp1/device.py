@@ -561,116 +561,161 @@ class HTP1Device(WebSocketDevice):
         return subs or ["sub1"]
 
     def _find_empty_peq_slot(self, start_slot: int = BEQ_SLOT_START, ch: str | None = None) -> int | None:
-        if not self._state:
+        """Find a reusable band with a complete PEQ record for this channel."""
+        if (
+            not self._state
+            or isinstance(start_slot, bool)
+            or not isinstance(start_slot, int)
+            or not isinstance(ch, str)
+        ):
             return None
+
         peq = _as_dict(self._state.get("peq"))
         slots = _as_list(peq.get("slots"))
+        required = ("Fc", "gaindB", "Q", "FilterType")
 
-        for i in range(max(0, start_slot), min(BEQ_SLOT_END + 1, len(slots))):
-            slot = _as_dict(slots[i])
+        for index in range(max(0, start_slot), min(BEQ_SLOT_END + 1, len(slots))):
+            slot = _as_dict(slots[index])
             channels = _as_dict(slot.get("channels"))
-            ch_data = _as_dict(channels.get(ch))
-            if _number(ch_data.get("gaindB"), 0) == 0 or ch_data.get("beq") is True:
-                return i
+            channel_data = _as_dict(channels.get(ch))
+            if not all(key in channel_data for key in required):
+                continue
+
+            gain = channel_data.get("gaindB")
+            if isinstance(gain, bool) or not isinstance(gain, (int, float)):
+                continue
+            if not math.isfinite(gain):
+                continue
+            if gain == 0 or channel_data.get("beq") is True:
+                return index
+
         return None
 
     def _get_peq_path(self, slot_idx: int, channel: str, attribute: str) -> str:
         """Helper to construct the JSON path for PEQ modifications."""
         return f"/peq/slots/{slot_idx}/channels/{channel}/{attribute}"
 
-    async def clear_beq(self) -> bool:
-        """Clear all BEQ-tagged filters from all PEQ slots on all sub channels."""
+    def _build_clear_beq_ops(self) -> list[dict[str, Any]] | None:
+        """Build BEQ cleanup operations, or reject an incomplete PEQ state."""
         if not self._state:
-            return False
-        ops: list[dict] = []
-        peq = _as_dict(self._state.get("peq"))
-        slots = _as_list(peq.get("slots"))
-        all_subs = self._get_sub_channels()
+            return None
 
-        for i in range(min(16, len(slots))):
-            channels = _as_dict(_as_dict(slots[i]).get("channels"))
-            for ch in all_subs:
-                ch_data = _as_dict(channels.get(ch))
-                if ch_data.get("beq") is True:
-                    ops.extend([
-                        {"op": "replace", "path": self._get_peq_path(i, ch, "Fc"), "value": 100},
-                        {"op": "replace", "path": self._get_peq_path(i, ch, "gaindB"), "value": 0},
-                        {"op": "replace", "path": self._get_peq_path(i, ch, "Q"), "value": 1},
-                        {"op": "replace", "path": self._get_peq_path(i, ch, "FilterType"), "value": 0},
-                        {"op": "remove", "path": self._get_peq_path(i, ch, "beq")},
-                    ])
+        peq = self._state.get("peq")
+        if not isinstance(peq, dict):
+            return None
+        slots = peq.get("slots")
+        if not isinstance(slots, list) or not slots:
+            return None
+
+        ops: list[dict[str, Any]] = []
+        required = ("Fc", "gaindB", "Q", "FilterType")
+        for index, slot in enumerate(slots[:BEQ_SLOT_END + 1]):
+            channels = _as_dict(_as_dict(slot).get("channels"))
+            for channel in self._get_sub_channels():
+                channel_data = _as_dict(channels.get(channel))
+                if channel_data.get("beq") is not True:
+                    continue
+                if not all(key in channel_data for key in required):
+                    _LOG.error(
+                        "[%s] Cannot clear malformed BEQ slot %d for %s",
+                        self.log_id, index, channel,
+                    )
+                    return None
+                ops.extend([
+                    {"op": "replace", "path": self._get_peq_path(index, channel, "Fc"), "value": 100},
+                    {"op": "replace", "path": self._get_peq_path(index, channel, "gaindB"), "value": 0},
+                    {"op": "replace", "path": self._get_peq_path(index, channel, "Q"), "value": 1},
+                    {"op": "replace", "path": self._get_peq_path(index, channel, "FilterType"), "value": 0},
+                    {"op": "remove", "path": self._get_peq_path(index, channel, "beq")},
+                ])
 
         if "beqActive" in peq:
             ops.append({"op": "remove", "path": "/peq/beqActive"})
+        return ops
 
-        if ops:
-            return await self._send_transaction(ops)
-        return True
+    async def clear_beq(self) -> bool:
+        """Clear all BEQ-tagged filters from all PEQ slots on all sub channels."""
+        ops = self._build_clear_beq_ops()
+        if ops is None:
+            return False
+        return await self._send_transaction(ops) if ops else True
 
     async def load_beq(self, title: str, filters: list[dict]) -> bool:
-        if not self._state or not isinstance(title, str) or not title:
+        """Load a BEQ using available PEQ bands without disturbing it on preflight failure."""
+        if not self._state or not isinstance(title, str) or not title.strip():
             return False
-        if not isinstance(filters, list) or not filters:
+        if not isinstance(filters, list) or not 1 <= len(filters) <= BEQ_SLOT_END + 1:
             return False
-        if any(
-            not isinstance(filt, dict)
-            or filt.get("type", "PeakingEQ") not in FILTER_TYPE_MAP
-            or any(
-                isinstance(filt.get(key, default), bool)
-                or not isinstance(filt.get(key, default), (int, float))
-                or not math.isfinite(filt.get(key, default))
-                for key, default in (("freq", 100), ("gain", 0), ("q", 1))
-            )
-            or filt.get("freq", 100) <= 0
-            or filt.get("q", 1) <= 0
-            for filt in filters
-        ):
-            _LOG.warning("[%s] Rejecting malformed BEQ filter payload", self.log_id)
+
+        # HTP-1 PEQ supports 15–20,000 Hz, -63–20 dB and Q 0.1–10.
+        for filt in filters:
+            if not isinstance(filt, dict) or filt.get("type", "PeakingEQ") not in FILTER_TYPE_MAP:
+                return False
+            values = {key: filt.get(key, default) for key, default in (
+                ("freq", 100), ("gain", 0), ("q", 1)
+            )}
+            if any(
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+                for value in values.values()
+            ):
+                return False
+            if not 15 <= values["freq"] <= 20000:
+                return False
+            if not -63 <= values["gain"] <= 20:
+                return False
+            if not 0.1 <= values["q"] <= 10:
+                return False
+
+        peq = self._state.get("peq")
+        if not isinstance(peq, dict) or not isinstance(peq.get("peqsw"), bool):
+            return False
+        slots = peq.get("slots")
+        if not isinstance(slots, list) or not slots:
             return False
 
         sub_channels = self._get_sub_channels()
-        if not sub_channels:
+        if not sub_channels or any(not isinstance(channel, str) for channel in sub_channels):
             return False
 
-        ops = []
-        next_slot = BEQ_SLOT_START
-
+        # Allocate independently per channel. PEQ bands are per-channel and
+        # existing manual filters can leave different free-band layouts.
+        next_slot = {channel: BEQ_SLOT_START for channel in sub_channels}
+        filter_ops: list[dict[str, Any]] = []
         for filt in filters:
-            ft = FILTER_TYPE_MAP.get(filt.get("type", "PeakingEQ"), 0)
-            freq = filt.get("freq", 100)
-            gain = filt.get("gain", 0)
-            q = filt.get("q", 1)
-
-            for ch in sub_channels:
-                slot_idx = self._find_empty_peq_slot(next_slot, ch)
+            for channel in sub_channels:
+                slot_idx = self._find_empty_peq_slot(next_slot[channel], channel)
                 if slot_idx is None:
-                    # Check capacity before clearing so the active BEQ is kept
                     _LOG.warning(
                         "[%s] Not enough free PEQ slots for BEQ '%s' (%d filters)",
                         self.log_id, title, len(filters),
                     )
                     return False
 
-                ops.extend([
-                    {"op": "replace", "path": self._get_peq_path(slot_idx, ch, "Fc"), "value": freq},
-                    {"op": "replace", "path": self._get_peq_path(slot_idx, ch, "gaindB"), "value": gain},
-                    {"op": "replace", "path": self._get_peq_path(slot_idx, ch, "Q"), "value": q},
-                    {"op": "replace", "path": self._get_peq_path(slot_idx, ch, "FilterType"), "value": ft},
-                    {"op": "add", "path": self._get_peq_path(slot_idx, ch, "beq"), "value": True},
+                filter_ops.extend([
+                    {"op": "replace", "path": self._get_peq_path(slot_idx, channel, "Fc"), "value": filt.get("freq", 100)},
+                    {"op": "replace", "path": self._get_peq_path(slot_idx, channel, "gaindB"), "value": filt.get("gain", 0)},
+                    {"op": "replace", "path": self._get_peq_path(slot_idx, channel, "Q"), "value": filt.get("q", 1)},
+                    {"op": "replace", "path": self._get_peq_path(slot_idx, channel, "FilterType"), "value": FILTER_TYPE_MAP[filt.get("type", "PeakingEQ")]},
+                    {"op": "add", "path": self._get_peq_path(slot_idx, channel, "beq"), "value": True},
                 ])
-            next_slot = slot_idx + 1
+                next_slot[channel] = slot_idx + 1
 
-        ops.extend([
-            {"op": "add", "path": "/peq/beqActive", "value": title},
-            {"op": "replace", "path": "/peq/peqsw", "value": True},
-        ])
-
-        if not await self.clear_beq():
+        clear_ops = self._build_clear_beq_ops()
+        if clear_ops is None:
             return False
+
+        # Send cleanup and replacement together. A preflight or send failure
+        # no longer clears the current BEQ in a separate earlier transaction.
+        ops = clear_ops + filter_ops + [
+            {"op": "add", "path": "/peq/beqActive", "value": title.strip()},
+            {"op": "replace", "path": "/peq/peqsw", "value": True},
+        ]
         success = await self._send_transaction(ops)
         if success:
-            self.beq_active = title
-            _LOG.info("[%s] BEQ loaded: %s (%d filters)", self.log_id, title, len(filters))
+            self.beq_active = title.strip()
+            _LOG.info("[%s] BEQ loaded: %s (%d filters)", self.log_id, title.strip(), len(filters))
         return success
 
 
