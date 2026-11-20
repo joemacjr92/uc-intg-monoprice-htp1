@@ -715,8 +715,8 @@ class HTP1Device(WebSocketDevice):
         if not sub_channels or any(not isinstance(channel, str) for channel in sub_channels):
             return False
 
-        # Allocate independently per channel. PEQ bands are per-channel and
-        # existing manual filters can leave different free-band layouts.
+        # Pre placement exposes one shared LFE PEQ channel (sub1), before
+        # bass management distributes the signal to physical subwoofers.
         next_slot = {channel: BEQ_SLOT_START for channel in sub_channels}
         filter_ops: list[dict[str, Any]] = []
         for filt in filters:
