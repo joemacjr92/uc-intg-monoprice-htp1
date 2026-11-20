@@ -379,9 +379,9 @@ def test_beq_operations_reject_malformed_nested_state_and_filter_payloads():
 
         device._send_transaction = capture
         device._state = {"peq": {"slots": [None, {"channels": []}]}, "speakers": {"groups": []}}
-        assert device._get_sub_channels() == ["sub1"]
+        assert device._get_sub_channels() == []
         assert device._find_empty_peq_slot(0, "sub1") is None
-        assert await device.clear_beq()
+        assert not await device.clear_beq()
         assert sent == []
 
         device._state = {"shaker": {}}
@@ -463,7 +463,7 @@ def _make_peq_test_state(sub1_free, sub2_free, sub1_beq=(), sub2_beq=()):
                 channels[channel]["beq"] = True
         slots.append({"channels": channels})
     return {
-        "peq": {"location": "post", "peqsw": False, "slots": slots},
+        "peq": {"location": "pre", "peqsw": False, "slots": slots},
         "speakers": {"groups": {
             "sub1": {"present": True},
             "sub2": {"present": True},
@@ -471,7 +471,7 @@ def _make_peq_test_state(sub1_free, sub2_free, sub1_beq=(), sub2_beq=()):
     }
 
 
-def test_beq_allocates_independently_per_subwoofer_and_replaces_in_one_transaction():
+def test_beq_uses_pre_dirac_lfe_channel_and_replaces_in_one_transaction():
     import asyncio
     from intg_monoprice_htp1.config import HTP1Config
     from intg_monoprice_htp1.device import HTP1Device
@@ -498,15 +498,36 @@ def test_beq_allocates_independently_per_subwoofer_and_replaces_in_one_transacti
         assert len(sent) == 1
         operations = sent[0]
         assert {"op": "remove", "path": "/peq/slots/2/channels/sub1/beq"} in operations
-        assert {"op": "remove", "path": "/peq/slots/6/channels/sub2/beq"} in operations
         assert {"op": "replace", "path": "/peq/slots/0/channels/sub1/Fc", "value": 30} in operations
-        assert {"op": "replace", "path": "/peq/slots/4/channels/sub2/Fc", "value": 30} in operations
         assert {"op": "replace", "path": "/peq/slots/1/channels/sub1/Fc", "value": 40} in operations
-        assert {"op": "replace", "path": "/peq/slots/5/channels/sub2/Fc", "value": 40} in operations
         assert {"op": "replace", "path": "/peq/slots/2/channels/sub1/Fc", "value": 60} in operations
-        assert {"op": "replace", "path": "/peq/slots/6/channels/sub2/Fc", "value": 60} in operations
+        assert not any("/channels/sub2/" in op.get("path", "") for op in operations)
         assert operations[-2] == {"op": "add", "path": "/peq/beqActive", "value": "Test BEQ"}
         assert operations[-1] == {"op": "replace", "path": "/peq/peqsw", "value": True}
+
+    asyncio.run(exercise())
+
+
+def test_beq_rejects_post_dirac_peq_placement_without_sending():
+    import asyncio
+    from intg_monoprice_htp1.config import HTP1Config
+    from intg_monoprice_htp1.device import HTP1Device
+
+    async def exercise():
+        device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
+        device._state = _make_peq_test_state(sub1_free=range(16), sub2_free=range(16))
+        device._state["peq"]["location"] = "post"
+        sent = []
+
+        async def capture(operations):
+            sent.append(operations)
+            return True
+
+        device._send_transaction = capture
+        assert not await device.load_beq("Post PEQ", [
+            {"type": "PeakingEQ", "freq": 30, "gain": 4, "q": 1},
+        ])
+        assert sent == []
 
     asyncio.run(exercise())
 
