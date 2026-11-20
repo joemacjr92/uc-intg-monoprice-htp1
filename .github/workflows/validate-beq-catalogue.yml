@@ -1,0 +1,83 @@
+name: Validate upstream BEQ catalogue
+
+on:
+  push:
+    branches:
+      - perf/hosted-beq-catalogue
+    paths:
+      - ".github/workflows/validate-beq-catalogue.yml"
+      - "tools/build_beq_catalogue.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: beq-catalogue-validation
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout integration
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Fetch upstream catalogue
+        run: |
+          curl --fail --location --retry 3 \
+            https://beqcatalogue.readthedocs.io/en/latest/database.json \
+            --output /tmp/beq-database.json
+
+      - name: Build and validate without publishing
+        run: |
+          python tools/build_beq_catalogue.py \
+            --source /tmp/beq-database.json \
+            --output /tmp/beq-validation
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path("/tmp/beq-validation")
+          manifest = json.loads((root / "manifest.json").read_text())
+          filterless = json.loads((root / "filterless-entries.json").read_text())
+          unsupported = json.loads((root / "unsupported-entries.json").read_text())
+          adjusted = json.loads((root / "adjusted-entries.json").read_text())
+          print(json.dumps({
+              "source_version": manifest["version"],
+              "source_sha256": manifest["source_sha256"],
+              "playable_entries": manifest["entry_count"],
+              "filterless_entries": filterless["count"],
+              "integration_unsupported_entries": unsupported["count"],
+              "value_adjusted_entries": adjusted["count"],
+          }, indent=2))
+          with open("${GITHUB_STEP_SUMMARY}", "a") as summary:
+              summary.write("## Upstream BEQ catalogue validation\n\n")
+              summary.write(f"- Source version: `{manifest['version']}`\n")
+              summary.write(f"- Source SHA-256: `{manifest['source_sha256']}`\n")
+              summary.write(f"- Playable entries: {manifest['entry_count']:,}\n")
+              summary.write(f"- Filterless entries: {filterless['count']:,}\n")
+              summary.write(f"- Integration-unsupported entries: {unsupported['count']:,}\n")
+              summary.write(f"- Entries with normalized filter values: {adjusted['count']:,}\n")
+              summary.write("\nNo GitHub Pages deployment is performed by this workflow.\n")
+          PY
+
+      - name: Upload validation reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: beq-catalogue-validation-reports
+          path: |
+            /tmp/beq-validation/manifest.json
+            /tmp/beq-validation/filterless-entries.json
+            /tmp/beq-validation/filterless-entries.txt
+            /tmp/beq-validation/unsupported-entries.json
+            /tmp/beq-validation/unsupported-entries.txt
+            /tmp/beq-validation/adjusted-entries.json
+            /tmp/beq-validation/adjusted-entries.txt
+          if-no-files-found: error
+          retention-days: 14
