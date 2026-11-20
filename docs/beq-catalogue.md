@@ -30,10 +30,18 @@ The hosted layout is versioned:
 
 BEQ application requires PEQ Pre placement. Pre PEQ operates on the
 decoded LFE channel before bass management and Dirac Live, not on individual
-subwoofer speaker outputs. The integration therefore writes the BEQ filter set
-only to available zero-gain bands on the LFE PEQ channel. It does not duplicate
-the filters across physical subwoofer channels. Post placement is for
+subwoofer speaker outputs. This is also why Pre placement is compatible with
+Dirac calibration: the measurement signal is injected at the Dirac stage and
+does not pass through Pre PEQ. The integration therefore writes the BEQ filter
+set only to available zero-gain bands on the LFE PEQ channel. It does not
+duplicate the filters across physical subwoofer channels. Post placement is for
 speaker/output correction and cannot be used for BEQ.
+
+The current Bass EQ guide still describes writing filters to subwoofer channels,
+which conflicts with the PEQ Placement and revised signal-flow documentation.
+This implementation follows the latter's explicit description of the current
+Pre signal path. Confirm the exact LFE channel key and resulting behavior on
+the target firmware during the planned HTP-1 device test before deployment.
 
 When clearing or replacing a BEQ, the integration resets only BEQ-marked bands;
 it does not restore their previous values, alter other PEQ bands, or switch PEQ
