@@ -82,7 +82,11 @@ async def _load_index() -> bool:
                 or not isinstance(index.get("categories"), dict)
             ):
                 raise ValueError("invalid BEQ index")
-            _manifest, _index = manifest, index
+            entries_by_id = {entry["id"]: entry for entry in index["entries"]
+                             if isinstance(entry, dict) and isinstance(entry.get("id"), str)}
+            if len(entries_by_id) != len(index["entries"]):
+                raise ValueError("BEQ index contains invalid or duplicate entry IDs")
+            _manifest, _index, _entries_by_id = manifest, index, entries_by_id
             _LOG.info("BEQ index loaded: %d entries (version %s)",
                       len(index["entries"]), version)
             return True
