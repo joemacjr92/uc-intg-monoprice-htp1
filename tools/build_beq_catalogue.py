@@ -100,14 +100,10 @@ def build(source: Path, output: Path) -> dict[str, Any]:
     entries_dir.mkdir(parents=True, exist_ok=True)
 
     index_entries: list[dict[str, Any]] = []
-    seen_ids: set[str] = set()
     for record in records:
         if not isinstance(record, dict):
             raise ValueError("source catalogue contains a non-object record")
         item, payload = _compact_record(record)
-        if item["id"] in seen_ids:
-            raise ValueError(f"duplicate BEQ entry id: {item['id']}")
-        seen_ids.add(item["id"])
         index_entries.append(item)
         (entries_dir / f"{item['id']}.json").write_bytes(_canonical(payload))
 
