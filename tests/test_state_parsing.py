@@ -18,96 +18,115 @@ def device():
     loop.close()
 
 
-def receiver_state(**overrides):
-    state = {
-        "powerIsOn": True,
-        "muted": True,
-        "volume": -24,
-        "cal": {
-            "zeroPoint": -10,
-            "vpl": -80,
-            "vph": 12,
-            "diracactive": "on",
-            "currentdiracslot": 1,
-            "slots": [
-                {"valid": True, "name": "Movie"},
-                {"valid": True, "name": "Music"},
-                {"valid": False, "name": "Unused"},
-                {"valid": True, "name": "Movie"},
-            ],
-        },
+def real_receiver_state():
+    """Relevant state copied from the user's real HTP-1 mso response."""
+    return {
+        "powerIsOn": False,
+        "muted": False,
+        "volume": -27,
+        "input": "h1",
         "inputs": {
-            "hdmi1": {"label": "Apple TV", "visible": True},
-            "hdmi2": {"label": "Game", "visible": True},
-            "hidden": {"label": "Hidden", "visible": False},
-            "fallback": {"visible": True},
+            "h1": {"label": "Movies", "visible": True},
+            "h2": {"label": "Streaming", "visible": True},
+            "h3": {"label": "Disc", "visible": True},
+            "h4": {"label": "HTPC", "visible": True},
+            "h5": {"label": "HDMI 5", "visible": False},
+            "h6": {"label": "HDMI 6", "visible": False},
+            "h7": {"label": "HDMI 7", "visible": False},
+            "h8": {"label": "HDMI 8", "visible": False},
         },
-        "input": "hdmi1",
-        "upmix": {"select": "dolby"},
+        "upmix": {"select": "native"},
         "status": {
-            "DECSourceProgram": "Dolby TrueHD",
-            "DECProgramFormat": "7.1",
-            "SurroundMode": "DTS Neural:X",
-            "ENCListeningFormat": "7.1.4",
+            "DECSourceProgram": "PCM",
+            "DECProgramFormat": "2.0.0",
+            "SurroundMode": "Direct",
+            "ENCListeningFormat": "2.3.0",
         },
         "videostat": {
-            "VideoResolution": "3840x2160",
-            "HDRstatus": "HDR10",
-            "VideoColorSpace": "YCbCr",
-            "VideoMode": "2160p",
-            "VideoBitDepth": "10bit",
+            "VideoResolution": "-----",
+            "HDRstatus": "--",
+            "VideoColorSpace": "---",
+            "VideoMode": "--",
+            "VideoBitDepth": "--",
         },
-        "peq": {"peqsw": True, "location": "pre", "beqActive": "Example BEQ"},
-        "shaker": {
-            "mute": "on",
-            "activePreset": 2,
-            "presets": {"2": {"trim": 4}},
+        "cal": {
+            "zeroPoint": -7,
+            "vpl": -80,
+            "vph": -14,
+            "diracactive": "on",
+            "currentdiracslot": 4,
+            "slots": [
+                {"valid": True, "name": "6 Point Tweaked"},
+                {"valid": True, "name": "10 Point Tweaked"},
+                {"valid": True, "name": "6 Point Default Support"},
+                {"valid": True, "name": "10 Point Default Support"},
+                {"valid": True, "name": "6 Point Directional"},
+                {"valid": True, "name": "10 Point Defaults"},
+            ],
         },
-        "loudness": "on",
+        "peq": {"peqsw": True, "location": "pre"},
+        "loudness": "off",
         "night": "off",
+        "shaker": {
+            "mute": "off",
+            "activePreset": 0,
+            "presets": {"0": {"trim": -3}},
+        },
     }
-    state.update(overrides)
-    return state
 
 
-def test_parses_power_volume_mute_inputs_modes_and_audio_formats(device):
-    device._state = receiver_state()
+def test_parses_power_volume_mute_real_inputs_modes_and_formats(device):
+    device._state = real_receiver_state()
 
     device._parse_state()
 
-    assert device.power is True
-    assert device.muted is True
-    # Display volume is offset from the receiver's raw volume by zeroPoint.
-    assert device.volume_db == -14
-    assert device.zp == -10
+    assert device.power is False
+    assert device.muted is False
+    # Display volume is raw receiver volume minus the configured zero point.
+    assert device.volume_db == -20
+    assert device.zp == -7
     assert device.vpl == -80
-    assert device.vph == 12
+    assert device.vph == -14
 
-    assert device.current_source == "Apple TV"
-    assert device.source_list == ["Apple TV", "Game"]
-    assert device.surround_mode == "dolby"
-    assert device.sound_mode_display == "DOLBY SURROUND"
-    assert device.audio_format == "7.1 Dolby TrueHD"
-    assert device.output_audio_format == "7.1.4 DTS Neural:X"
-    assert device.video_mode == "3840x2160 HDR10 YCbCr 2160p 10bit"
+    assert device.current_source == "Movies"
+    assert device.source_list == ["Movies", "Streaming", "Disc", "HTPC"]
+    assert device.surround_mode == "native"
+    assert device.sound_mode_display == "NATIVE"
+    assert device.audio_format == "2.0.0 PCM"
+    assert device.output_audio_format == "2.3.0 Direct"
+    assert device.video_mode == "----- -- --- -- --"
 
-    assert device.get_sensor_value("input") == "Apple TV"
-    assert device.get_sensor_value("volume") == "-14"
-    assert device.get_sensor_value("mute") == "On"
+    assert device.get_sensor_value("input") == "Movies"
+    assert device.get_sensor_value("volume") == "-20"
+    assert device.get_sensor_value("mute") == "Off"
     assert device.get_sensor_value("peq") == "On"
-    assert device.get_sensor_value("beq_active") == "Example BEQ"
-    assert device.get_sensor_value("loudness") == "On"
+    assert device.get_sensor_value("beq_active") == "None"
+    assert device.get_sensor_value("loudness") == "Off"
     assert device.get_sensor_value("night_mode") == "Off"
 
 
-def test_dirac_slot_parsing_filters_invalid_slots_and_handles_modes(device):
-    state = receiver_state()
+def test_dirac_slot_parsing_uses_real_slots_and_handles_modes(device):
+    state = real_receiver_state()
     device._state = state
 
     device._parse_state()
-    assert device.slot_names == ["Movie", "Music", "Movie"]
-    assert device._slot_index == {"Movie": 0, "Music": 1}
-    assert device.dirac_slot_name == "Music"
+    assert device.slot_names == [
+        "6 Point Tweaked",
+        "10 Point Tweaked",
+        "6 Point Default Support",
+        "10 Point Default Support",
+        "6 Point Directional",
+        "10 Point Defaults",
+    ]
+    assert device._slot_index == {
+        "6 Point Tweaked": 0,
+        "10 Point Tweaked": 1,
+        "6 Point Default Support": 2,
+        "10 Point Default Support": 3,
+        "6 Point Directional": 4,
+        "10 Point Defaults": 5,
+    }
+    assert device.dirac_slot_name == "6 Point Directional"
 
     state["cal"]["diracactive"] = "bypass"
     device._parse_state()
@@ -123,42 +142,42 @@ def test_dirac_slot_parsing_filters_invalid_slots_and_handles_modes(device):
     assert device.dirac_slot_name == "Dirac Off"
 
 
-def test_seat_shaker_preset_trim_and_mute_parsing(device):
-    device._state = receiver_state()
+def test_seat_shaker_preset_trim_and_mute_use_real_values(device):
+    device._state = real_receiver_state()
     device._parse_state()
 
-    assert device.ss_mute == "on"
-    assert device.ss_preset == 3
-    assert device.ss_trim == 4
-    assert device.get_sensor_value("ss_mute") == "On"
-    assert device.get_sensor_value("ss_preset") == 3
-    assert device.get_sensor_value("ss_trim") == "4"
+    assert device.ss_mute == "off"
+    assert device.ss_preset == 1
+    assert device.ss_trim == -3
+    assert device.get_sensor_value("ss_mute") == "Off"
+    assert device.get_sensor_value("ss_preset") == 1
+    assert device.get_sensor_value("ss_trim") == "-3"
 
 
-def test_mso_and_incremental_patch_update_power_volume_mute_and_input(device):
+def test_mso_and_incremental_patch_update_real_receiver_state(device):
     async def exercise():
         device.push_update = lambda: None
-        await device.handle_message("mso " + json.dumps(receiver_state()))
-        assert device.power is True
-        assert device.volume_db == -14
-        assert device.current_source == "Apple TV"
+        await device.handle_message("mso " + json.dumps(real_receiver_state()))
+        assert device.power is False
+        assert device.volume_db == -20
+        assert device.current_source == "Movies"
 
         await device.handle_message(
-            'msoupdate [{"op":"replace","path":"/powerIsOn","value":false},'
-            '{"op":"replace","path":"/muted","value":false},'
+            'msoupdate [{"op":"replace","path":"/powerIsOn","value":true},'
+            '{"op":"replace","path":"/muted","value":true},'
             '{"op":"replace","path":"/volume","value":-30},'
-            '{"op":"replace","path":"/input","value":"hdmi2"}]'
+            '{"op":"replace","path":"/input","value":"h2"}]'
         )
-        assert device.power is False
-        assert device.muted is False
-        assert device.volume_db == -20
-        assert device.current_source == "Game"
+        assert device.power is True
+        assert device.muted is True
+        assert device.volume_db == -23
+        assert device.current_source == "Streaming"
 
     device._loop.run_until_complete(exercise())
 
 
-def test_malformed_or_missing_state_sections_reset_to_safe_defaults(device):
-    device._state = receiver_state()
+def test_malformed_state_sections_reset_to_safe_defaults(device):
+    device._state = real_receiver_state()
     device._parse_state()
 
     device._state = {
