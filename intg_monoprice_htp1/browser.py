@@ -291,7 +291,10 @@ async def search(device: HTP1Device, options: SearchOptions) -> SearchResults | 
     items: list[SearchMediaItem] = []
     total_matches = 0
     for entry in _index["entries"]:
-        if query in entry.get("title", "").casefold():
+        if (
+            query in entry.get("title", "").casefold()
+            or query in entry.get("author", "").casefold()
+        ):
             if start <= total_matches < start + limit:
                 items.append(_entry_to_item(entry))
             total_matches += 1
