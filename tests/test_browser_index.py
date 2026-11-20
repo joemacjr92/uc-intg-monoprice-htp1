@@ -88,3 +88,70 @@ def test_index_validation_accepts_empty_catalogue():
         "entries": [],
         "categories": {},
     }, "0123456789abcdef")
+
+
+def test_entry_cache_is_bounded_lru(monkeypatch):
+    from collections import OrderedDict
+
+    monkeypatch.setattr(browser, "_entry_cache", OrderedDict())
+    monkeypatch.setattr(browser, "_manifest", {"version": "0123456789abcdef"})
+
+    async def load_index():
+        return True
+
+    calls = []
+
+    async def fetch(version, key):
+        calls.append(key)
+        return {"title": key, "underlying": key, "filters": [{"type": "PeakingEQ"}]}
+
+    monkeypatch.setattr(browser, "_load_index", load_index)
+    monkeypatch.setattr(browser, "_fetch_entry_payload", fetch)
+
+    async def exercise():
+        for index in range(browser.ENTRY_CACHE_MAX):
+            await browser.get_beq_entry(f"{index:016x}")
+        # A cache hit promotes the oldest entry to most-recently-used.
+        await browser.get_beq_entry("0000000000000000")
+        await browser.get_beq_entry(f"{browser.ENTRY_CACHE_MAX:016x}")
+
+    asyncio.run(exercise())
+
+    assert len(browser._entry_cache) == browser.ENTRY_CACHE_MAX
+    assert "0000000000000000" in browser._entry_cache
+    assert "0000000000000001" not in browser._entry_cache
+    assert len(calls) == browser.ENTRY_CACHE_MAX + 1
+
+
+def test_entry_fetch_retries_after_catalogue_version_changes(monkeypatch):
+    import aiohttp
+
+    monkeypatch.setattr(browser, "_entry_cache", {})
+    monkeypatch.setattr(browser, "_manifest", {"version": "0123456789abcdef"})
+    load_calls = 0
+    fetched_versions = []
+
+    async def load_index():
+        nonlocal load_calls
+        load_calls += 1
+        if load_calls == 2:
+            browser._manifest = {"version": "fedcba9876543210"}
+        return True
+
+    async def fetch(version, key):
+        fetched_versions.append(version)
+        if version == "0123456789abcdef":
+            raise aiohttp.ClientResponseError(
+                request_info=None, history=(), status=404
+            )
+        return {"title": "Film", "underlying": "Film", "filters": [
+            {"type": "PeakingEQ", "freq": 20, "gain": 3, "q": 1}
+        ]}
+
+    monkeypatch.setattr(browser, "_load_index", load_index)
+    monkeypatch.setattr(browser, "_fetch_entry_payload", fetch)
+
+    result = asyncio.run(browser.get_beq_entry("0123456789abcdef"))
+
+    assert result["title"] == "Film"
+    assert fetched_versions == ["0123456789abcdef", "fedcba9876543210"]
