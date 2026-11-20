@@ -331,6 +331,11 @@ class HTP1Remote(RemoteEntity):
                 success = await self._device.mute_toggle(not self._device.muted)
                 return StatusCodes.OK if success else StatusCodes.SERVER_ERROR
             
+            # UI-page and button-mapping entries may invoke a simple command
+            # directly instead of wrapping it in remote.send_cmd.
+            if cmd_id in SIMPLE_COMMANDS or cmd_id in HTTP_COMMANDS or cmd_id == "send_avcui: hpe":
+                return await self._send_single(cmd_id)
+
             if cmd_id == Commands.SEND_CMD:
                 if params is not None and not isinstance(params, dict):
                     return StatusCodes.BAD_REQUEST
