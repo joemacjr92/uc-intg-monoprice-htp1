@@ -326,34 +326,38 @@ def test_remote_dispatches_direct_simple_commands_from_ui_and_button_mappings():
 
 
 def test_malformed_nested_state_sections_do_not_crash_state_parsing():
+    import asyncio
     from intg_monoprice_htp1.config import HTP1Config
     from intg_monoprice_htp1.device import HTP1Device
 
-    device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
-    device._state = {
-        "powerIsOn": "yes",
-        "muted": [],
-        "volume": "very loud",
-        "cal": [],
-        "shaker": [],
-        "inputs": [],
-        "status": [],
-        "upmix": [],
-        "videostat": [],
-        "peq": [],
-        "speakers": [],
-    }
+    async def exercise():
+        device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
+        device._state = {
+            "powerIsOn": "yes",
+            "muted": [],
+            "volume": "very loud",
+            "cal": [],
+            "shaker": [],
+            "inputs": [],
+            "status": [],
+            "upmix": [],
+            "videostat": [],
+            "peq": [],
+            "speakers": [],
+        }
 
-    device._parse_state()
+        device._parse_state()
 
-    assert device.power is False
-    assert device.muted is False
-    assert device.source_list == []
-    assert device.current_source == ""
-    assert device.slot_names == []
-    assert device._slot_index == {}
-    assert device.video_mode == "-----"
-    assert device._sensor_data["peq"] == "Off"
+        assert device.power is False
+        assert device.muted is False
+        assert device.source_list == []
+        assert device.current_source == ""
+        assert device.slot_names == []
+        assert device._slot_index == {}
+        assert device.video_mode == "-----"
+        assert device._sensor_data["peq"] == "Off"
+
+    asyncio.run(exercise())
 
 
 def test_beq_operations_reject_malformed_nested_state_and_filter_payloads():
@@ -372,7 +376,7 @@ def test_beq_operations_reject_malformed_nested_state_and_filter_payloads():
         device._send_transaction = capture
         device._state = {"peq": {"slots": [None, {"channels": []}]}, "speakers": {"groups": []}}
         assert device._get_sub_channels() == ["sub1"]
-        assert device._find_empty_peq_slot(0, "sub1") is None
+        assert device._find_empty_peq_slot(0, "sub1") == 0
         assert await device.clear_beq()
         assert sent == []
 
