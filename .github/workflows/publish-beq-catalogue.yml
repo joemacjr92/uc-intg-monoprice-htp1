@@ -32,11 +32,18 @@ jobs:
             https://beqcatalogue.readthedocs.io/en/latest/database.json \
             --output /tmp/beq-database.json
 
+      - name: Fetch upstream license notices
+        run: |
+          curl --fail --location https://raw.githubusercontent.com/3ll3d00d/beqcatalogue/master/LICENSE --output /tmp/beqcatalogue-LICENSE
+          curl --fail --location https://raw.githubusercontent.com/3ll3d00d/beqfilters/main/LICENSE --output /tmp/beqfilters-LICENSE
+
       - name: Build compact catalogue
         run: |
           python tools/build_beq_catalogue.py \
             --source /tmp/beq-database.json \
             --output public/beq
+          cp /tmp/beqcatalogue-LICENSE public/beq/BEQCATALOGUE-LICENSE
+          cp /tmp/beqfilters-LICENSE public/beq/BEQFILTERS-LICENSE
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
