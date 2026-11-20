@@ -322,3 +322,64 @@ def test_remote_dispatches_direct_simple_commands_from_ui_and_button_mappings():
         assert device.menu_commands == ["send_avcui: hpe"]
 
     asyncio.run(exercise())
+
+
+
+def test_malformed_nested_state_sections_do_not_crash_state_parsing():
+    from intg_monoprice_htp1.config import HTP1Config
+    from intg_monoprice_htp1.device import HTP1Device
+
+    device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
+    device._state = {
+        "powerIsOn": "yes",
+        "muted": [],
+        "volume": "very loud",
+        "cal": [],
+        "shaker": [],
+        "inputs": [],
+        "status": [],
+        "upmix": [],
+        "videostat": [],
+        "peq": [],
+        "speakers": [],
+    }
+
+    device._parse_state()
+
+    assert device.power is False
+    assert device.muted is False
+    assert device.source_list == []
+    assert device.current_source == ""
+    assert device.slot_names == []
+    assert device._slot_index == {}
+    assert device.video_mode == "-----"
+    assert device._sensor_data["peq"] == "Off"
+
+
+def test_beq_operations_reject_malformed_nested_state_and_filter_payloads():
+    import asyncio
+    from intg_monoprice_htp1.config import HTP1Config
+    from intg_monoprice_htp1.device import HTP1Device
+
+    async def exercise():
+        device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
+        sent = []
+
+        async def capture(operations):
+            sent.append(operations)
+            return True
+
+        device._send_transaction = capture
+        device._state = {"peq": {"slots": [None, {"channels": []}]}, "speakers": {"groups": []}}
+        assert device._get_sub_channels() == ["sub1"]
+        assert device._find_empty_peq_slot(0, "sub1") is None
+        assert await device.clear_beq()
+        assert sent == []
+
+        device._state = {"shaker": {}}
+        assert not await device.load_beq("Invalid", [{"freq": "bad", "gain": 1, "q": 1}])
+        assert not await device.load_beq("Invalid", [{"freq": 100, "gain": float("nan"), "q": 1}])
+        assert not await device.load_beq("Invalid", [{"type": "Unknown", "freq": 100, "gain": 1, "q": 1}])
+        assert sent == []
+
+    asyncio.run(exercise())
