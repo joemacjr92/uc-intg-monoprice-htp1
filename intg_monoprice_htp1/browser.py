@@ -39,7 +39,6 @@ INDEX_CACHE_LIFE = 86400
 
 _index: dict[str, Any] | None = None
 _manifest: dict[str, Any] | None = None
-_entries_by_id: dict[str, dict[str, Any]] = {}
 _index_loaded_at: float = 0.0
 _index_lock = asyncio.Lock()
 _entry_cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
@@ -54,7 +53,7 @@ async def _get_json(url: str) -> Any:
 
 async def _load_index() -> bool:
     """Load and validate the compact index, retaining a last-known-good copy."""
-    global _index, _manifest, _entries_by_id, _index_loaded_at
+    global _index, _manifest, _index_loaded_at
     if _index is not None and time.monotonic() - _index_loaded_at < INDEX_CACHE_LIFE:
         return True
 
@@ -100,7 +99,6 @@ async def _load_index() -> bool:
                 raise ValueError("BEQ index contains an invalid entry ID")
             # Legacy media IDs intentionally collapse identical filter records
             # even if catalogue metadata such as author differs.
-            entries_by_id = {entry["id"]: entry for entry in index["entries"]}
             entry_count = len(index["entries"])
             if any(not isinstance(indexes, list) or any(
                 not isinstance(index_value, int) or index_value < 0 or index_value >= entry_count
@@ -109,7 +107,7 @@ async def _load_index() -> bool:
                 raise ValueError("BEQ index contains invalid category offsets")
 
             previous_version = _manifest.get("version") if _manifest else None
-            _manifest, _index, _entries_by_id = manifest, index, entries_by_id
+            _manifest, _index = manifest, index
             _index_loaded_at = time.monotonic()
             if previous_version != version:
                 _entry_cache.clear()
@@ -160,7 +158,9 @@ async def _fetch_entry_payload(version: str, key: str) -> dict[str, Any]:
 async def get_beq_entry(key: str) -> dict[str, Any] | None:
     """Fetch a selected payload, retrying once if a Pages deployment changed."""
     global _index_loaded_at
-    if not await _load_index() or _manifest is None or key not in _entries_by_id:
+    if not await _load_index() or _manifest is None:
+        return None
+    if len(key) != 16 or any(char not in "0123456789abcdef" for char in key):
         return None
     if key in _entry_cache:
         _entry_cache.move_to_end(key)
@@ -177,9 +177,6 @@ async def get_beq_entry(key: str) -> dict[str, Any] | None:
         # browse result is still open. Refresh and retry if this ID survived.
         _index_loaded_at = time.monotonic() - INDEX_CACHE_LIFE - 1
         if not await _load_index() or _manifest is None or _manifest["version"] == version:
-            return None
-        if key not in _entries_by_id:
-            _LOG.info("BEQ entry %s changed during catalogue refresh; browse again", key)
             return None
         try:
             payload = await _fetch_entry_payload(_manifest["version"], key)
@@ -203,13 +200,12 @@ async def get_beq_entry(key: str) -> dict[str, Any] | None:
 
 async def clear_cache() -> bool:
     """Clear index and payloads; next browse reloads the latest published version."""
-    global _index, _manifest, _entries_by_id, _index_loaded_at
+    global _index, _manifest, _index_loaded_at
     if _index_lock.locked():
         _LOG.debug("BEQ index load in progress; cache clear deferred")
         return False
     _index = None
     _manifest = None
-    _entries_by_id = {}
     _index_loaded_at = 0.0
     _entry_cache.clear()
     return True
@@ -262,7 +258,7 @@ async def search(device: HTP1Device, options: SearchOptions) -> SearchResults | 
     items: list[SearchMediaItem] = []
     total_matches = 0
     for entry in _index["entries"]:
-        if query in entry.get("search_title", ""):
+        if query in entry.get("title", "").casefold():
             if start <= total_matches < start + limit:
                 items.append(_entry_to_item(entry))
             total_matches += 1
