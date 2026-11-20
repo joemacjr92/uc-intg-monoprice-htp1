@@ -452,14 +452,17 @@ def test_source_selection_handles_malformed_input_state():
 
 
 
-def _make_peq_test_state(lfe_free=(), lfe_beq=(), sub1_beq=(), sub2_beq=(), lfe_key="LFE"):
+def _make_peq_test_state(
+    lfe_free=(), lfe_beq=(), sub1_free=(), sub1_beq=(), sub2_free=(), sub2_beq=(),
+    lfe_key="LFE", location="pre", sub1_present=True, sub2_present=True,
+):
     slots = []
     for index in range(16):
         channels = {}
         for channel, free, beq in (
             (lfe_key, lfe_free, lfe_beq),
-            ("sub1", (), sub1_beq),
-            ("sub2", (), sub2_beq),
+            ("sub1", sub1_free, sub1_beq),
+            ("sub2", sub2_free, sub2_beq),
         ):
             channels[channel] = {
                 "Fc": 100,
@@ -471,15 +474,15 @@ def _make_peq_test_state(lfe_free=(), lfe_beq=(), sub1_beq=(), sub2_beq=(), lfe_
                 channels[channel]["beq"] = True
         slots.append({"channels": channels})
     return {
-        "peq": {"location": "pre", "peqsw": False, "slots": slots},
+        "peq": {"location": location, "peqsw": False, "slots": slots},
         "speakers": {"groups": {
-            "sub1": {"present": True},
-            "sub2": {"present": True},
+            "sub1": {"present": sub1_present},
+            "sub2": {"present": sub2_present},
         }},
     }
 
 
-def test_beq_targets_only_lfe_channel_and_cleans_legacy_subwoofer_tags():
+def test_beq_pre_targets_sub1_only_and_cleans_legacy_tags_on_all_channels():
     import asyncio
     from intg_monoprice_htp1.config import HTP1Config
     from intg_monoprice_htp1.device import HTP1Device
@@ -487,7 +490,7 @@ def test_beq_targets_only_lfe_channel_and_cleans_legacy_subwoofer_tags():
     async def exercise():
         device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
         device._state = _make_peq_test_state(
-            lfe_free=(0, 1, 2), lfe_beq=(3,), sub1_beq=(2,), sub2_beq=(6,),
+            sub1_free=(0, 1, 2), lfe_beq=(3,), sub1_beq=(4,), sub2_beq=(6,),
         )
         sent = []
 
@@ -504,53 +507,61 @@ def test_beq_targets_only_lfe_channel_and_cleans_legacy_subwoofer_tags():
 
         assert len(sent) == 1
         operations = sent[0]
-        for channel, slot in (("LFE", 3), ("sub1", 2), ("sub2", 6)):
+        for channel, slot in (("LFE", 3), ("sub1", 4), ("sub2", 6)):
             assert {"op": "remove", "path": f"/peq/slots/{slot}/channels/{channel}/beq"} in operations
 
         for slot, freq in zip((0, 1, 2), (30, 40, 60)):
             assert {
                 "op": "replace",
-                "path": f"/peq/slots/{slot}/channels/LFE/Fc",
+                "path": f"/peq/slots/{slot}/channels/sub1/Fc",
                 "value": freq,
             } in operations
 
-        # Legacy subwoofer tags are reset, but new BEQ filters are never added there.
+        # Pre placement writes new filters to Sub1 only; stale tags are still
+        # removed from every channel so switching PEQ placement cannot strand them.
         assert not any(
-            op["op"] == "add" and "/channels/sub" in op["path"] and op["path"].endswith("/beq")
+            op["op"] == "add" and op["path"].startswith("/peq/slots/")
+            and "/channels/sub2/" in op["path"] and op["path"].endswith("/beq")
             for op in operations
         )
-        for channel, slot in (("sub1", 2), ("sub2", 6)):
-            for attribute, value in (("Fc", 100), ("gaindB", 0), ("Q", 1), ("FilterType", 0)):
-                assert {
-                    "op": "replace",
-                    "path": f"/peq/slots/{slot}/channels/{channel}/{attribute}",
-                    "value": value,
-                } in operations
+        for attribute, value in (("Fc", 100), ("gaindB", 0), ("Q", 1), ("FilterType", 0)):
+            assert {
+                "op": "replace",
+                "path": f"/peq/slots/6/channels/sub2/{attribute}",
+                "value": value,
+            } in operations
         assert operations[-2] == {"op": "add", "path": "/peq/beqActive", "value": "Test BEQ"}
         assert operations[-1] == {"op": "replace", "path": "/peq/peqsw", "value": True}
 
     asyncio.run(exercise())
 
 
-def test_beq_resolves_lfe_channel_case_insensitively_and_refuses_subwoofer_only_state():
+def test_beq_pre_uses_sub1_even_when_peq_channels_have_no_lfe_key():
+    from intg_monoprice_htp1.config import HTP1Config
+    from intg_monoprice_htp1.device import HTP1Device
+
+    device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
+    device._state = {
+        "peq": {
+            "location": "pre",
+            "peqsw": False,
+            "slots": [{"channels": {"sub1": {"Fc": 100, "gaindB": 0, "Q": 1, "FilterType": 0}}}],
+        },
+        "speakers": {"groups": {"sub1": {"present": True}}},
+    }
+    assert device._get_sub_channels() == ["sub1"]
+
+
+def test_beq_non_pre_targets_all_present_subwoofers():
     import asyncio
     from intg_monoprice_htp1.config import HTP1Config
     from intg_monoprice_htp1.device import HTP1Device
 
     async def exercise():
         device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
-        device._state = _make_peq_test_state(lfe_free=(0,), lfe_key="lfe")
-        assert device._get_lfe_channel() == "lfe"
-
-        # A legacy state containing only subwoofer output channels must fail closed.
-        device._state = {
-            "peq": {
-                "location": "pre",
-                "peqsw": False,
-                "slots": [{"channels": {"sub1": {"Fc": 100, "gaindB": 0, "Q": 1, "FilterType": 0}}}],
-            },
-            "speakers": {"groups": {"sub1": {"present": True}}},
-        }
+        device._state = _make_peq_test_state(
+            sub1_free=(0,), sub2_free=(0,), location="post",
+        )
         sent = []
 
         async def capture(operations):
@@ -558,32 +569,22 @@ def test_beq_resolves_lfe_channel_case_insensitively_and_refuses_subwoofer_only_
             return True
 
         device._send_transaction = capture
-        assert not await device.load_beq("No LFE key", [{"freq": 30, "gain": 4, "q": 1}])
-        assert sent == []
-
-    asyncio.run(exercise())
-
-
-def test_beq_rejects_post_dirac_peq_placement_without_sending():
-    import asyncio
-    from intg_monoprice_htp1.config import HTP1Config
-    from intg_monoprice_htp1.device import HTP1Device
-
-    async def exercise():
-        device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
-        device._state = _make_peq_test_state(lfe_free=range(16))
-        device._state["peq"]["location"] = "post"
-        sent = []
-
-        async def capture(operations):
-            sent.append(operations)
-            return True
-
-        device._send_transaction = capture
-        assert not await device.load_beq("Post PEQ", [
+        assert await device.load_beq("Post PEQ", [
             {"type": "PeakingEQ", "freq": 30, "gain": 4, "q": 1},
         ])
-        assert sent == []
+        operations = sent[0]
+        for channel in ("sub1", "sub2"):
+            assert {
+                "op": "replace",
+                "path": f"/peq/slots/0/channels/{channel}/Fc",
+                "value": 30,
+            } in operations
+            assert {
+                "op": "add",
+                "path": f"/peq/slots/0/channels/{channel}/beq",
+                "value": True,
+            } in operations
+        assert not any("/channels/LFE/" in op["path"] for op in operations)
 
     asyncio.run(exercise())
 
@@ -595,7 +596,7 @@ def test_beq_capacity_failure_preserves_current_filter_without_sending():
 
     async def exercise():
         device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
-        device._state = _make_peq_test_state(lfe_free=(0,), sub1_beq=(0,), sub2_beq=(0,))
+        device._state = _make_peq_test_state(sub1_beq=(0,), sub2_beq=(0,))
         sent = []
 
         async def capture(operations):
@@ -619,7 +620,7 @@ def test_beq_clamps_imported_values_and_rejects_malformed_values_and_more_than_1
 
     async def exercise():
         device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
-        device._state = _make_peq_test_state(lfe_free=range(16))
+        device._state = _make_peq_test_state(sub1_free=range(16))
         sent = []
 
         async def capture(operations):
@@ -643,7 +644,7 @@ def test_beq_clamps_imported_values_and_rejects_malformed_values_and_more_than_1
         for attribute, value in (("Fc", 10), ("gaindB", 20), ("Q", 10)):
             assert {
                 "op": "replace",
-                "path": f"/peq/slots/0/channels/LFE/{attribute}",
+                "path": f"/peq/slots/0/channels/sub1/{attribute}",
                 "value": value,
             } in operations
         assert not any("/channels/sub" in op["path"] for op in operations if op["op"] in ("add", "replace"))
