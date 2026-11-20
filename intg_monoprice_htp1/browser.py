@@ -10,6 +10,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import time
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any
 
@@ -33,10 +34,12 @@ CATALOGUE_BASE_URL = (
 ITEMS_PER_PAGE = 50
 REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=20, connect=5, sock_read=15)
 ENTRY_CACHE_MAX = 12
+INDEX_CACHE_LIFE = 86400
 
 _index: dict[str, Any] | None = None
 _manifest: dict[str, Any] | None = None
 _entries_by_id: dict[str, dict[str, Any]] = {}
+_index_loaded_at: float = 0.0
 _index_lock = asyncio.Lock()
 _entry_cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
 
@@ -87,7 +90,11 @@ async def _load_index() -> bool:
                              if isinstance(entry, dict) and isinstance(entry.get("id"), str)}
             if len(entries_by_id) != len(index["entries"]):
                 raise ValueError("BEQ index contains invalid or duplicate entry IDs")
+            previous_version = _manifest.get("version") if _manifest else None
             _manifest, _index, _entries_by_id = manifest, index, entries_by_id
+            _index_loaded_at = time.monotonic()
+            if previous_version != version:
+                _entry_cache.clear()
             _LOG.info("BEQ index loaded: %d entries (version %s)",
                       len(index["entries"]), version)
             return True
@@ -95,7 +102,8 @@ async def _load_index() -> bool:
             raise
         except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError, json.JSONDecodeError) as err:
             _LOG.warning("Unable to load hosted BEQ index: %s", err)
-            return False
+            # Continue using the last validated index if the refresh endpoint is down.
+            return _index is not None
 
 
 async def get_beq_entry(key: str) -> dict[str, Any] | None:
@@ -131,13 +139,14 @@ async def get_beq_entry(key: str) -> dict[str, Any] | None:
 
 async def clear_cache() -> bool:
     """Clear index and payloads; next browse reloads the latest published version."""
-    global _index, _manifest, _entries_by_id
+    global _index, _manifest, _entries_by_id, _index_loaded_at
     if _index_lock.locked():
         _LOG.debug("BEQ index load in progress; cache clear deferred")
         return False
     _index = None
     _manifest = None
     _entries_by_id = {}
+    _index_loaded_at = 0.0
     _entry_cache.clear()
     return True
 
