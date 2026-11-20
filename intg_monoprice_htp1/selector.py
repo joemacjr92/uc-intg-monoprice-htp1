@@ -120,7 +120,7 @@ def create_selects(config: HTP1Config, device: HTP1Device) -> list[HTP1Select]:
             f"{name} Seat Shaker Preset",
             device,
             lambda opts=["1", "2", "3", "4", "5", "6"]: opts,
-            lambda: str(device.ss_preset),
+            lambda: str(device.ss_preset) if 1 <= device.ss_preset <= 6 else "",
             lambda opt: device.select_ss_preset(int(opt) - 1),
         ),
     ]
