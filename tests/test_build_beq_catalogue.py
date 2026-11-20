@@ -113,3 +113,86 @@ def test_filterless_records_are_excluded_and_written_to_downloadable_report(tmp_
     text_report = (output / "filterless-entries.txt").read_text(encoding="utf-8")
     assert "Excluded entries: 1" in text_report
     assert "8mm [film]" in text_report
+
+
+
+def test_incompatible_htp1_filters_are_reported_and_excluded(tmp_path: Path):
+    source = tmp_path / "source.json"
+    output = tmp_path / "public"
+    records = [
+        {
+            "title": "Supported boundary values",
+            "author": "A",
+            "content_type": "film",
+            "filters": [
+                {"type": "PeakingEQ", "freq": 15, "gain": -63, "q": 0.1},
+                {"type": "HighShelf", "freq": 20000, "gain": 20, "q": 10},
+            ],
+        },
+        {
+            "title": "Below minimum frequency",
+            "author": "B",
+            "content_type": "film",
+            "filters": [{"type": "PeakingEQ", "freq": 14.9, "gain": 0, "q": 1}],
+        },
+        {
+            "title": "Unsupported filter type",
+            "author": "C",
+            "content_type": "film",
+            "filters": [{"type": "AllPass1", "freq": 100, "gain": 0, "q": 1}],
+        },
+        {
+            "title": "Too many bands",
+            "author": "D",
+            "content_type": "film",
+            "filters": [
+                {"type": "PeakingEQ", "freq": 100, "gain": 0, "q": 1}
+                for _ in range(17)
+            ],
+        },
+    ]
+    source.write_text(json.dumps(records), encoding="utf-8")
+
+    manifest = build(source, output)
+    index = json.loads((output / manifest["index"]).read_text(encoding="utf-8"))
+    unsupported = json.loads(
+        (output / manifest["unsupported_report"]).read_text(encoding="utf-8")
+    )
+
+    assert manifest["entry_count"] == 1
+    assert manifest["unsupported_count"] == 3
+    assert [entry["title"] for entry in index["entries"]] == ["Supported boundary values"]
+    assert [entry["title"] for entry in unsupported["entries"]] == [
+        "Below minimum frequency",
+        "Too many bands",
+        "Unsupported filter type",
+    ]
+    assert "frequency outside 15–20000 Hz" in str(unsupported)
+    assert "unsupported filter type: AllPass1" in str(unsupported)
+    assert "more than 16 filters per channel" in str(unsupported)
+    assert (output / "unsupported-entries.txt").exists()
+
+
+@pytest.mark.parametrize("filter_value", [
+    {"type": "PeakingEQ", "freq": 100, "gain": 20.1, "q": 1},
+    {"type": "PeakingEQ", "freq": 100, "gain": 0, "q": 10.1},
+    {"type": "PeakingEQ", "freq": 20001, "gain": 0, "q": 1},
+])
+def test_catalogue_builder_reports_each_out_of_range_parameter(
+    tmp_path: Path, filter_value
+):
+    source = tmp_path / "source.json"
+    output = tmp_path / "public"
+    source.write_text(json.dumps([{
+        "title": "Out of range",
+        "content_type": "film",
+        "filters": [filter_value],
+    }]), encoding="utf-8")
+
+    manifest = build(source, output)
+    report = json.loads(
+        (output / manifest["unsupported_report"]).read_text(encoding="utf-8")
+    )
+    assert manifest["entry_count"] == 0
+    assert manifest["unsupported_count"] == 1
+    assert report["entries"][0]["issues"][0]["reasons"]
