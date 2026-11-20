@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import shutil
 from collections import defaultdict
 from pathlib import Path
@@ -38,6 +39,20 @@ def _compact_record(record: dict[str, Any]) -> tuple[dict[str, Any], dict[str, A
         item = {field: raw_filter[field] for field in FILTER_FIELDS if field in raw_filter}
         if not all(field in item for field in FILTER_FIELDS):
             raise ValueError(f"record {title!r} contains an incomplete filter")
+        if item["type"] not in {"PeakingEQ", "LowShelf", "HighShelf"}:
+            raise ValueError(f"record {title!r} contains an unsupported filter type")
+        for field in ("freq", "gain", "q"):
+            value = item[field]
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"record {title!r} has a non-numeric filter {field}")
+            try:
+                finite = math.isfinite(value)
+            except OverflowError:
+                finite = False
+            if not finite:
+                raise ValueError(f"record {title!r} has a non-finite filter {field}")
+        if item["freq"] <= 0 or item["q"] <= 0:
+            raise ValueError(f"record {title!r} has non-positive frequency or Q")
         filters.append(item)
 
     underlying = record.get("underlying") or ""
