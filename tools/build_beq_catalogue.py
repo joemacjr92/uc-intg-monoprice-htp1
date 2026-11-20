@@ -86,9 +86,6 @@ def _compact_record(record: dict[str, Any]) -> tuple[dict[str, Any], dict[str, A
         "audioTypes": [str(value) for value in audio_types],
         "content_type": content_type,
         "search_title": title.casefold(),
-        # Keep metadata-only catalogue records visible, but do not advertise
-        # them as playable BEQ filters.
-        "has_filters": bool(filters),
     }
     return index_item, entry_payload
 
@@ -105,12 +102,47 @@ def build(source: Path, output: Path) -> dict[str, Any]:
     entries_dir.mkdir(parents=True, exist_ok=True)
 
     index_entries: list[dict[str, Any]] = []
+    filterless_entries: list[dict[str, str]] = []
     for record in records:
         if not isinstance(record, dict):
             raise ValueError("source catalogue contains a non-object record")
         item, payload = _compact_record(record)
+        if not payload["filters"]:
+            filterless_entries.append({
+                "title": item["title"],
+                "author": item["author"],
+                "year": item["year"],
+                "content_type": item["content_type"],
+            })
+            continue
         index_entries.append(item)
         (entries_dir / f"{item['id']}.json").write_bytes(_canonical(payload))
+
+    filterless_entries.sort(key=lambda item: (
+        item["title"].casefold(), item["author"].casefold(), item["year"]
+    ))
+    filterless_report = {
+        "source_version": version,
+        "count": len(filterless_entries),
+        "entries": filterless_entries,
+    }
+    (output / "filterless-entries.json").write_bytes(_canonical(filterless_report))
+    report_lines = [
+        "BEQ catalogue entries without filters",
+        f"Source version: {version}",
+        f"Excluded entries: {len(filterless_entries)}",
+        "",
+    ]
+    report_lines.extend(
+        f"{entry['title']}"
+        + (f" — {entry['author']}" if entry["author"] else "")
+        + (f" ({entry['year']})" if entry["year"] else "")
+        + f" [{entry['content_type']}]"
+        for entry in filterless_entries
+    )
+    (output / "filterless-entries.txt").write_text(
+        "\\n".join(report_lines) + "\\n", encoding="utf-8"
+    )
 
     index_entries.sort(key=lambda item: (item["title"].casefold(), item["id"]))
     category_indexes: dict[str, list[int]] = defaultdict(list)
@@ -129,6 +161,8 @@ def build(source: Path, output: Path) -> dict[str, Any]:
         "version": version,
         "source_sha256": source_digest,
         "entry_count": len(index_entries),
+        "filterless_count": len(filterless_entries),
+        "filterless_report": "filterless-entries.json",
         "index": f"{version}/index.json",
         "index_sha256": hashlib.sha256(index_bytes).hexdigest(),
     }
