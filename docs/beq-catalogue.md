@@ -23,9 +23,11 @@ does not prefetch the catalogue on connection.
 ## Publishing
 
 The `Publish BEQ catalogue` workflow runs daily and can be started manually.
-The `actions/configure-pages` step provisions/configures the Pages site for
-GitHub Actions deployment. The workflow deploys generated static files; Pages
-itself does not execute refresh logic.
+Before the first publication, enable GitHub Pages in repository Settings →
+Pages and set the build and deployment source to **GitHub Actions**. The
+`actions/configure-pages` step reads the Pages configuration; it does not
+enable Pages on a repository where Pages is disabled. The workflow deploys
+generated static files; Pages itself does not execute refresh logic.
 
 The manifest is published with the immutable versioned data in the same Pages
 deployment, so clients cannot combine an index and entry files from different
