@@ -15,11 +15,19 @@ The hosted layout is versioned:
   excluded from the Remote browse/search index and are not published as entry
   payloads, because they cannot be applied to the HTP-1.
 - `beq/unsupported-entries.txt` and `beq/unsupported-entries.json` report
-  records that have filters but cannot be represented by the HTP-1 integration.
-  The builder excludes an entire entry if it uses an unsupported filter type,
-  exceeds 16 filters per channel, or has a frequency, gain, or Q outside the
-  HTP-1 PEQ ranges (15–20,000 Hz, −63 to +20 dB, and Q 0.1–10). Malformed
+  records that have filters but are not supported by the current integration.
+  The HTP-1 PEQ UI documents seven filter types, but this integration currently
+  maps only PeakingEQ, LowShelf, and HighShelf to the receiver's protocol values.
+  Other types are reported as an integration limitation, not as unsupported by
+  the HTP-1 hardware. The builder also excludes entries exceeding 16 filters
+  per channel or using frequency, gain, or Q outside the HTP-1 PEQ ranges
+  (15–20,000 Hz, −63 to +20 dB, and Q 0.1–10). Malformed
   source data still fails the build rather than being silently discarded.
+
+BEQ application requires PEQ Pre placement. Pre PEQ operates on the LFE signal
+  before bass management, so the integration allocates BEQ bands on the HTP-1's
+  shared pre-Dirac channel rather than independently on each physical subwoofer.
+  Post placement is for speaker/output correction and cannot be used for BEQ.
 
 The integration verifies the index SHA-256 before using it and fetches an
 individual entry only when selected. It keeps a bounded 12-entry in-memory
