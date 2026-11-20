@@ -90,15 +90,17 @@ async def _load_index() -> bool:
                 or not isinstance(index.get("categories"), dict)
             ):
                 raise ValueError("invalid BEQ index")
-            entries_by_id = {
-                entry["id"]: entry for entry in index["entries"]
-                if isinstance(entry, dict) and isinstance(entry.get("id"), str)
-            }
-            if len(entries_by_id) != len(index["entries"]):
-                raise ValueError("BEQ index contains invalid or duplicate entry IDs")
-            if any(len(entry_id) != 16 or any(char not in "0123456789abcdef" for char in entry_id)
-                   for entry_id in entries_by_id):
+            if any(
+                not isinstance(entry, dict)
+                or not isinstance(entry.get("id"), str)
+                or len(entry["id"]) != 16
+                or any(char not in "0123456789abcdef" for char in entry["id"])
+                for entry in index["entries"]
+            ):
                 raise ValueError("BEQ index contains an invalid entry ID")
+            # Legacy media IDs intentionally collapse identical filter records
+            # even if catalogue metadata such as author differs.
+            entries_by_id = {entry["id"]: entry for entry in index["entries"]}
             entry_count = len(index["entries"])
             if any(not isinstance(indexes, list) or any(
                 not isinstance(index_value, int) or index_value < 0 or index_value >= entry_count
