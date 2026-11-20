@@ -7,7 +7,7 @@ and transforms it, and publishes a compact static dataset to GitHub Pages.
 The hosted layout is versioned:
 
 - `beq/manifest.json` points to an immutable version directory.
-- `beq/<version>/index.json` contains only the media ID, original title, author, year, audio types, and compact integer category offsets. Search matches the original title; the display name is constructed from title and author so different authors’ versions remain distinguishable. Category offsets avoid storing category labels redundantly on every entry.
+- `beq/<version>/index.json` contains only the media ID, original title, author, year, audio types, and compact integer category offsets. Search matches the original title or author; the display name is constructed from title and author so different contributors’ versions remain distinguishable. Category offsets avoid storing category labels redundantly on every entry.
 - `beq/<version>/entries/<id>.json` contains only the filter data needed to
   apply that selected BEQ.
 - `beq/filterless-entries.txt` and `beq/filterless-entries.json` are
