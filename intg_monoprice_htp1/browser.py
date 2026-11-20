@@ -231,19 +231,6 @@ async def get_beq_entry(key: str) -> dict[str, Any] | None:
     return payload
 
 
-async def clear_cache() -> bool:
-    """Clear index and payloads; next browse reloads the latest published version."""
-    global _index, _manifest, _index_loaded_at
-    # Wait for an in-flight index refresh instead of reporting a spurious
-    # failure to the user's explicit Refresh Catalogue command.
-    async with _index_lock:
-        _index = None
-        _manifest = None
-        _index_loaded_at = 0.0
-        _entry_cache.clear()
-    return True
-
-
 def _entry_to_item(entry: dict[str, Any]) -> BrowseMediaItem:
     title = entry.get("title", "Unknown")
     audio_types = ", ".join(entry.get("audioTypes", []))
@@ -320,12 +307,6 @@ def _browse_root(device: HTP1Device) -> BrowseResults:
             can_play=True, can_browse=False,
             subtitle="Remove currently loaded BEQ filter",
         ))
-    items.append(BrowseMediaItem(
-        title="Refresh BEQ Catalogue", media_class=MediaClass.TRACK,
-        media_type="beq_reload", media_id="beq:reload",
-        can_play=True, can_browse=False,
-        subtitle="Reload the compact hosted catalogue",
-    ))
     return BrowseResults(
         media=BrowseMediaItem(
             title=device.name, media_class=MediaClass.DIRECTORY,
