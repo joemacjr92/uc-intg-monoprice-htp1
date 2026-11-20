@@ -116,7 +116,7 @@ def test_filterless_records_are_excluded_and_written_to_downloadable_report(tmp_
 
 
 
-def test_incompatible_htp1_filters_are_reported_and_excluded(tmp_path: Path):
+def test_unsupported_types_and_excess_bands_are_reported_but_limits_are_normalized(tmp_path: Path):
     source = tmp_path / "source.json"
     output = tmp_path / "public"
     records = [
@@ -125,15 +125,15 @@ def test_incompatible_htp1_filters_are_reported_and_excluded(tmp_path: Path):
             "author": "A",
             "content_type": "film",
             "filters": [
-                {"type": "PeakingEQ", "freq": 15, "gain": -63, "q": 0.1},
+                {"type": "PeakingEQ", "freq": 10, "gain": -99, "q": 0.1},
                 {"type": "HighShelf", "freq": 20000, "gain": 20, "q": 10},
             ],
         },
         {
-            "title": "Below minimum frequency",
+            "title": "Below BEQ minimum frequency",
             "author": "B",
             "content_type": "film",
-            "filters": [{"type": "PeakingEQ", "freq": 14.9, "gain": 0, "q": 1}],
+            "filters": [{"type": "PeakingEQ", "freq": 9, "gain": 0, "q": 1}],
         },
         {
             "title": "Unsupported filter type",
@@ -158,19 +158,64 @@ def test_incompatible_htp1_filters_are_reported_and_excluded(tmp_path: Path):
     unsupported = json.loads(
         (output / manifest["unsupported_report"]).read_text(encoding="utf-8")
     )
+    adjusted = json.loads(
+        (output / manifest["adjusted_report"]).read_text(encoding="utf-8")
+    )
+    payload_path = output / manifest["version"] / "entries" / f"{index['entries'][1]['id']}.json"
+    payload = json.loads(payload_path.read_text(encoding="utf-8"))
 
-    assert manifest["entry_count"] == 1
-    assert manifest["unsupported_count"] == 3
-    assert [entry["title"] for entry in index["entries"]] == ["Supported boundary values"]
+    assert manifest["entry_count"] == 2
+    assert manifest["unsupported_count"] == 2
+    assert manifest["adjusted_count"] == 1
+    assert [entry["title"] for entry in index["entries"]] == [
+        "Below BEQ minimum frequency",
+        "Supported boundary values",
+    ]
     assert [entry["title"] for entry in unsupported["entries"]] == [
-        "Below minimum frequency",
         "Too many bands",
         "Unsupported filter type",
     ]
-    assert "frequency outside 15–20000 Hz" in str(unsupported)
+    assert payload["filters"][0]["freq"] == 10
+    assert adjusted["entries"][0]["adjustments"] == [{
+        "filter_index": 0,
+        "type": "PeakingEQ",
+        "field": "freq",
+        "original": 9,
+        "applied": 10,
+    }]
     assert "filter type not supported by integration: AllPass1" in str(unsupported)
     assert "more than 16 filters per channel" in str(unsupported)
     assert (output / "unsupported-entries.txt").exists()
+    assert (output / "adjusted-entries.txt").exists()
+
+
+@pytest.mark.parametrize(("filter_value", "expected"), [
+    ({"type": "PeakingEQ", "freq": 9, "gain": 0, "q": 1}, {"freq": 10, "gain": 0, "q": 1}),
+    ({"type": "PeakingEQ", "freq": 100, "gain": 25.7, "q": 1}, {"freq": 100, "gain": 20, "q": 1}),
+    ({"type": "PeakingEQ", "freq": 100, "gain": 0, "q": 11}, {"freq": 100, "gain": 0, "q": 10}),
+    ({"type": "PeakingEQ", "freq": 100, "gain": -100, "q": 0.05}, {"freq": 100, "gain": -99, "q": 0.1}),
+])
+def test_catalogue_builder_normalizes_values_to_beq_limits(
+    tmp_path: Path, filter_value, expected
+):
+    source = tmp_path / "source.json"
+    output = tmp_path / "public"
+    source.write_text(json.dumps([{
+        "title": "Adjusted filter",
+        "content_type": "film",
+        "filters": [filter_value],
+    }]), encoding="utf-8")
+
+    manifest = build(source, output)
+    index = json.loads((output / manifest["index"]).read_text(encoding="utf-8"))
+    payload = json.loads(
+        (output / manifest["version"] / "entries" / f"{index['entries'][0]['id']}.json")
+        .read_text(encoding="utf-8")
+    )
+    assert manifest["entry_count"] == 1
+    assert manifest["unsupported_count"] == 0
+    assert manifest["adjusted_count"] == 1
+    assert {key: payload["filters"][0][key] for key in ("freq", "gain", "q")} == expected
 
 
 @pytest.mark.parametrize("filter_value", [
