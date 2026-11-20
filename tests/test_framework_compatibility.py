@@ -379,7 +379,7 @@ def test_beq_operations_reject_malformed_nested_state_and_filter_payloads():
 
         device._send_transaction = capture
         device._state = {"peq": {"location": "pre", "slots": [None, {"channels": []}]}, "speakers": {"groups": []}}
-        assert device._get_lfe_channel() is None
+        assert device._get_sub_channels() == ["sub1"]
         assert device._find_empty_peq_slot(0, "sub1") is None
         assert await device.clear_beq()
         assert sent == []
@@ -388,8 +388,9 @@ def test_beq_operations_reject_malformed_nested_state_and_filter_payloads():
             "peq": {"location": "post", "slots": [{}], "beqActive": "Active"},
             "speakers": {"groups": []},
         }
-        assert not await device.clear_beq()
-        assert sent == []
+        assert await device.clear_beq()
+        assert sent == [[{"op": "remove", "path": "/peq/beqActive"}]]
+        sent.clear()
 
         device._state = {"shaker": {}}
         assert not await device.load_beq("Invalid", [{"freq": "bad", "gain": 1, "q": 1}])
