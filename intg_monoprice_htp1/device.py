@@ -553,20 +553,25 @@ class HTP1Device(WebSocketDevice):
             return False
 
     def _get_sub_channels(self) -> list[str]:
+        """Return the PEQ channels used by the current placement.
+
+        Pre-Dirac PEQ is upstream of bass management, so the HTP-1 exposes
+        the shared LFE signal through sub1. Post-Dirac PEQ is per output
+        subwoofer, although BEQ itself is only valid in Pre placement.
+        """
         if not self._state:
-            return ["sub1"]
+            return []
 
         peq_location = _as_dict(self._state.get("peq")).get("location", "")
         if peq_location == "pre":
             return ["sub1"]
 
         speakers = _as_dict(_as_dict(self._state.get("speakers")).get("groups"))
-        subs = []
-        for key, val in speakers.items():
-            if isinstance(key, str) and key.startswith("sub") and isinstance(val, dict):
-                if val.get("present", False) is True:
-                    subs.append(key)
-        return subs or ["sub1"]
+        return [
+            key for key, value in speakers.items()
+            if isinstance(key, str) and key.startswith("sub")
+            and isinstance(value, dict) and value.get("present") is True
+        ]
 
     def _find_empty_peq_slot(self, start_slot: int = BEQ_SLOT_START, ch: str | None = None) -> int | None:
         """Find a reusable band with a complete PEQ record for this channel."""
@@ -677,7 +682,12 @@ class HTP1Device(WebSocketDevice):
                 return False
 
         peq = self._state.get("peq")
-        if not isinstance(peq, dict) or not isinstance(peq.get("peqsw"), bool):
+        if (
+            not isinstance(peq, dict)
+            or peq.get("location") != "pre"
+            or not isinstance(peq.get("peqsw"), bool)
+        ):
+            _LOG.warning("[%s] BEQ requires PEQ Pre placement", self.log_id)
             return False
         slots = peq.get("slots")
         if not isinstance(slots, list) or not slots:
