@@ -552,24 +552,31 @@ class HTP1Device(WebSocketDevice):
             _LOG.error("[%s] HTTP command error: %s", self.log_id, err)
             return False
 
-    def _get_lfe_channel(self) -> str | None:
-        """Resolve the LFE channel key used by the current Pre-PEQ state.
+    def _get_sub_channels(self) -> list[str]:
+        """Return the subwoofer PEQ channels used by the established BEQ path.
 
-        Pre PEQ is upstream of bass management and therefore operates on the
-        decoded LFE channel, not on individual subwoofer speaker outputs.
-        Resolve the key from the PEQ state instead of assuming its casing.
+        The HTP-1's Pre placement targets Sub1 only. Other PEQ placements
+        target each configured subwoofer output, matching the original
+        Python integration behavior.
         """
         if not self._state:
-            return None
+            return ["sub1"]
 
-        slots = _as_list(_as_dict(self._state.get("peq")).get("slots"))
-        matches = {
+        peq = _as_dict(self._state.get("peq"))
+        if peq.get("location") == "pre":
+            return ["sub1"]
+
+        speakers = _as_dict(self._state.get("speakers"))
+        groups = _as_dict(speakers.get("groups"))
+        channels = [
             key
-            for slot in slots
-            for key in _as_dict(_as_dict(slot).get("channels"))
-            if isinstance(key, str) and key.casefold() == "lfe"
-        }
-        return next(iter(matches)) if len(matches) == 1 else None
+            for key, value in groups.items()
+            if isinstance(key, str)
+            and key.startswith("sub")
+            and isinstance(value, dict)
+            and value.get("present") is True
+        ]
+        return channels or ["sub1"]
 
     def _find_empty_peq_slot(self, start_slot: int = BEQ_SLOT_START, ch: str | None = None) -> int | None:
         """Find a reusable band with a complete PEQ record for this channel."""
@@ -645,10 +652,7 @@ class HTP1Device(WebSocketDevice):
         return ops
 
     async def clear_beq(self) -> bool:
-        """Clear BEQ tags while the BEQ-compatible Pre PEQ path is active."""
-        peq = _as_dict(_as_dict(self._state).get("peq"))
-        if peq.get("location") != "pre":
-            return False
+        """Clear BEQ-tagged bands, including tags left on legacy sub channels."""
         ops = self._build_clear_beq_ops()
         if ops is None:
             return False
@@ -686,43 +690,41 @@ class HTP1Device(WebSocketDevice):
             })
 
         peq = self._state.get("peq")
-        if (
-            not isinstance(peq, dict)
-            or peq.get("location") != "pre"
-            or not isinstance(peq.get("peqsw"), bool)
-        ):
-            _LOG.warning("[%s] BEQ requires PEQ Pre placement", self.log_id)
+        if not isinstance(peq, dict) or not isinstance(peq.get("peqsw"), bool):
+            _LOG.warning("[%s] BEQ requires a valid PEQ state", self.log_id)
             return False
         slots = peq.get("slots")
         if not isinstance(slots, list) or not slots:
             return False
 
-        lfe_channel = self._get_lfe_channel()
-        if lfe_channel is None:
-            _LOG.warning("[%s] Cannot locate a unique LFE PEQ channel for BEQ", self.log_id)
+        sub_channels = self._get_sub_channels()
+        if not sub_channels:
             return False
 
-        # Pre PEQ is applied to the decoded LFE channel before bass management.
-        # Subwoofer speaker outputs are deliberately not modified here.
         next_slot = BEQ_SLOT_START
         filter_ops: list[dict[str, Any]] = []
         for filt in normalized_filters:
-            slot_idx = self._find_empty_peq_slot(next_slot, lfe_channel)
-            if slot_idx is None:
-                _LOG.warning(
-                    "[%s] Not enough free LFE PEQ slots for BEQ '%s' (%d filters)",
-                    self.log_id, title, len(filters),
-                )
-                return False
+            last_slot = None
+            for channel in sub_channels:
+                slot_idx = self._find_empty_peq_slot(next_slot, channel)
+                if slot_idx is None:
+                    _LOG.warning(
+                        "[%s] Not enough free PEQ slots for BEQ '%s' on %s (%d filters)",
+                        self.log_id, title, channel, len(filters),
+                    )
+                    return False
 
-            filter_ops.extend([
-                {"op": "replace", "path": self._get_peq_path(slot_idx, lfe_channel, "Fc"), "value": filt["freq"]},
-                {"op": "replace", "path": self._get_peq_path(slot_idx, lfe_channel, "gaindB"), "value": filt["gain"]},
-                {"op": "replace", "path": self._get_peq_path(slot_idx, lfe_channel, "Q"), "value": filt["q"]},
-                {"op": "replace", "path": self._get_peq_path(slot_idx, lfe_channel, "FilterType"), "value": FILTER_TYPE_MAP[filt.get("type", "PeakingEQ")]},
-                {"op": "add", "path": self._get_peq_path(slot_idx, lfe_channel, "beq"), "value": True},
-            ])
-            next_slot = slot_idx + 1
+                filter_ops.extend([
+                    {"op": "replace", "path": self._get_peq_path(slot_idx, channel, "Fc"), "value": filt["freq"]},
+                    {"op": "replace", "path": self._get_peq_path(slot_idx, channel, "gaindB"), "value": filt["gain"]},
+                    {"op": "replace", "path": self._get_peq_path(slot_idx, channel, "Q"), "value": filt["q"]},
+                    {"op": "replace", "path": self._get_peq_path(slot_idx, channel, "FilterType"), "value": FILTER_TYPE_MAP[filt["type"]]},
+                    {"op": "add", "path": self._get_peq_path(slot_idx, channel, "beq"), "value": True},
+                ])
+                last_slot = slot_idx if last_slot is None else max(last_slot, slot_idx)
+            if last_slot is None:
+                return False
+            next_slot = last_slot + 1
 
         clear_ops = self._build_clear_beq_ops()
         if clear_ops is None:
