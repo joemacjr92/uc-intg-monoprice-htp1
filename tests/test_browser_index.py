@@ -41,12 +41,12 @@ def test_category_browse_uses_precomputed_offsets_and_limit(monkeypatch):
     assert result.pagination.count == 3
 
 
-def test_search_matches_original_title_not_author(monkeypatch):
+def test_search_matches_author(monkeypatch):
     _seed_index(monkeypatch)
     browser._index["entries"][0]["author"] = "Preferred Author"
     options = SimpleNamespace(query="preferred", paging=SimpleNamespace(page=1, limit=10))
     result = asyncio.run(browser.search(None, options))
-    assert result.media == []
+    assert [item.title for item in result.media] == ["Alpha Preferred Author"]
 
 
 def test_search_returns_author_in_display_title(monkeypatch):
