@@ -85,3 +85,60 @@ def test_malformed_patch_entries_do_not_abort_valid_updates():
         assert updates == [True]
 
     asyncio.run(exercise())
+
+
+def test_remote_repeat_and_delay_validation():
+    from intg_monoprice_htp1.remote import HTP1Remote
+
+    assert HTP1Remote._repeat_delay(None) == (1, 0.0)
+    assert HTP1Remote._repeat_delay({"repeat": 3, "delay": 250}) == (3, 0.25)
+    assert HTP1Remote._repeat_delay({"repeat": 0}) is None
+    assert HTP1Remote._repeat_delay({"repeat": 21}) is None
+    assert HTP1Remote._repeat_delay({"repeat": True}) is None
+    assert HTP1Remote._repeat_delay({"delay": -1}) is None
+    assert HTP1Remote._repeat_delay({"delay": 5001}) is None
+    assert HTP1Remote._repeat_delay({"delay": "100"}) is None
+
+
+def test_device_command_validation_and_requested_mute_state():
+    import asyncio
+    from intg_monoprice_htp1.config import HTP1Config
+    from intg_monoprice_htp1.device import HTP1Device
+
+    async def exercise():
+        device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
+        sent = []
+
+        async def capture(operations):
+            sent.append(operations)
+            return True
+
+        device._send_transaction = capture
+
+        assert await device.mute_toggle(True)
+        assert sent[-1][0]["value"] is True
+
+        assert await device.ss_mute_toggle(False)
+        assert sent[-1][0]["value"] == "off"
+        assert await device.ss_mute_toggle(True)
+        assert sent[-1][0]["value"] == "on"
+
+        assert await device.select_sound_mode("DIRECT")
+        assert sent[-1][0]["value"] == "off"
+        before = len(sent)
+        assert not await device.select_sound_mode("not-a-mode")
+        assert len(sent) == before
+
+        device._state = {"shaker": {}}
+        assert await device.select_ss_preset(0)
+        assert await device.select_ss_preset(5)
+        before = len(sent)
+        assert not await device.select_ss_preset(6)
+        assert not await device.select_ss_preset(-1)
+        assert len(sent) == before
+
+        assert not await device.send_http_command("not-hex")
+        assert not await device.send_http_command("123")
+        assert not await device.send_http_command("12345")
+
+    asyncio.run(exercise())
