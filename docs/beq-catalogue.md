@@ -7,7 +7,7 @@ and transforms it, and publishes a compact static dataset to GitHub Pages.
 The hosted layout is versioned:
 
 - `beq/manifest.json` points to an immutable version directory.
-- `beq/<version>/index.json` contains browse/search metadata and category IDs.
+- `beq/<version>/index.json` contains browse/search metadata and compact integer category offsets.
 - `beq/<version>/entries/<id>.json` contains only the filter data needed to
   apply that selected BEQ.
 
