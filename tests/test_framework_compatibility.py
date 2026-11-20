@@ -559,6 +559,8 @@ def test_beq_rejects_filters_outside_htp1_peq_limits_and_more_than_16_bands():
             {"freq": 100, "gain": 20.1, "q": 1},
             {"freq": 100, "gain": 0, "q": 0.09},
             {"freq": 100, "gain": 0, "q": 10.1},
+            {"type": [], "freq": 100, "gain": 0, "q": 1},
+            {"freq": 10**10000, "gain": 0, "q": 1},
         ]
         for filt in invalid_filters:
             assert not await device.load_beq("Out of range", [filt])
