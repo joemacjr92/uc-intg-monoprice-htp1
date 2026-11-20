@@ -225,12 +225,19 @@ class HTP1Device(WebSocketDevice):
         if not self._state:
             return
 
-        self._parse_power_and_volume()
-        self._parse_seat_shakers()
-        self._parse_inputs()
-        self._parse_audio_and_dirac()
-        self._parse_video_stats()
-        self._update_sensor_data()
+        parsers = (
+            self._parse_power_and_volume,
+            self._parse_seat_shakers,
+            self._parse_inputs,
+            self._parse_audio_and_dirac,
+            self._parse_video_stats,
+            self._update_sensor_data,
+        )
+        for parser in parsers:
+            try:
+                parser()
+            except (AttributeError, IndexError, KeyError, TypeError, ValueError, OverflowError) as err:
+                _LOG.warning("[%s] Ignoring malformed state section in %s: %s", self.log_id, parser.__name__, err)
 
     def _parse_power_and_volume(self) -> None:
         self.power = self._state.get("powerIsOn", False)
