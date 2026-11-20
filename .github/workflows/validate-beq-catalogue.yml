@@ -47,12 +47,14 @@ jobs:
           manifest = json.loads((root / "manifest.json").read_text())
           filterless = json.loads((root / "filterless-entries.json").read_text())
           unsupported = json.loads((root / "unsupported-entries.json").read_text())
+          adjusted = json.loads((root / "adjusted-entries.json").read_text())
           print(json.dumps({
               "source_version": manifest["version"],
               "source_sha256": manifest["source_sha256"],
               "playable_entries": manifest["entry_count"],
               "filterless_entries": filterless["count"],
               "integration_unsupported_entries": unsupported["count"],
+              "value_adjusted_entries": adjusted["count"],
           }, indent=2))
           with open("${GITHUB_STEP_SUMMARY}", "a") as summary:
               summary.write("## Upstream BEQ catalogue validation\n\n")
@@ -61,6 +63,7 @@ jobs:
               summary.write(f"- Playable entries: {manifest['entry_count']:,}\n")
               summary.write(f"- Filterless entries: {filterless['count']:,}\n")
               summary.write(f"- Integration-unsupported entries: {unsupported['count']:,}\n")
+              summary.write(f"- Entries with normalized filter values: {adjusted['count']:,}\n")
               summary.write("\nNo GitHub Pages deployment is performed by this workflow.\n")
           PY
 
@@ -74,5 +77,7 @@ jobs:
             /tmp/beq-validation/filterless-entries.txt
             /tmp/beq-validation/unsupported-entries.json
             /tmp/beq-validation/unsupported-entries.txt
+            /tmp/beq-validation/adjusted-entries.json
+            /tmp/beq-validation/adjusted-entries.txt
           if-no-files-found: error
           retention-days: 14
