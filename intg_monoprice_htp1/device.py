@@ -8,7 +8,6 @@ Monoprice HTP-1 device implementation for Unfolded Circle integration.
 import asyncio
 import json
 import logging
-import os
 from typing import Any
 
 import aiohttp
