@@ -179,8 +179,12 @@ async def _fetch_entry_payload(version: str, key: str) -> dict[str, Any]:
                 finite = False
             if not finite:
                 raise ValueError(f"BEQ entry contains a non-finite {field}")
-        if item["freq"] <= 0 or item["q"] <= 0:
-            raise ValueError("BEQ entry frequency and Q must be positive")
+        if not 15 <= item["freq"] <= 20000:
+            raise ValueError("BEQ entry frequency is outside the HTP-1 PEQ range")
+        if not -63 <= item["gain"] <= 20:
+            raise ValueError("BEQ entry gain is outside the HTP-1 PEQ range")
+        if not 0.1 <= item["q"] <= 10:
+            raise ValueError("BEQ entry Q is outside the HTP-1 PEQ range")
     return payload
 
 
