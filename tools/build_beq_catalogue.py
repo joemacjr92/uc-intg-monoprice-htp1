@@ -19,9 +19,12 @@ SCHEMA_VERSION = 1
 FILTER_FIELDS = ("type", "freq", "gain", "q")
 SUPPORTED_FILTER_TYPES = {"PeakingEQ", "LowShelf", "HighShelf"}
 MAX_FILTERS = 16
-MIN_FREQUENCY = 15
+# Match the HTP-1 BEQ application path: imported values are normalized to
+# the processor's effective limits, rather than rejected at the PEQ editor's
+# narrower manual-entry limits.
+MIN_FREQUENCY = 10
 MAX_FREQUENCY = 20000
-MIN_GAIN = -63
+MIN_GAIN = -99
 MAX_GAIN = 20
 MIN_Q = 0.1
 MAX_Q = 10
@@ -45,7 +48,9 @@ def _canonical(value: Any) -> bytes:
     return json.dumps(value, separators=(",", ":"), sort_keys=True).encode("utf-8")
 
 
-def _compact_record(record: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+def _compact_record(
+    record: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
     title = record.get("title")
     if not isinstance(title, str) or not title.strip():
         raise ValueError("record has no valid title")
@@ -56,6 +61,7 @@ def _compact_record(record: dict[str, Any]) -> tuple[dict[str, Any], dict[str, A
 
     filters: list[dict[str, Any]] = []
     issues: list[dict[str, Any]] = []
+    adjustments: list[dict[str, Any]] = []
     for filter_index, raw_filter in enumerate(raw_filters):
         if not isinstance(raw_filter, dict):
             raise ValueError(f"record {title!r} contains a non-object filter")
@@ -74,26 +80,33 @@ def _compact_record(record: dict[str, Any]) -> tuple[dict[str, Any], dict[str, A
                 finite = False
             if not finite:
                 raise ValueError(f"record {title!r} has a non-finite filter {field}")
-        filters.append(item)
-
         reasons = []
         if item["type"] not in SUPPORTED_FILTER_TYPES:
             reasons.append(f"filter type not supported by integration: {item['type']}")
-        if not MIN_FREQUENCY <= item["freq"] <= MAX_FREQUENCY:
-            reasons.append(f"frequency outside {MIN_FREQUENCY}–{MAX_FREQUENCY} Hz")
-        if not MIN_GAIN <= item["gain"] <= MAX_GAIN:
-            reasons.append(f"gain outside {MIN_GAIN}–{MAX_GAIN} dB")
-        if not MIN_Q <= item["q"] <= MAX_Q:
-            reasons.append(f"Q outside {MIN_Q}–{MAX_Q}")
         if reasons:
             issues.append({
                 "filter_index": filter_index,
                 "type": item["type"],
-                "freq": item["freq"],
-                "gain": item["gain"],
-                "q": item["q"],
                 "reasons": reasons,
             })
+
+        for field, lower, upper in (
+            ("freq", MIN_FREQUENCY, MAX_FREQUENCY),
+            ("gain", MIN_GAIN, MAX_GAIN),
+            ("q", MIN_Q, MAX_Q),
+        ):
+            original = item[field]
+            applied = min(max(original, lower), upper)
+            if applied != original:
+                adjustments.append({
+                    "filter_index": filter_index,
+                    "type": item["type"],
+                    "field": field,
+                    "original": original,
+                    "applied": applied,
+                })
+                item[field] = applied
+        filters.append(item)
 
     if len(filters) > MAX_FILTERS:
         issues.append({
@@ -141,7 +154,7 @@ def _compact_record(record: dict[str, Any]) -> tuple[dict[str, Any], dict[str, A
         "audioTypes": [str(value) for value in audio_types],
         "content_type": content_type,
     }
-    return index_item, entry_payload
+    return index_item, entry_payload, adjustments
 
 
 def build(source: Path, output: Path) -> dict[str, Any]:
@@ -161,14 +174,23 @@ def build(source: Path, output: Path) -> dict[str, Any]:
     index_entries: list[dict[str, Any]] = []
     filterless_entries: list[dict[str, str]] = []
     unsupported_entries: list[dict[str, Any]] = []
+    adjusted_entries: list[dict[str, Any]] = []
     for record in records:
         if not isinstance(record, dict):
             raise ValueError("source catalogue contains a non-object record")
         try:
-            item, payload = _compact_record(record)
+            item, payload, adjustments = _compact_record(record)
         except IncompatibleCatalogueEntry as err:
             unsupported_entries.append(err.report)
             continue
+        if adjustments:
+            adjusted_entries.append({
+                "title": item["title"],
+                "author": item["author"],
+                "year": item["year"],
+                "content_type": item["content_type"],
+                "adjustments": adjustments,
+            })
         if not payload["filters"]:
             filterless_entries.append({
                 "title": item["title"],
@@ -231,6 +253,32 @@ def build(source: Path, output: Path) -> dict[str, Any]:
         "\\n".join(unsupported_lines) + "\\n", encoding="utf-8"
     )
 
+    adjusted_entries.sort(key=lambda item: (
+        item["title"].casefold(), item["author"].casefold(), item["year"]
+    ))
+    adjusted_report = {
+        "source_version": version,
+        "count": len(adjusted_entries),
+        "entries": adjusted_entries,
+    }
+    (output / "adjusted-entries.json").write_bytes(_canonical(adjusted_report))
+    adjusted_lines = [
+        "BEQ catalogue entries with values normalized to HTP-1 BEQ limits",
+        f"Source version: {version}",
+        f"Adjusted entries: {len(adjusted_entries)}",
+        "",
+    ]
+    for entry in adjusted_entries:
+        label = entry["title"] + (f" — {entry['author']}" if entry["author"] else "")
+        for adjustment in entry["adjustments"]:
+            adjusted_lines.append(
+                f"{label}: filter {adjustment['filter_index'] + 1} "
+                f"{adjustment['field']} {adjustment['original']} -> {adjustment['applied']}"
+            )
+    (output / "adjusted-entries.txt").write_text(
+        "\n".join(adjusted_lines) + "\n", encoding="utf-8"
+    )
+
     index_entries.sort(key=lambda item: (
         item["title"].casefold(), item["author"].casefold(), item["id"]
     ))
@@ -257,6 +305,8 @@ def build(source: Path, output: Path) -> dict[str, Any]:
         "filterless_report": "filterless-entries.json",
         "unsupported_count": len(unsupported_entries),
         "unsupported_report": "unsupported-entries.json",
+        "adjusted_count": len(adjusted_entries),
+        "adjusted_report": "adjusted-entries.json",
         "index": f"{version}/index.json",
         "index_sha256": hashlib.sha256(index_bytes).hexdigest(),
     }
