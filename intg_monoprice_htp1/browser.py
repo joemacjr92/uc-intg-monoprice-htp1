@@ -36,6 +36,7 @@ ENTRY_CACHE_MAX = 12
 
 _index: dict[str, Any] | None = None
 _manifest: dict[str, Any] | None = None
+_entries_by_id: dict[str, dict[str, Any]] = {}
 _index_lock = asyncio.Lock()
 _entry_cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
 
@@ -105,8 +106,7 @@ async def get_beq_entry(key: str) -> dict[str, Any] | None:
     if not await _load_index() or _manifest is None:
         return None
 
-    valid_ids = {item.get("id") for item in _index["entries"]}
-    if key not in valid_ids:
+    if key not in _entries_by_id:
         return None
 
     version = _manifest["version"]
@@ -131,12 +131,13 @@ async def get_beq_entry(key: str) -> dict[str, Any] | None:
 
 async def clear_cache() -> bool:
     """Clear index and payloads; next browse reloads the latest published version."""
-    global _index, _manifest
+    global _index, _manifest, _entries_by_id
     if _index_lock.locked():
         _LOG.debug("BEQ index load in progress; cache clear deferred")
         return False
     _index = None
     _manifest = None
+    _entries_by_id = {}
     _entry_cache.clear()
     return True
 
@@ -257,9 +258,9 @@ async def _browse_category(
     if not await _load_index():
         return StatusCodes.SERVER_ERROR
     ids = _index["categories"].get(content_type, [])
-    by_id = {entry["id"]: entry for entry in _index["entries"]}
     start = (page - 1) * limit
-    page_entries = (by_id[entry_id] for entry_id in ids[start:start + limit] if entry_id in by_id)
+    page_entries = (_entries_by_id[entry_id] for entry_id in ids[start:start + limit]
+                    if entry_id in _entries_by_id)
     items = [_entry_to_item(entry) for entry in page_entries]
     return BrowseResults(
         media=BrowseMediaItem(
