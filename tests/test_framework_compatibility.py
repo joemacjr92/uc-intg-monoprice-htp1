@@ -142,3 +142,17 @@ def test_device_command_validation_and_requested_mute_state():
         assert not await device.send_http_command("12345")
 
     asyncio.run(exercise())
+
+
+def test_remote_rejects_unadvertised_commands_as_bad_request():
+    from intg_monoprice_htp1.remote import HTP1Remote
+    from ucapi import StatusCodes
+
+    remote = HTP1Remote.__new__(HTP1Remote)
+    remote.id = "remote.test"
+
+    async def exercise():
+        assert await remote._send_single("not-a-command") == StatusCodes.BAD_REQUEST
+
+    import asyncio
+    asyncio.run(exercise())
