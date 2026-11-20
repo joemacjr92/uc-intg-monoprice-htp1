@@ -12,7 +12,6 @@ from typing import Any
 
 import aiohttp
 import websockets
-from websockets.client import WebSocketClientProtocol
 
 from ucapi_framework import WebSocketDevice, DeviceEvents
 from intg_monoprice_htp1.config import HTP1Config
@@ -63,7 +62,7 @@ class HTP1Device(WebSocketDevice):
         self._device_config = device_config
         self._state: dict[str, Any] | None = None
         self._state_ready = asyncio.Event()
-        self._ws: WebSocketClientProtocol | None = None
+        self._ws: Any | None = None
 
         self.events.on(DeviceEvents.CONNECTED, self._on_connected)
         self.events.on(DeviceEvents.DISCONNECTED, self._on_disconnected)
@@ -132,7 +131,7 @@ class HTP1Device(WebSocketDevice):
     def get_sensor_value(self, key: str) -> str:
         return self._sensor_data.get(key, "")
 
-    async def create_websocket(self) -> WebSocketClientProtocol:
+    async def create_websocket(self) -> Any:
         _LOG.info("[%s] Creating WebSocket connection to %s", self.log_id, self.websocket_url)
         logging.getLogger("websockets").setLevel(logging.INFO)
         self._ws = await websockets.connect(
