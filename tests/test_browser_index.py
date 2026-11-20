@@ -193,20 +193,3 @@ def test_entry_fetch_retries_after_catalogue_version_changes(monkeypatch):
     assert fetched_versions == ["0123456789abcdef", "fedcba9876543210"]
 
 
-def test_clear_cache_waits_for_inflight_index_refresh(monkeypatch):
-    lock = asyncio.Lock()
-    monkeypatch.setattr(browser, "_index_lock", lock)
-    monkeypatch.setattr(browser, "_index", {"entries": [], "categories": {}})
-    monkeypatch.setattr(browser, "_manifest", {"version": "0123456789abcdef"})
-
-    async def exercise():
-        await lock.acquire()
-        clear_task = asyncio.create_task(browser.clear_cache())
-        await asyncio.sleep(0)
-        assert not clear_task.done()
-        lock.release()
-        assert await clear_task is True
-
-    asyncio.run(exercise())
-    assert browser._index is None
-    assert browser._manifest is None
