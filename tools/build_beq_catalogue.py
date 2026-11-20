@@ -97,6 +97,9 @@ def build(source: Path, output: Path) -> dict[str, Any]:
 
     source_digest = hashlib.sha256(raw).hexdigest()
     version = source_digest[:16]
+    # The source can be tens of megabytes. Do not retain its raw byte buffer
+    # throughout transformation once JSON decoding has completed.
+    del raw
     entries_dir = output / version / "entries"
     entries_dir.mkdir(parents=True, exist_ok=True)
 
