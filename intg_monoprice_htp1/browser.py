@@ -66,7 +66,9 @@ async def _load_index() -> bool:
                 raise ValueError("unsupported BEQ manifest schema")
             version = manifest.get("version")
             index_path = manifest.get("index")
-            if not isinstance(version, str) or not isinstance(index_path, str):
+            if (not isinstance(version, str) or len(version) != 16
+                    or any(char not in "0123456789abcdef" for char in version)
+                    or not isinstance(index_path, str)):
                 raise ValueError("invalid BEQ manifest")
             if not index_path.startswith(version + "/") or ".." in index_path.split("/"):
                 raise ValueError("unsafe BEQ index path")
@@ -93,6 +95,15 @@ async def _load_index() -> bool:
             }
             if len(entries_by_id) != len(index["entries"]):
                 raise ValueError("BEQ index contains invalid or duplicate entry IDs")
+            if any(len(entry_id) != 16 or any(char not in "0123456789abcdef" for char in entry_id)
+                   for entry_id in entries_by_id):
+                raise ValueError("BEQ index contains an invalid entry ID")
+            entry_count = len(index["entries"])
+            if any(not isinstance(indexes, list) or any(
+                not isinstance(index_value, int) or index_value < 0 or index_value >= entry_count
+                for index_value in indexes
+            ) for indexes in index["categories"].values()):
+                raise ValueError("BEQ index contains invalid category offsets")
 
             previous_version = _manifest.get("version") if _manifest else None
             _manifest, _index, _entries_by_id = manifest, index, entries_by_id
