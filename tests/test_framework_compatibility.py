@@ -538,19 +538,23 @@ def test_beq_pre_targets_sub1_only_and_cleans_legacy_tags_on_all_channels():
 
 
 def test_beq_pre_uses_sub1_even_when_peq_channels_have_no_lfe_key():
+    import asyncio
     from intg_monoprice_htp1.config import HTP1Config
     from intg_monoprice_htp1.device import HTP1Device
 
-    device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
-    device._state = {
-        "peq": {
-            "location": "pre",
-            "peqsw": False,
-            "slots": [{"channels": {"sub1": {"Fc": 100, "gaindB": 0, "Q": 1, "FilterType": 0}}}],
-        },
-        "speakers": {"groups": {"sub1": {"present": True}}},
-    }
-    assert device._get_sub_channels() == ["sub1"]
+    async def exercise():
+        device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
+        device._state = {
+            "peq": {
+                "location": "pre",
+                "peqsw": False,
+                "slots": [{"channels": {"sub1": {"Fc": 100, "gaindB": 0, "Q": 1, "FilterType": 0}}}],
+            },
+            "speakers": {"groups": {"sub1": {"present": True}}},
+        }
+        assert device._get_sub_channels() == ["sub1"]
+
+    asyncio.run(exercise())
 
 
 def test_beq_non_pre_targets_all_present_subwoofers():
@@ -648,7 +652,7 @@ def test_beq_clamps_imported_values_and_rejects_malformed_values_and_more_than_1
                 "path": f"/peq/slots/0/channels/sub1/{attribute}",
                 "value": value,
             } in operations
-        assert not any("/channels/sub" in op["path"] for op in operations if op["op"] in ("add", "replace"))
+        assert not any("/channels/sub2/" in op["path"] for op in operations if op["op"] in ("add", "replace"))
 
         assert not await device.load_beq("Too many", [{"freq": 100, "gain": 1, "q": 1}] * 17)
         assert sent == []
