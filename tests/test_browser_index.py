@@ -127,9 +127,9 @@ def test_entry_payload_validation_enforces_htp1_peq_ranges(monkeypatch):
     import pytest
 
     invalid_filters = [
-        {"type": "PeakingEQ", "freq": 14.9, "gain": 0, "q": 1},
+        {"type": "PeakingEQ", "freq": 9.9, "gain": 0, "q": 1},
         {"type": "PeakingEQ", "freq": 20000.1, "gain": 0, "q": 1},
-        {"type": "PeakingEQ", "freq": 100, "gain": -63.1, "q": 1},
+        {"type": "PeakingEQ", "freq": 100, "gain": -99.1, "q": 1},
         {"type": "PeakingEQ", "freq": 100, "gain": 20.1, "q": 1},
         {"type": "PeakingEQ", "freq": 100, "gain": 0, "q": 0.09},
         {"type": "PeakingEQ", "freq": 100, "gain": 0, "q": 10.1},
@@ -153,7 +153,7 @@ def test_entry_payload_validation_enforces_htp1_peq_ranges(monkeypatch):
 
         monkeypatch.setattr(browser, "_get_json", valid_fetch)
         payload = await browser._fetch_entry_payload("0123456789abcdef", "0000000000000001")
-        assert payload["filters"][0]["freq"] == 15
+        assert payload["filters"][0]["freq"] == 10
 
     asyncio.run(exercise())
 
