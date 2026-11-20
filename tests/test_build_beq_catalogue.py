@@ -168,7 +168,7 @@ def test_incompatible_htp1_filters_are_reported_and_excluded(tmp_path: Path):
         "Unsupported filter type",
     ]
     assert "frequency outside 15–20000 Hz" in str(unsupported)
-    assert "unsupported filter type: AllPass1" in str(unsupported)
+    assert "filter type not supported by integration: AllPass1" in str(unsupported)
     assert "more than 16 filters per channel" in str(unsupported)
     assert (output / "unsupported-entries.txt").exists()
 
