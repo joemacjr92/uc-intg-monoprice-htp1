@@ -227,7 +227,7 @@ def _entry_to_item(entry: dict[str, Any]) -> BrowseMediaItem:
         media_class=MediaClass.TRACK,
         media_type="beq_entry",
         media_id=f"beq:{entry['id']}",
-        can_play=True,
+        can_play=entry.get("has_filters", True),
         can_browse=False,
         subtitle=subtitle[:255] if subtitle else None,
     )
