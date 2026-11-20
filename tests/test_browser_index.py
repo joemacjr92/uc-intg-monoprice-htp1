@@ -148,7 +148,7 @@ def test_entry_payload_validation_enforces_htp1_peq_ranges(monkeypatch):
             return {
                 "title": "Film",
                 "underlying": "Film",
-                "filters": [{"type": "PeakingEQ", "freq": 15, "gain": -63, "q": 0.1}],
+                "filters": [{"type": "PeakingEQ", "freq": 10, "gain": -99, "q": 0.1}],
             }
 
         monkeypatch.setattr(browser, "_get_json", valid_fetch)
