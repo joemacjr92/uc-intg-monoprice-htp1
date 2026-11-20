@@ -125,8 +125,9 @@ def test_entry_cache_is_bounded_lru(monkeypatch):
 
 def test_entry_fetch_retries_after_catalogue_version_changes(monkeypatch):
     import aiohttp
+    from collections import OrderedDict
 
-    monkeypatch.setattr(browser, "_entry_cache", {})
+    monkeypatch.setattr(browser, "_entry_cache", OrderedDict())
     monkeypatch.setattr(browser, "_manifest", {"version": "0123456789abcdef"})
     load_calls = 0
     fetched_versions = []
