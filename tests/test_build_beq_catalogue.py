@@ -52,7 +52,7 @@ def test_build_writes_compact_index_and_on_demand_entries(tmp_path: Path):
     }]
 
 
-@pytest.mark.parametrize("records", [[], {}, [None], [{"title": "Missing filters"}]])
+@pytest.mark.parametrize("records", [[], {}, [None], [{"title": "Invalid filters", "filters": {}}]])
 def test_rejects_invalid_source_records(tmp_path: Path, records):
     source = tmp_path / "source.json"
     source.write_text(json.dumps(records), encoding="utf-8")
@@ -79,3 +79,29 @@ def test_identical_filter_records_keep_legacy_duplicate_ids(tmp_path: Path):
     index = json.loads((output / manifest["index"]).read_text(encoding="utf-8"))
     assert manifest["entry_count"] == 2
     assert index["entries"][0]["id"] == index["entries"][1]["id"]
+
+
+
+def test_metadata_only_records_remain_browsable_but_not_playable(tmp_path: Path):
+    source = tmp_path / "source.json"
+    output = tmp_path / "public"
+    source.write_text(json.dumps([{
+        "title": "8mm",
+        "underlying": "8mm",
+        "author": "",
+        "year": "",
+        "audioTypes": [],
+        "content_type": "film",
+    }]), encoding="utf-8")
+
+    manifest = build(source, output)
+    index = json.loads((output / manifest["index"]).read_text(encoding="utf-8"))
+    entry = index["entries"][0]
+    assert entry["title"] == "8mm"
+    assert entry["has_filters"] is False
+
+    payload = json.loads(
+        (output / manifest["version"] / "entries" / f"{entry['id']}.json")
+        .read_text(encoding="utf-8")
+    )
+    assert payload["filters"] == []
