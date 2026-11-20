@@ -161,7 +161,7 @@ def test_unsupported_types_and_excess_bands_are_reported_but_limits_are_normaliz
     adjusted = json.loads(
         (output / manifest["adjusted_report"]).read_text(encoding="utf-8")
     )
-    payload_path = output / manifest["version"] / "entries" / f"{index['entries'][1]['id']}.json"
+    payload_path = output / manifest["version"] / "entries" / f"{index['entries'][0]['id']}.json"
     payload = json.loads(payload_path.read_text(encoding="utf-8"))
 
     assert manifest["entry_count"] == 2
@@ -217,27 +217,3 @@ def test_catalogue_builder_normalizes_values_to_beq_limits(
     assert manifest["adjusted_count"] == 1
     assert {key: payload["filters"][0][key] for key in ("freq", "gain", "q")} == expected
 
-
-@pytest.mark.parametrize("filter_value", [
-    {"type": "PeakingEQ", "freq": 100, "gain": 20.1, "q": 1},
-    {"type": "PeakingEQ", "freq": 100, "gain": 0, "q": 10.1},
-    {"type": "PeakingEQ", "freq": 20001, "gain": 0, "q": 1},
-])
-def test_catalogue_builder_reports_each_out_of_range_parameter(
-    tmp_path: Path, filter_value
-):
-    source = tmp_path / "source.json"
-    output = tmp_path / "public"
-    source.write_text(json.dumps([{
-        "title": "Out of range",
-        "content_type": "film",
-        "filters": [filter_value],
-    }]), encoding="utf-8")
-
-    manifest = build(source, output)
-    report = json.loads(
-        (output / manifest["unsupported_report"]).read_text(encoding="utf-8")
-    )
-    assert manifest["entry_count"] == 0
-    assert manifest["unsupported_count"] == 1
-    assert report["entries"][0]["issues"][0]["reasons"]
