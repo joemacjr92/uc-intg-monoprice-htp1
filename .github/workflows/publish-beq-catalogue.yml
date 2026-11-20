@@ -1,9 +1,6 @@
 name: Publish BEQ catalogue
 
 on:
-  push:
-    branches:
-      - perf/hosted-beq-catalogue
   schedule:
     - cron: "17 5 * * *"
   workflow_dispatch:
