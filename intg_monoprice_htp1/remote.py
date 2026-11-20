@@ -332,6 +332,8 @@ class HTP1Remote(RemoteEntity):
                 return StatusCodes.OK if success else StatusCodes.SERVER_ERROR
             
             if cmd_id == Commands.SEND_CMD:
+                if params is not None and not isinstance(params, dict):
+                    return StatusCodes.BAD_REQUEST
                 command = params.get("command") if params else None
                 if not isinstance(command, str) or not command.strip():
                     return StatusCodes.BAD_REQUEST
@@ -342,6 +344,8 @@ class HTP1Remote(RemoteEntity):
                 return await self._send_commands([command.strip()], repeat, delay)
 
             if cmd_id == Commands.SEND_CMD_SEQUENCE:
+                if params is not None and not isinstance(params, dict):
+                    return StatusCodes.BAD_REQUEST
                 sequence = params.get("sequence") if params else None
                 if isinstance(sequence, str):
                     sequence = sequence.split(",")
@@ -358,6 +362,8 @@ class HTP1Remote(RemoteEntity):
                 if repeat_delay is None:
                     return StatusCodes.BAD_REQUEST
                 repeat, delay = repeat_delay
+                if len(commands) * repeat > 100:
+                    return StatusCodes.BAD_REQUEST
                 return await self._send_commands(commands, repeat, delay)
 
             return StatusCodes.NOT_IMPLEMENTED
