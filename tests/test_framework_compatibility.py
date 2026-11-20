@@ -514,12 +514,18 @@ def test_beq_targets_only_lfe_channel_and_cleans_legacy_subwoofer_tags():
                 "value": freq,
             } in operations
 
-        # No new BEQ filter writes are ever made to physical subwoofer outputs.
+        # Legacy subwoofer tags are reset, but new BEQ filters are never added there.
         assert not any(
-            "/channels/sub1/" in op["path"] or "/channels/sub2/" in op["path"]
+            op["op"] == "add" and "/channels/sub" in op["path"] and op["path"].endswith("/beq")
             for op in operations
-            if op["op"] in ("add", "replace") and op["path"].endswith(("/Fc", "/gaindB", "/Q", "/FilterType", "/beq"))
         )
+        for channel, slot in (("sub1", 2), ("sub2", 6)):
+            for attribute, value in (("Fc", 100), ("gaindB", 0), ("Q", 1), ("FilterType", 0)):
+                assert {
+                    "op": "replace",
+                    "path": f"/peq/slots/{slot}/channels/{channel}/{attribute}",
+                    "value": value,
+                } in operations
         assert operations[-2] == {"op": "add", "path": "/peq/beqActive", "value": "Test BEQ"}
         assert operations[-1] == {"op": "replace", "path": "/peq/peqsw", "value": True}
 
