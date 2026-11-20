@@ -141,7 +141,7 @@ def build(source: Path, output: Path) -> dict[str, Any]:
         for entry in filterless_entries
     )
     (output / "filterless-entries.txt").write_text(
-        "\\n".join(report_lines) + "\\n", encoding="utf-8"
+        "\n".join(report_lines) + "\n", encoding="utf-8"
     )
 
     index_entries.sort(key=lambda item: (item["title"].casefold(), item["id"]))
