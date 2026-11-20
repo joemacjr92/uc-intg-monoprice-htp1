@@ -49,3 +49,39 @@ def test_connection_loss_clears_stale_state_and_notifies_entities():
         assert updates == [True]
 
     asyncio.run(exercise())
+
+
+def test_invalid_full_state_payload_is_ignored():
+    import asyncio
+    from intg_monoprice_htp1.config import HTP1Config
+    from intg_monoprice_htp1.device import HTP1Device
+
+    async def exercise():
+        device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
+        await device.handle_message("mso []")
+        assert device._state is None
+        assert not device._state_ready.is_set()
+
+    asyncio.run(exercise())
+
+
+def test_malformed_patch_entries_do_not_abort_valid_updates():
+    import asyncio
+    from intg_monoprice_htp1.config import HTP1Config
+    from intg_monoprice_htp1.device import HTP1Device
+
+    async def exercise():
+        device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
+        device._state = {"powerIsOn": False}
+        updates = []
+        device.push_update = lambda: updates.append(True)
+
+        await device.handle_message(
+            'msoupdate [42, {"op": "replace", "path": null, "value": true}, '
+            '{"op": "replace", "path": "/powerIsOn", "value": true}]'
+        )
+
+        assert device._state["powerIsOn"] is True
+        assert updates == [True]
+
+    asyncio.run(exercise())
