@@ -270,36 +270,29 @@ class HTP1Device(WebSocketDevice):
         self.vph = _number(cal.get("vph"), 12)
         self.volume_db = _number(state.get("volume"), 0) - self.zp
     def _parse_seat_shakers(self) -> None:
-        shaker = self._state.get("shaker", {})
-        if not shaker:
-            self.ss_mute = "off"
-            self.ss_preset = 0
-            self.ss_trim = 0
-            return
-
-        self.ss_mute = shaker.get("mute", "off")
-        self.ss_preset = shaker.get("activePreset", 0) + 1
-        
-        presets = shaker.get("presets", {})
-        active_preset_str = str(shaker.get("activePreset", ""))
-        current_preset = presets.get(active_preset_str, {})
-        
-        self.ss_trim = current_preset.get("trim", 0)
+        shaker = _as_dict(_as_dict(self._state).get("shaker"))
+        mute = shaker.get("mute", "off")
+        self.ss_mute = mute if isinstance(mute, str) else "off"
+        active = _number(shaker.get("activePreset"), -1)
+        active_index = int(active)
+        self.ss_preset = active_index + 1 if 0 <= active_index <= 5 else 0
+        presets = _as_dict(shaker.get("presets"))
+        preset = _as_dict(presets.get(str(active_index)))
+        self.ss_trim = _number(preset.get("trim"), 0)
 
     def _parse_inputs(self) -> None:
-        input_id = self._state.get("input", "")
+        state = _as_dict(self._state)
+        input_id = state.get("input", "")
         self.source_list = []
         self.current_source = ""
-        
-        inputs = self._state.get("inputs", {})
-        for inp_id, inp_info in inputs.items():
-            if not isinstance(inp_info, dict):
+        for inp_id, info in _as_dict(state.get("inputs")).items():
+            if not isinstance(info, dict):
                 continue
-                
-            label = inp_info.get("label", inp_id)
-            if inp_info.get("visible", False):
+            label = info.get("label", inp_id)
+            if not isinstance(label, str):
+                continue
+            if info.get("visible") is True:
                 self.source_list.append(label)
-                
             if inp_id == input_id:
                 self.current_source = label
 
@@ -338,24 +331,18 @@ class HTP1Device(WebSocketDevice):
             self.dirac_slot_name = "Dirac Bypass"
 
     def _parse_video_stats(self) -> None:
-        vi = self._state.get("videostat", {})
-        parts = [
-            vi.get("VideoResolution", ""),
-            vi.get("HDRstatus", ""),
-            vi.get("VideoColorSpace", ""),
-            vi.get("VideoMode", ""),
-            vi.get("VideoBitDepth", "")
-        ]
-        self.video_mode = " ".join(p for p in parts if p) or "-----"
+        vi = _as_dict(_as_dict(self._state).get("videostat"))
+        keys = ("VideoResolution", "HDRstatus", "VideoColorSpace", "VideoMode", "VideoBitDepth")
+        parts = [vi.get(key, "") for key in keys]
+        self.video_mode = " ".join(p for p in parts if isinstance(p, str) and p) or "-----"
 
     def _update_sensor_data(self) -> None:
-        loudness_state = self._state.get("loudness", "off")
-        night_mode_state = self._state.get("night", "off")
-        
-        peq = self._state.get("peq", {})
-        peq_sw = peq.get("peqsw", False)
-        self.beq_active = peq.get("beqActive", "")
-
+        state = _as_dict(self._state)
+        loudness = state.get("loudness", "off")
+        night = state.get("night", "off")
+        peq = _as_dict(state.get("peq"))
+        active = peq.get("beqActive", "")
+        self.beq_active = active if isinstance(active, str) else ""
         self._sensor_data = {
             "input": self.current_source,
             "volume": str(self.volume_db),
@@ -363,14 +350,14 @@ class HTP1Device(WebSocketDevice):
             "ss_trim": str(self.ss_trim),
             "ss_mute": self.ss_mute.capitalize(),
             "ss_preset": self.ss_preset,
-            "loudness": str(loudness_state).capitalize() if isinstance(loudness_state, str) else ("On" if loudness_state else "Off"),
-            "night_mode": str(night_mode_state).capitalize() if isinstance(night_mode_state, str) else ("On" if night_mode_state else "Off"),
-            "peq": "On" if peq_sw else "Off",
+            "loudness": loudness.capitalize() if isinstance(loudness, str) else ("On" if loudness is True else "Off"),
+            "night_mode": night.capitalize() if isinstance(night, str) else ("On" if night is True else "Off"),
+            "peq": "On" if peq.get("peqsw") is True else "Off",
             "sound_mode": self.sound_mode_display,
-            "audio_format": getattr(self, 'audio_format', 'none'),
-            "output_audio_format": getattr(self, 'output_audio_format', ''),
+            "audio_format": getattr(self, "audio_format", "none"),
+            "output_audio_format": getattr(self, "output_audio_format", ""),
             "dirac_slot": self.dirac_slot_name,
-            "video_mode": self.video_mode,
+            "video_mode": getattr(self, "video_mode", "-----"),
             "connection": "Connected" if self.is_connected else "Disconnected",
             "beq_active": self.beq_active or "None",
         }
