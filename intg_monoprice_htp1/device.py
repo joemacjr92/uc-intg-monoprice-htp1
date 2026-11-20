@@ -8,6 +8,7 @@ Monoprice HTP-1 device implementation for Unfolded Circle integration.
 import asyncio
 import json
 import logging
+import math
 from typing import Any
 
 import aiohttp
@@ -25,6 +26,23 @@ BEQ_SLOT_END = 15
 KEEPALIVE_INTERVAL = 20
 KEEPALIVE_TIMEOUT = 10
 PROBE_TIMEOUT = 5.0
+
+
+def _as_dict(value: Any) -> dict:
+    """Return a nested state object only when it has the expected shape."""
+    return value if isinstance(value, dict) else {}
+
+
+def _as_list(value: Any) -> list:
+    """Return a nested state array only when it has the expected shape."""
+    return value if isinstance(value, list) else []
+
+
+def _number(value: Any, default: float = 0) -> float:
+    """Read a finite numeric state value without accepting booleans or strings."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return default
+    return value if math.isfinite(value) else default
 
 
 async def probe_htp1(host: str, timeout: float = PROBE_TIMEOUT) -> str | None:
