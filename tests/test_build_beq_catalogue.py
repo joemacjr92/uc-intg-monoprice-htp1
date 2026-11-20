@@ -27,7 +27,7 @@ def test_build_writes_compact_index_and_on_demand_entries(tmp_path: Path):
     assert manifest["schema_version"] == 1
 
     index = json.loads((output / manifest["index"]).read_text(encoding="utf-8"))
-    assert index["categories"] == {"film": [index["entries"][0]["id"]]}
+    assert index["categories"] == {"film": [0]}
     assert index["entries"][0]["title"] == "Example Film"
     assert "filters" not in index["entries"][0]
 
