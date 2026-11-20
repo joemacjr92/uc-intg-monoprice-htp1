@@ -111,6 +111,8 @@ class HTP1MediaPlayer(MediaPlayerEntity):
                 return StatusCodes.OK if await self._device.turn_off() else StatusCodes.SERVER_ERROR
 
             if cmd_id == Commands.VOLUME:
+                if params is not None and not isinstance(params, dict):
+                    return StatusCodes.BAD_REQUEST
                 value = params.get("volume") if params else None
                 if isinstance(value, bool) or not isinstance(value, (int, float)):
                     return StatusCodes.BAD_REQUEST
@@ -135,16 +137,20 @@ class HTP1MediaPlayer(MediaPlayerEntity):
                 return StatusCodes.OK if await self._device.mute_toggle(False) else StatusCodes.SERVER_ERROR
 
             if cmd_id == Commands.SELECT_SOURCE:
+                if params is not None and not isinstance(params, dict):
+                    return StatusCodes.BAD_REQUEST
                 source = params.get("source") if params else None
                 if not isinstance(source, str) or not source.strip():
                     return StatusCodes.BAD_REQUEST
-                return StatusCodes.OK if await self._device.select_source(source) else StatusCodes.SERVER_ERROR
+                return StatusCodes.OK if await self._device.select_source(source.strip()) else StatusCodes.SERVER_ERROR
 
             if cmd_id == Commands.SELECT_SOUND_MODE:
+                if params is not None and not isinstance(params, dict):
+                    return StatusCodes.BAD_REQUEST
                 mode = params.get("mode") if params else None
                 if not isinstance(mode, str) or not mode.strip():
                     return StatusCodes.BAD_REQUEST
-                return StatusCodes.OK if await self._device.select_sound_mode(mode) else StatusCodes.SERVER_ERROR
+                return StatusCodes.OK if await self._device.select_sound_mode(mode.strip()) else StatusCodes.SERVER_ERROR
 
             if cmd_id == Commands.PLAY_MEDIA:
                 return await self._handle_play_media(params)
@@ -156,12 +162,13 @@ class HTP1MediaPlayer(MediaPlayerEntity):
             return StatusCodes.SERVER_ERROR
 
     async def _handle_play_media(self, params: dict[str, Any] | None) -> StatusCodes:
-        if not params:
+        if not isinstance(params, dict):
             return StatusCodes.BAD_REQUEST
 
-        media_id = params.get("media_id", "")
-        if not media_id:
+        media_id = params.get("media_id")
+        if not isinstance(media_id, str) or not media_id.strip():
             return StatusCodes.BAD_REQUEST
+        media_id = media_id.strip()
 
         if media_id == "beq:clear":
             success = await self._device.clear_beq()
