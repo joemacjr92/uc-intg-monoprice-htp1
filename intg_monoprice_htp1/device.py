@@ -539,28 +539,29 @@ class HTP1Device(WebSocketDevice):
         if not self._state:
             return ["sub1"]
 
-        peq_location = self._state.get("peq", {}).get("location", "")
+        peq_location = _as_dict(self._state.get("peq")).get("location", "")
         if peq_location == "pre":
             return ["sub1"]
 
-        speakers = self._state.get("speakers", {}).get("groups", {})
+        speakers = _as_dict(_as_dict(self._state.get("speakers")).get("groups"))
         subs = []
         for key, val in speakers.items():
-            if key.startswith("sub") and isinstance(val, dict):
-                if val.get("present", False):
+            if isinstance(key, str) and key.startswith("sub") and isinstance(val, dict):
+                if val.get("present", False) is True:
                     subs.append(key)
         return subs or ["sub1"]
 
     def _find_empty_peq_slot(self, start_slot: int = BEQ_SLOT_START, ch: str | None = None) -> int | None:
         if not self._state:
             return None
-        peq = self._state.get("peq", {})
-        slots = peq.get("slots", [])
+        peq = _as_dict(self._state.get("peq"))
+        slots = _as_list(peq.get("slots"))
 
-        for i in range(start_slot, min(BEQ_SLOT_END + 1, len(slots))):
-            channels = slots[i].get("channels", {})
-            ch_data = channels.get(ch, {})
-            if ch_data.get("gaindB", 0) == 0 or ch_data.get("beq"):
+        for i in range(max(0, start_slot), min(BEQ_SLOT_END + 1, len(slots))):
+            slot = _as_dict(slots[i])
+            channels = _as_dict(slot.get("channels"))
+            ch_data = _as_dict(channels.get(ch))
+            if _number(ch_data.get("gaindB"), 0) == 0 or ch_data.get("beq") is True:
                 return i
         return None
 
