@@ -26,6 +26,7 @@ SIMPLE_COMMANDS = [
     "POWER",
     "VOLUME_UP",
     "VOLUME_DOWN",
+    "Mute Toggle",
     "Mode None",
     "Mode Dolby Sur",
     "Mode Neural-X",
