@@ -85,7 +85,6 @@ def build(source: Path, output: Path) -> dict[str, Any]:
     entries_dir.mkdir(parents=True, exist_ok=True)
 
     index_entries: list[dict[str, Any]] = []
-    categories: dict[str, list[int]] = defaultdict(list)
     seen_ids: set[str] = set()
     for record in records:
         if not isinstance(record, dict):
@@ -95,7 +94,6 @@ def build(source: Path, output: Path) -> dict[str, Any]:
             raise ValueError(f"duplicate BEQ entry id: {item['id']}")
         seen_ids.add(item["id"])
         index_entries.append(item)
-        categories[item["content_type"]].append(len(index_entries) - 1)
         (entries_dir / f"{item['id']}.json").write_bytes(_canonical(payload))
 
     index_entries.sort(key=lambda item: (item["title"].casefold(), item["id"]))
