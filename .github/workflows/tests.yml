@@ -2,19 +2,43 @@ name: Tests
 
 on:
   workflow_dispatch:
+  issue_comment:
+    types: [created]
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   unit-tests:
+    if: >-
+      github.event.issue.pull_request &&
+      github.event.comment.body == '/run-tests' &&
+      github.actor == github.repository_owner
     runs-on: ubuntu-latest
     steps:
+      - name: Resolve pull request head
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            core.setOutput('sha', pr.head.sha);
+
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr.outputs.sha }}
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
       - name: Install test dependencies
         run: python -m pip install -r requirements.txt pytest
+
       - name: Run tests
         run: python -m pytest -q
