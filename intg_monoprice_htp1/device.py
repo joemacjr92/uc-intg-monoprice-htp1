@@ -259,18 +259,16 @@ class HTP1Device(WebSocketDevice):
                 _LOG.warning("[%s] Ignoring malformed state section in %s: %s", self.log_id, parser.__name__, err)
 
     def _parse_power_and_volume(self) -> None:
-        self.power = self._state.get("powerIsOn", False)
-        self.muted = self._state.get("muted", False)
-
-        volume = self._state.get("volume", 0)
-        cal = self._state.get("cal", {})
-        
-        self.zp = cal.get("zeroPoint", 0)
-        self.vpl = cal.get("vpl", -80)
-        self.vph = cal.get("vph", 12)
-        
-        self.volume_db = volume - self.zp
-
+        state = _as_dict(self._state)
+        power = state.get("powerIsOn", False)
+        muted = state.get("muted", False)
+        self.power = power if isinstance(power, bool) else False
+        self.muted = muted if isinstance(muted, bool) else False
+        cal = _as_dict(state.get("cal"))
+        self.zp = _number(cal.get("zeroPoint"), 0)
+        self.vpl = _number(cal.get("vpl"), -80)
+        self.vph = _number(cal.get("vph"), 12)
+        self.volume_db = _number(state.get("volume"), 0) - self.zp
     def _parse_seat_shakers(self) -> None:
         shaker = self._state.get("shaker", {})
         if not shaker:
