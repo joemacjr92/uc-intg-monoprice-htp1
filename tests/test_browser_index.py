@@ -9,7 +9,7 @@ def _seed_index(monkeypatch):
     entries = [
         {"id": f"{index:016x}", "title": title, "author": "", "year": "2024",
          "audioTypes": []}
-        for index, title in enumerate(["Alpha", "Alpine", "Beta"])
+        for index, title in enumerate(["Alpha", "Alpine", "Alto", "Beta"])
     ]
     monkeypatch.setattr(browser, "_index", {
         "entries": entries,
@@ -23,21 +23,21 @@ def test_search_respects_requested_page_and_limit(monkeypatch):
     _seed_index(monkeypatch)
     options = SimpleNamespace(
         query="al",
-        paging=SimpleNamespace(page=2, limit=1),
+        paging=SimpleNamespace(page=2, limit=2),
     )
     result = asyncio.run(browser.search(None, options))
-    assert [item.title for item in result.media] == ["Alpine"]
+    assert [item.title for item in result.media] == ["Alto"]
     assert result.pagination.page == 2
-    assert result.pagination.limit == 1
-    assert result.pagination.count == 2
+    assert result.pagination.limit == 2
+    assert result.pagination.count == 3
 
 
 def test_category_browse_uses_precomputed_offsets_and_limit(monkeypatch):
     _seed_index(monkeypatch)
-    result = asyncio.run(browser._browse_category("film", page=2, limit=1))
-    assert [item.title for item in result.media.items] == ["Alpine"]
+    result = asyncio.run(browser._browse_category("film", page=2, limit=2))
+    assert [item.title for item in result.media.items] == ["Alto"]
     assert result.pagination.page == 2
-    assert result.pagination.limit == 1
+    assert result.pagination.limit == 2
     assert result.pagination.count == 3
 
 
