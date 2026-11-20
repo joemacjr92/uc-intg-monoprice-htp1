@@ -275,3 +275,49 @@ def test_media_player_rejects_malformed_command_parameters():
         assert await player._handle_play_media({"media_id": "   "}) == StatusCodes.BAD_REQUEST
 
     asyncio.run(exercise())
+
+
+
+def test_remote_dispatches_direct_simple_commands_from_ui_and_button_mappings():
+    import asyncio
+    from intg_monoprice_htp1.remote import HTP1Remote, HTTP_COMMANDS
+    from ucapi import StatusCodes
+
+    class Device:
+        power = False
+        muted = False
+        ss_mute = "off"
+        ss_trim = 0
+
+        def __init__(self):
+            self.http_commands = []
+            self.menu_commands = []
+
+        async def send_http_command(self, command):
+            self.http_commands.append(command)
+            return True
+
+        async def send_command(self, command):
+            self.menu_commands.append(command)
+            return True
+
+    device = Device()
+    remote = HTP1Remote.__new__(HTP1Remote)
+    remote.id = "remote.test"
+    remote._device = device
+
+    async def exercise():
+        for command in ("Mute Toggle", "Dialog Up", "User Input 1"):
+            assert await remote._handle_command(remote, command, None) == StatusCodes.OK
+        assert device.http_commands == [
+            HTTP_COMMANDS["Mute Toggle"],
+            HTTP_COMMANDS["Dialog Up"],
+            HTTP_COMMANDS["User Input 1"],
+        ]
+
+        assert await remote._handle_command(
+            remote, "send_avcui: hpe", None
+        ) == StatusCodes.OK
+        assert device.menu_commands == ["send_avcui: hpe"]
+
+    asyncio.run(exercise())
