@@ -606,6 +606,24 @@ class HTP1Device(WebSocketDevice):
         """Helper to construct the JSON path for PEQ modifications."""
         return f"/peq/slots/{slot_idx}/channels/{channel}/{attribute}"
 
+    def _get_beq_cleanup_channels(self) -> list[str]:
+        """Include current BEQ channels and any legacy post-PEQ subwoofer tags.
+
+        BEQ is only applied in Pre placement now, but older integration versions
+        could have tagged individual subwoofer outputs while PEQ was Post. Clear
+        those stale tags too if placement has since changed.
+        """
+        channels = set(self._get_sub_channels())
+        groups = _as_dict(_as_dict(_as_dict(self._state).get("speakers")).get("groups"))
+        channels.update(
+            key for key, value in groups.items()
+            if isinstance(key, str) and key.startswith("sub")
+            and isinstance(value, dict) and value.get("present") is True
+        )
+        if _as_dict(_as_dict(self._state).get("peq")).get("location") == "pre":
+            channels.add("sub1")
+        return sorted(channels)
+
     def _build_clear_beq_ops(self) -> list[dict[str, Any]] | None:
         """Build BEQ cleanup operations, or reject an incomplete PEQ state."""
         if not self._state:
@@ -620,7 +638,7 @@ class HTP1Device(WebSocketDevice):
 
         ops: list[dict[str, Any]] = []
         required = ("Fc", "gaindB", "Q", "FilterType")
-        sub_channels = self._get_sub_channels()
+        sub_channels = self._get_beq_cleanup_channels()
         for index, slot in enumerate(slots[:BEQ_SLOT_END + 1]):
             channels = _as_dict(_as_dict(slot).get("channels"))
             for channel in sub_channels:
