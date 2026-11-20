@@ -94,7 +94,7 @@ class HTP1MediaPlayer(MediaPlayerEntity):
         from intg_monoprice_htp1 import browser
         return await browser.search(self._device, options)
     
-    async def clear_cache(self) -> SearchResults | StatusCodes:
+    async def clear_cache(self) -> bool:
         from intg_monoprice_htp1 import browser
         return await browser.clear_cache()
 
