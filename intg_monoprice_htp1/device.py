@@ -39,11 +39,19 @@ def _as_list(value: Any) -> list:
     return value if isinstance(value, list) else []
 
 
+def _is_finite_number(value: Any) -> bool:
+    """Check a JSON numeric value without leaking conversion overflow."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
+
+
 def _number(value: Any, default: float = 0) -> float:
     """Read a finite numeric state value without accepting booleans or strings."""
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return default
-    return value if math.isfinite(value) else default
+    return value if _is_finite_number(value) else default
 
 
 async def probe_htp1(host: str, timeout: float = PROBE_TIMEOUT) -> str | None:
@@ -582,9 +590,7 @@ class HTP1Device(WebSocketDevice):
                 continue
 
             gain = channel_data.get("gaindB")
-            if isinstance(gain, bool) or not isinstance(gain, (int, float)):
-                continue
-            if not math.isfinite(gain):
+            if not _is_finite_number(gain):
                 continue
             if gain == 0 or channel_data.get("beq") is True:
                 return index
@@ -609,9 +615,10 @@ class HTP1Device(WebSocketDevice):
 
         ops: list[dict[str, Any]] = []
         required = ("Fc", "gaindB", "Q", "FilterType")
+        sub_channels = self._get_sub_channels()
         for index, slot in enumerate(slots[:BEQ_SLOT_END + 1]):
             channels = _as_dict(_as_dict(slot).get("channels"))
-            for channel in self._get_sub_channels():
+            for channel in sub_channels:
                 channel_data = _as_dict(channels.get(channel))
                 if channel_data.get("beq") is not True:
                     continue
@@ -649,15 +656,16 @@ class HTP1Device(WebSocketDevice):
 
         # HTP-1 PEQ supports 15–20,000 Hz, -63–20 dB and Q 0.1–10.
         for filt in filters:
-            if not isinstance(filt, dict) or filt.get("type", "PeakingEQ") not in FILTER_TYPE_MAP:
+            if not isinstance(filt, dict):
+                return False
+            filter_type = filt.get("type", "PeakingEQ")
+            if not isinstance(filter_type, str) or filter_type not in FILTER_TYPE_MAP:
                 return False
             values = {key: filt.get(key, default) for key, default in (
                 ("freq", 100), ("gain", 0), ("q", 1)
             )}
             if any(
-                isinstance(value, bool)
-                or not isinstance(value, (int, float))
-                or not math.isfinite(value)
+                not _is_finite_number(value)
                 for value in values.values()
             ):
                 return False
