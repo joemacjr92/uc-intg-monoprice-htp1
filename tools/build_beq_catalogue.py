@@ -114,7 +114,7 @@ def build(source: Path, output: Path) -> dict[str, Any]:
                 "content_type": item["content_type"],
             })
             continue
-        index_entries.append({key: value for key, value in item.items() if key != "content_type"})
+        index_entries.append(item)
         (entries_dir / f"{item['id']}.json").write_bytes(_canonical(payload))
 
     filterless_entries.sort(key=lambda item: (
@@ -152,7 +152,10 @@ def build(source: Path, output: Path) -> dict[str, Any]:
     index = {
         "schema_version": SCHEMA_VERSION,
         "version": version,
-        "entries": index_entries,
+        "entries": [
+            {key: value for key, value in item.items() if key != "content_type"}
+            for item in index_entries
+        ],
         "categories": dict(sorted(category_indexes.items())),
     }
     index_bytes = _canonical(index)
