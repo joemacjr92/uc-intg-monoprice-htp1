@@ -130,6 +130,10 @@ async def _load_index() -> bool:
 
             index = json.loads(index_bytes)
             _validate_index(index, version)
+            declared_count = manifest.get("entry_count")
+            if (isinstance(declared_count, bool) or not isinstance(declared_count, int)
+                    or declared_count != len(index["entries"])):
+                raise ValueError("BEQ manifest entry count does not match its index")
 
             previous_version = _manifest.get("version") if _manifest else None
             _manifest, _index = manifest, index
