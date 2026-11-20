@@ -15,19 +15,25 @@ The hosted layout is versioned:
   excluded from the Remote browse/search index and are not published as entry
   payloads, because they cannot be applied to the HTP-1.
 - `beq/unsupported-entries.txt` and `beq/unsupported-entries.json` report
-  records that have filters but are not supported by the current integration.
-  The HTP-1 PEQ UI documents seven filter types, but this integration currently
-  maps only PeakingEQ, LowShelf, and HighShelf to the receiver's protocol values.
-  Other types are reported as an integration limitation, not as unsupported by
-  the HTP-1 hardware. The builder also excludes entries exceeding 16 filters
-  per channel or using frequency, gain, or Q outside the HTP-1 PEQ ranges
-  (15–20,000 Hz, −63 to +20 dB, and Q 0.1–10). Malformed
-  source data still fails the build rather than being silently discarded.
+  records that the integration cannot apply: entries with a filter type that
+  has no protocol mapping, or more than 16 filters. The HTP-1 PEQ UI documents
+  seven filter types, but the current integration maps PeakingEQ, LowShelf,
+  and HighShelf. Other types are an integration limitation, not a claim about
+  hardware capability.
+- `beq/adjusted-entries.txt` and `beq/adjusted-entries.json` list filters
+  whose numeric values were normalized to the HTP-1 BEQ application limits.
+  This follows the current HTP-1 native controller's BEQ handling (frequency
+  10–20,000 Hz, gain −99 to +20 dB, Q 0.1–10), rather than rejecting valid
+  catalogue entries because they exceed the narrower PEQ editor input ranges.
+  The original filter values remain part of the legacy media-ID calculation.
+  Malformed or non-finite source values still fail the build.
 
-BEQ application requires PEQ Pre placement. Pre PEQ operates on the LFE signal
-  before bass management, so the integration allocates BEQ bands on the HTP-1's
-  shared pre-Dirac channel rather than independently on each physical subwoofer.
-  Post placement is for speaker/output correction and cannot be used for BEQ.
+BEQ application requires PEQ Pre placement. The integration applies the same
+  filter set to available zero-gain PEQ bands on every active subwoofer channel,
+  matching the HTP-1 Bass EQ page. Post placement is for speaker/output
+  correction and cannot be used for BEQ. Clearing BEQ resets only the bands
+  marked as BEQ; it does not restore their previous values, alter other PEQ
+  bands, or switch PEQ off.
 
 The integration verifies the index SHA-256 before using it and fetches an
 individual entry only when selected. It keeps a bounded 12-entry in-memory
@@ -45,8 +51,8 @@ generated static files; Pages itself does not execute refresh logic.
 
 The manifest is published with the immutable versioned data in the same Pages
 deployment, so clients cannot combine an index and entry files from different
-catalogue versions. It includes counts and report paths for both filterless and
-integration-unsupported entries. A failed fetch, validation, or transform prevents deployment.
+catalogue versions. It includes counts and report paths for filterless, integration-unsupported,
+and value-adjusted entries. A failed fetch, validation, or transform prevents deployment.
 
 ## Upstream data and attribution
 
