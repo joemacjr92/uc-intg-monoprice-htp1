@@ -130,7 +130,9 @@ async def _load_index() -> bool:
 async def _fetch_entry_payload(version: str, key: str) -> dict[str, Any]:
     url = f"{CATALOGUE_BASE_URL}{version}/entries/{key}.json"
     payload = await _get_json(url)
-    if not isinstance(payload, dict) or not isinstance(payload.get("filters"), list):
+    if (not isinstance(payload, dict) or not isinstance(payload.get("title"), str)
+            or not isinstance(payload.get("underlying"), str)
+            or not isinstance(payload.get("filters"), list)):
         raise ValueError("invalid BEQ entry payload")
     filters = payload["filters"]
     if not filters or len(filters) > 16:
@@ -173,7 +175,7 @@ async def get_beq_entry(key: str) -> dict[str, Any] | None:
             return None
         # A Pages deployment may replace the previous version while an old
         # browse result is still open. Refresh and retry if this ID survived.
-        _index_loaded_at = 0.0
+        _index_loaded_at = time.monotonic() - INDEX_CACHE_LIFE - 1
         if not await _load_index() or _manifest is None or _manifest["version"] == version:
             return None
         if key not in _entries_by_id:
