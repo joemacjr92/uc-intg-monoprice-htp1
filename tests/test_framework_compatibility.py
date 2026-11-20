@@ -613,7 +613,7 @@ def test_beq_clamps_imported_values_and_rejects_malformed_values_and_more_than_1
 
     async def exercise():
         device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
-        device._state = _make_peq_test_state(sub1_free=range(16), sub2_free=range(16))
+        device._state = _make_peq_test_state(lfe_free=range(16))
         sent = []
 
         async def capture(operations):
