@@ -639,6 +639,9 @@ class HTP1Device(WebSocketDevice):
         ops: list[dict[str, Any]] = []
         required = ("Fc", "gaindB", "Q", "FilterType")
         sub_channels = self._get_beq_cleanup_channels()
+        if not sub_channels and "beqActive" in peq:
+            _LOG.error("[%s] Cannot clear active BEQ without a known PEQ channel", self.log_id)
+            return None
         for index, slot in enumerate(slots[:BEQ_SLOT_END + 1]):
             channels = _as_dict(_as_dict(slot).get("channels"))
             for channel in sub_channels:
