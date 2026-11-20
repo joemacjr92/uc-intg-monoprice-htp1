@@ -645,7 +645,10 @@ class HTP1Device(WebSocketDevice):
         return ops
 
     async def clear_beq(self) -> bool:
-        """Clear all BEQ-tagged filters, including legacy subwoofer-channel tags."""
+        """Clear BEQ tags while the BEQ-compatible Pre PEQ path is active."""
+        peq = _as_dict(_as_dict(self._state).get("peq"))
+        if peq.get("location") != "pre":
+            return False
         ops = self._build_clear_beq_ops()
         if ops is None:
             return False
