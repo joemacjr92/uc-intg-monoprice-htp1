@@ -52,13 +52,13 @@ async def _get_json(url: str) -> Any:
 
 
 async def _load_index() -> bool:
-    """Load and validate the small index, retaining a prior good copy on errors."""
-    global _index, _manifest
-    if _index is not None:
+    """Load and validate the compact index, retaining a last-known-good copy."""
+    global _index, _manifest, _entries_by_id, _index_loaded_at
+    if _index is not None and time.monotonic() - _index_loaded_at < INDEX_CACHE_LIFE:
         return True
 
     async with _index_lock:
-        if _index is not None:
+        if _index is not None and time.monotonic() - _index_loaded_at < INDEX_CACHE_LIFE:
             return True
         try:
             manifest = await _get_json(CATALOGUE_BASE_URL + "manifest.json")
@@ -70,13 +70,14 @@ async def _load_index() -> bool:
                 raise ValueError("invalid BEQ manifest")
             if not index_path.startswith(version + "/") or ".." in index_path.split("/"):
                 raise ValueError("unsafe BEQ index path")
-            index_bytes_url = CATALOGUE_BASE_URL + index_path
+
             async with aiohttp.ClientSession(timeout=REQUEST_TIMEOUT) as session:
-                async with session.get(index_bytes_url) as response:
+                async with session.get(CATALOGUE_BASE_URL + index_path) as response:
                     response.raise_for_status()
                     index_bytes = await response.read()
             if hashlib.sha256(index_bytes).hexdigest() != manifest.get("index_sha256"):
                 raise ValueError("BEQ index checksum mismatch")
+
             index = json.loads(index_bytes)
             if (
                 not isinstance(index, dict)
@@ -86,10 +87,13 @@ async def _load_index() -> bool:
                 or not isinstance(index.get("categories"), dict)
             ):
                 raise ValueError("invalid BEQ index")
-            entries_by_id = {entry["id"]: entry for entry in index["entries"]
-                             if isinstance(entry, dict) and isinstance(entry.get("id"), str)}
+            entries_by_id = {
+                entry["id"]: entry for entry in index["entries"]
+                if isinstance(entry, dict) and isinstance(entry.get("id"), str)
+            }
             if len(entries_by_id) != len(index["entries"]):
                 raise ValueError("BEQ index contains invalid or duplicate entry IDs")
+
             previous_version = _manifest.get("version") if _manifest else None
             _manifest, _index, _entries_by_id = manifest, index, entries_by_id
             _index_loaded_at = time.monotonic()
@@ -102,20 +106,20 @@ async def _load_index() -> bool:
             raise
         except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError, json.JSONDecodeError) as err:
             _LOG.warning("Unable to load hosted BEQ index: %s", err)
-            # Continue using the last validated index if the refresh endpoint is down.
-            return _index is not None
+            if _index is not None:
+                # Avoid hammering a failed endpoint; retry after five minutes.
+                _index_loaded_at = time.monotonic() - INDEX_CACHE_LIFE + 300
+                return True
+            return False
 
 
 async def get_beq_entry(key: str) -> dict[str, Any] | None:
     """Fetch a selected BEQ's filter payload; cache at most ENTRY_CACHE_MAX."""
+    if not await _load_index() or _manifest is None or key not in _entries_by_id:
+        return None
     if key in _entry_cache:
         _entry_cache.move_to_end(key)
         return _entry_cache[key]
-    if not await _load_index() or _manifest is None:
-        return None
-
-    if key not in _entries_by_id:
-        return None
 
     version = _manifest["version"]
     url = f"{CATALOGUE_BASE_URL}{version}/entries/{key}.json"
