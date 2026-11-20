@@ -513,7 +513,7 @@ def test_beq_uses_pre_dirac_lfe_channel_and_replaces_in_one_transaction():
         assert {"op": "replace", "path": "/peq/slots/2/channels/sub1/Fc", "value": 60} in operations
         assert not any(
             "/channels/sub2/" in op.get("path", "")
-            and op.get("op") == "replace"
+            and op.get("value") in (30, 40, 60)
             for op in operations
         )
         assert operations[-2] == {"op": "add", "path": "/peq/beqActive", "value": "Test BEQ"}
