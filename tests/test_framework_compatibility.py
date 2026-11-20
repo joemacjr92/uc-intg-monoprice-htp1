@@ -381,7 +381,7 @@ def test_beq_operations_reject_malformed_nested_state_and_filter_payloads():
         device._state = {"peq": {"slots": [None, {"channels": []}]}, "speakers": {"groups": []}}
         assert device._get_sub_channels() == []
         assert device._find_empty_peq_slot(0, "sub1") is None
-        assert not await device.clear_beq()
+        assert await device.clear_beq()
         assert sent == []
 
         device._state = {"shaker": {}}
