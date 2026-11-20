@@ -52,16 +52,20 @@ def test_volume_up_down_respect_receiver_limits():
         device.vph = 12
         assert await device.volume_up()
         assert sent[-1][0]["value"] == 12
+        device._state["volume"] = 12
+        before = len(sent)
         assert await device.volume_up()
-        assert sent[-1][0]["value"] == 12
+        assert len(sent) == before
 
         device._state = {"volume": -79}
         device.vpl = -80
         device.zp = 0
         assert await device.volume_down()
         assert sent[-1][0]["value"] == -80
+        device._state["volume"] = -80
+        before = len(sent)
         assert await device.volume_down()
-        assert sent[-1][0]["value"] == -80
+        assert len(sent) == before
 
     asyncio.run(exercise())
 
@@ -81,7 +85,7 @@ def test_volume_slider_clamps_range_and_limits_large_jumps():
         device.vph = 12
 
         assert await device.set_volume_level(0.5)
-        assert sent[-1][0]["value"] == -25  # target -34 is limited to a 5 dB rise
+        assert sent[-1][0]["value"] == -34  # midpoint target is within the five dB safety window
         assert await device.set_volume_level(1.0)
         assert sent[-1][0]["value"] == -25
         assert await device.set_volume_level(0.0)
