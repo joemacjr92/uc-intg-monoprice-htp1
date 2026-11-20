@@ -94,10 +94,6 @@ class HTP1MediaPlayer(MediaPlayerEntity):
         from intg_monoprice_htp1 import browser
         return await browser.search(self._device, options)
     
-    async def clear_cache(self) -> bool:
-        from intg_monoprice_htp1 import browser
-        return await browser.clear_cache()
-
     async def _handle_command(
         self, entity: Any, cmd_id: str, params: dict[str, Any] | None
     ) -> StatusCodes:
@@ -174,10 +170,6 @@ class HTP1MediaPlayer(MediaPlayerEntity):
             success = await self._device.clear_beq()
             return StatusCodes.OK if success else StatusCodes.SERVER_ERROR
         
-        if media_id == "beq:reload":
-            success = await self.clear_cache()
-            return StatusCodes.OK if success else StatusCodes.SERVER_ERROR
-
         if media_id.startswith("beq:"):
             from intg_monoprice_htp1.browser import get_beq_entry
             key = media_id[4:]
