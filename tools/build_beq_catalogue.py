@@ -84,8 +84,6 @@ def _compact_record(record: dict[str, Any]) -> tuple[dict[str, Any], dict[str, A
         "author": str(record.get("author") or ""),
         "year": str(record.get("year") or ""),
         "audioTypes": [str(value) for value in audio_types],
-        "content_type": content_type,
-        "search_title": title.casefold(),
     }
     return index_item, entry_payload
 
@@ -144,7 +142,9 @@ def build(source: Path, output: Path) -> dict[str, Any]:
         "\n".join(report_lines) + "\n", encoding="utf-8"
     )
 
-    index_entries.sort(key=lambda item: (item["title"].casefold(), item["id"]))
+    index_entries.sort(key=lambda item: (
+        item["title"].casefold(), item["author"].casefold(), item["id"]
+    ))
     category_indexes: dict[str, list[int]] = defaultdict(list)
     for entry_index, item in enumerate(index_entries):
         category_indexes[item["content_type"]].append(entry_index)
