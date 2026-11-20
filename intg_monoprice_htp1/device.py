@@ -168,6 +168,7 @@ class HTP1Device(WebSocketDevice):
         self._is_connected = False
         self._state = None
         self._state_ready.clear()
+        self._sensor_data = {}
         self.push_update()
 
     async def handle_message(self, message: str) -> None:
