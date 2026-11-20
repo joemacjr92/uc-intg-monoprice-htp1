@@ -203,3 +203,45 @@ def test_select_commands_validate_advertised_options_and_connection():
         assert calls == ["Option B"]
 
     asyncio.run(exercise())
+
+
+
+def test_remote_rejects_malformed_and_excessive_command_sequences():
+    import asyncio
+    from intg_monoprice_htp1.remote import HTP1Remote
+    from ucapi import StatusCodes
+    from ucapi.remote import Commands
+
+    remote = HTP1Remote.__new__(HTP1Remote)
+    remote.id = "remote.test"
+    remote._device = object()
+    dispatched = []
+
+    async def capture(commands, repeat, delay):
+        dispatched.append((commands, repeat, delay))
+        return StatusCodes.OK
+
+    remote._send_commands = capture
+
+    async def exercise():
+        assert await remote._handle_command(
+            remote, Commands.SEND_CMD, ["not", "a", "mapping"]
+        ) == StatusCodes.BAD_REQUEST
+        assert await remote._handle_command(
+            remote, Commands.SEND_CMD_SEQUENCE, ["not", "a", "mapping"]
+        ) == StatusCodes.BAD_REQUEST
+        assert await remote._handle_command(
+            remote,
+            Commands.SEND_CMD_SEQUENCE,
+            {"sequence": ["POWER"] * 6, "repeat": 20},
+        ) == StatusCodes.BAD_REQUEST
+        assert dispatched == []
+
+        assert await remote._handle_command(
+            remote,
+            Commands.SEND_CMD_SEQUENCE,
+            {"sequence": ["POWER"] * 5, "repeat": 20},
+        ) == StatusCodes.OK
+        assert dispatched == [(["POWER"] * 5, 20, 0.0)]
+
+    asyncio.run(exercise())
