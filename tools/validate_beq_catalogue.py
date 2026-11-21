@@ -85,7 +85,7 @@ def validate(root: Path) -> dict[str, Any]:
                 raise ValueError("category offsets contain an invalid or duplicate index")
             categorized.add(offset)
     if len(categorized) != len(entries):
-        raise ValueError("category offsets do not cover every index entry")
+        raise ValueError("category offsets do not cover every entry")
 
     entry_ids: set[str] = set()
     for position, item in enumerate(entries):
@@ -101,13 +101,21 @@ def validate(root: Path) -> dict[str, Any]:
             raise ValueError(f"index entry {position} has invalid metadata")
         entry_ids.add(entry_id)
 
+    entries_dir = root / version / "entries"
+    actual_payloads = {path.name for path in entries_dir.glob("*.json")} if entries_dir.is_dir() else set()
+    expected_payloads = {f"{entry_id}.json" for entry_id in entry_ids}
+    if actual_payloads != expected_payloads:
+        raise ValueError("entry payload files do not match the index")
     for entry_id in entry_ids:
-        payload_path = root / version / "entries" / f"{entry_id}.json"
+        payload_path = entries_dir / f"{entry_id}.json"
         payload = _read_json(payload_path)
+        matching_index_items = [item for item in entries if item["id"] == entry_id]
         if (not isinstance(payload, dict) or not isinstance(payload.get("title"), str)
                 or not isinstance(payload.get("underlying"), str)
                 or not isinstance(payload.get("filters"), list)):
             raise ValueError(f"entry payload {entry_id} has invalid structure")
+        if payload["title"] != matching_index_items[0]["title"]:
+            raise ValueError(f"entry payload {entry_id} title does not match index")
         if len(payload["filters"]) > 16:
             raise ValueError(f"entry payload {entry_id} exceeds the 16-filter limit")
         for filter_index, item in enumerate(payload["filters"]):
@@ -115,10 +123,10 @@ def validate(root: Path) -> dict[str, Any]:
                 raise ValueError(f"entry payload {entry_id} filter {filter_index} has invalid fields")
             if item["type"] not in _FILTER_TYPES:
                 raise ValueError(f"entry payload {entry_id} has unsupported filter type")
-            for field in ("freq", "gain", "q"):
+            for field, lower, upper in (("freq", 10, 20000), ("gain", -99, 20), ("q", 0.1, 10)):
                 value = item[field]
                 if (isinstance(value, bool) or not isinstance(value, (int, float))
-                        or not math.isfinite(value)):
+                        or not math.isfinite(value) or not lower <= value <= upper):
                     raise ValueError(f"entry payload {entry_id} has invalid {field}")
 
     for report_name, (count_key, path_key) in _REPORTS.items():
@@ -129,7 +137,9 @@ def validate(root: Path) -> dict[str, Any]:
         if (not isinstance(report, dict) or report.get("source_version") != version
                 or not isinstance(report.get("entries"), list)):
             raise ValueError(f"{report_name} report has invalid structure or version")
-        if report.get("count") != len(report["entries"]):
+        report_count = report.get("count")
+        if (isinstance(report_count, bool) or not isinstance(report_count, int)
+                or report_count != len(report["entries"])):
             raise ValueError(f"{report_name} report count does not match its entries")
         if len(report["entries"]) != _count(manifest.get(count_key), count_key):
             raise ValueError(f"manifest {count_key} does not match report")
