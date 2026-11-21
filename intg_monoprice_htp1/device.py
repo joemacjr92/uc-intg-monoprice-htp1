@@ -55,7 +55,9 @@ def _number(value: Any, default: float = 0) -> float:
     return value if _is_finite_number(value) else default
 
 
-async def probe_htp1(\n    host: str, timeout: float = PROBE_TIMEOUT, *, port: int = 80\n) -> str | None:
+async def probe_htp1(
+    host: str, timeout: float = PROBE_TIMEOUT, *, port: int = 80
+) -> str | None:
     """Open a WebSocket to the HTP-1, request its state and close again.
 
     :return: None on success, otherwise a short human readable error.
