@@ -165,3 +165,36 @@ def test_setup_rejects_invalid_port_without_probing(monkeypatch, port):
     )
 
     assert not isinstance(result, HTP1Config)
+
+def test_http_ir_command_uses_configured_port(monkeypatch):
+    from intg_monoprice_htp1 import device as device_module
+
+    calls = []
+
+    class FakeResponse:
+        status = 200
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        def get(self, url, timeout):
+            calls.append((url, timeout))
+            return FakeResponse()
+
+    monkeypatch.setattr(device_module.aiohttp, "ClientSession", FakeSession)
+    receiver = HTP1Device(
+        HTP1Config("test", "Test HTP-1", "192.0.2.10", 8088)
+    )
+
+    assert asyncio.run(receiver.send_http_command("0BF4"))
+    assert calls == [("http://192.0.2.10:8088/ircmd?code=0BF4", 5)]
