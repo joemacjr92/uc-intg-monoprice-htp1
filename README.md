@@ -23,21 +23,13 @@ You need an internet connection from the Remote or Docker host to use the hosted
 
 **Loading and clearing BEQ filters**
 
-- Selecting a BEQ loads it into the HTP-1's PEQ.
+- Selecting a BEQ loads it into the HTP-1's PEQ, with placement handled automatically based on your HTP-1 configuration.
 - Loading another BEQ replaces the previously loaded BEQ filters. Other PEQ bands are left alone.
 - The integration turns PEQ on when it loads a BEQ.
 - Clearing BEQ resets the bands marked as BEQ to neutral settings. It does not clear unrelated PEQ bands or turn PEQ off.
 - A BEQ can contain up to 16 filters. The HTP-1 must have enough available PEQ bands on every channel the filter needs. If there is not enough room, the new filter is not loaded and the existing BEQ is left in place.
 - Catalogue values are prepared for the HTP-1's supported PEQ ranges. The supported ranges are 10–20,000 Hz, -99 to +20 dB, and Q 0.1–10.
 
-**Where BEQ is applied**
-
-The integration follows the HTP-1's PEQ placement:
-
-- With PEQ placement set to **Pre**, BEQ is applied to **Sub 1**, the LFE path.
-- With other PEQ placements, BEQ is applied to each configured subwoofer output that is marked as present.
-
-This preserves the established routing behavior of the integration.
 
 ### Remote entity
 
