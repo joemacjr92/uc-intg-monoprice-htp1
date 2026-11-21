@@ -169,3 +169,30 @@ def test_seat_shaker_controls_validate_and_send_native_values():
         assert len(sent) == before
 
     asyncio.run(exercise())
+
+def test_device_command_boundaries_reject_invalid_arguments():
+    async def exercise():
+        device = make_device()
+        sent = []
+
+        async def capture(operations):
+            sent.append(operations)
+            return True
+
+        device._send_transaction = capture
+        device.vpl = -80
+        device.vph = 12
+        for value in (True, 12.5, float("nan"), float("inf"), -81, 13):
+            assert not await device.set_volume(value)
+        for value in (True, float("nan"), float("inf"), "0"):
+            assert not await device.set_volume_level(value)
+        for value in (0, 1, "yes", None):
+            assert not await device.mute_toggle(value)
+            assert not await device.ss_mute_toggle(value)
+        for value in (True, 1.5, "5", None):
+            assert not await device.set_ss_trim(value)
+        for value in (True, 1.5, "1"):
+            assert not await device.select_ss_preset(value)
+        assert sent == []
+
+    asyncio.run(exercise())
