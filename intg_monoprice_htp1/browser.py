@@ -42,6 +42,7 @@ _manifest: dict[str, Any] | None = None
 _index_loaded_at: float = 0.0
 _index_lock = asyncio.Lock()
 _entry_cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
+_entry_locks: dict[tuple[str, str], asyncio.Lock] = {}
 
 
 async def _get_json(url: str) -> Any:
