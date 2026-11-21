@@ -206,3 +206,46 @@ def test_malformed_state_sections_reset_to_safe_defaults(device):
     assert device.audio_format == "none"
     assert device.output_audio_format == ""
     assert device.video_mode == "-----"
+
+def test_msoupdate_is_atomic_and_requests_full_state_on_invalid_patch(device):
+    async def exercise():
+        device.push_update = lambda: None
+        original = real_receiver_state()
+        device._state = json.loads(json.dumps(original))
+        sent = []
+
+        async def capture(message):
+            sent.append(message)
+            return True
+
+        device.send_message = capture
+        await device.handle_message(
+            'msoupdate [{"op":"replace","path":"/powerIsOn","value":true},'
+            '{"op":"replace","path":"/missing/key","value":1}]'
+        )
+        assert device._state == original
+        assert device.power is False
+        assert sent == ["getmso"]
+
+    device._loop.run_until_complete(exercise())
+
+
+def test_msoupdate_rejects_non_object_entries_atomically(device):
+    async def exercise():
+        device.push_update = lambda: None
+        original = real_receiver_state()
+        device._state = json.loads(json.dumps(original))
+        sent = []
+
+        async def capture(message):
+            sent.append(message)
+            return True
+
+        device.send_message = capture
+        await device.handle_message(
+            'msoupdate [{"op":"replace","path":"/powerIsOn","value":true},null]'
+        )
+        assert device._state == original
+        assert sent == ["getmso"]
+
+    device._loop.run_until_complete(exercise())
