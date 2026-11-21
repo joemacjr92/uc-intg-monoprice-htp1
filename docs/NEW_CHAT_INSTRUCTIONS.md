@@ -10,6 +10,10 @@ Repository: https://github.com/joemacjr92/uc-intg-monoprice-htp1
 
 The live GitHub repository is authoritative for current implementation status. The handoff document records agreed intent and context; it must not be treated as proof that a task, test, or phase is complete.
 
+## Critical product and device-context distinction
+
+This repository is the **Unfolded Circle integration for the Monoprice HTP-1**. Keep the Unfolded Circle platform/integration context separate from the user's Couch device and any Couch-related project or operating-environment context. The remote test client at `10.0.0.25` is the **Couch device**; it is a test/client host in the remote access setup, not the Unfolded Circle Remote itself and not the HTP-1. Do not relabel it as an Unfolded Circle device, and do not describe the HTP-1 integration as Couch development. When discussing the topology, name each system by its actual role. If a role or device identity is uncertain, verify it or ask rather than infer from prior project context.
+
 ## Copy-and-paste prompt for a new chat
 
 ```text
@@ -31,7 +35,8 @@ Before proposing or making changes:
 
 Important project rules:
 
-- This is the Monoprice HTP-1 integration. It is not CouchOS or Fire TV development.
+- This is the Unfolded Circle integration for the Monoprice HTP-1. Keep it distinct from the separate Couch device/project context and from Fire TV development.
+- The remote test client at `10.0.0.25` is the Couch device. It is not the Unfolded Circle Remote and is not the HTP-1. Refer to it as the Couch device / remote test client, according to context.
 - Keep the fork's main branch aligned with Mase's upstream; do not develop independent production changes on main.
 - Use tests-and-docs for tests, fixtures, documentation, handoff material, and QA-only workflows.
 - Make production changes on focused feature/* branches.
