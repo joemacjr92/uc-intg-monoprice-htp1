@@ -52,10 +52,11 @@ jobs:
           python tools/validate_beq_catalogue.py /tmp/beq-validation | tee /tmp/beq-validation-summary.json
           python - <<'PY'
           import json
+          import os
           from pathlib import Path
 
           summary = json.loads(Path("/tmp/beq-validation-summary.json").read_text())
-          with open("${GITHUB_STEP_SUMMARY}", "a") as output:
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as output:
               output.write("## Upstream BEQ catalogue validation\n\n")
               output.write(f"- Source version: `{summary['version']}`\n")
               output.write(f"- Source SHA-256: `{summary['source_sha256']}`\n")
