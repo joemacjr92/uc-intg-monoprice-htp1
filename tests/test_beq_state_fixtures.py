@@ -100,19 +100,26 @@ def test_clear_beq_fixture_clears_only_beq_tagged_channels():
         loop.close()
 
 def test_malformed_tagged_beq_coefficients_abort_cleanup_preflight():
-    device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
-    state = json.loads(FIXTURE.read_text(encoding="utf-8"))
-    state["peq"]["slots"][0]["channels"]["sub1"]["Fc"] = float("nan")
-    device._state = state
-
-    assert device._build_clear_beq_ops() is None
+    loop = asyncio.new_event_loop()
+    try:
+        device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"), loop=loop)
+        state = json.loads(FIXTURE.read_text(encoding="utf-8"))
+        state["peq"]["slots"][0]["channels"]["sub1"]["Fc"] = float("nan")
+        device._state = state
+        assert device._build_clear_beq_ops() is None
+    finally:
+        loop.close()
 
 
 def test_empty_peq_slot_requires_complete_finite_coefficients():
-    device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
-    state = json.loads(FIXTURE.read_text(encoding="utf-8"))
-    device._state = state
+    loop = asyncio.new_event_loop()
+    try:
+        device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"), loop=loop)
+        state = json.loads(FIXTURE.read_text(encoding="utf-8"))
+        device._state = state
 
-    # A malformed coefficient record must not be selected for a new BEQ band.
-    state["peq"]["slots"][1]["channels"]["sub1"]["Q"] = float("inf")
-    assert device._find_empty_peq_slot(1, "sub1") is None
+        # A malformed coefficient record must not be selected for a new BEQ band.
+        state["peq"]["slots"][1]["channels"]["sub1"]["Q"] = float("inf")
+        assert device._find_empty_peq_slot(1, "sub1") is None
+    finally:
+        loop.close()
