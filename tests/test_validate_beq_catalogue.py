@@ -71,5 +71,5 @@ def test_validate_rejects_missing_entry_payload(tmp_path: Path):
     manifest = json.loads((root / "manifest.json").read_text())
     index = json.loads((root / manifest["index"]).read_text())
     (root / manifest["version"] / "entries" / f"{index['entries'][0]['id']}.json").unlink()
-    with pytest.raises(ValueError, match="cannot read valid JSON"):
+    with pytest.raises(ValueError, match="payload files do not match"):
         validate(root)
