@@ -30,7 +30,7 @@ class HTP1SetupFlow(BaseSetupFlow[HTP1Config]):
         self,
         name: str,
         host: str,
-        port: int = DEFAULT_PORT,
+        port: int | str = DEFAULT_PORT,
         error: str | None = None,
     ) -> RequestUserInput:
         settings: list[dict[str, Any]] = []
@@ -95,7 +95,7 @@ class HTP1SetupFlow(BaseSetupFlow[HTP1Config]):
             if not 1 <= port <= 65535:
                 raise ValueError
         except (TypeError, ValueError, OverflowError):
-            display_port = raw_port if isinstance(raw_port, int) and not isinstance(raw_port, bool) else DEFAULT_PORT
+            display_port = raw_port if isinstance(raw_port, str) else DEFAULT_PORT
             return self._build_form(
                 name,
                 host,
