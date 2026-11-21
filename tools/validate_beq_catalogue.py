@@ -87,7 +87,7 @@ def validate(root: Path) -> dict[str, Any]:
     if len(categorized) != len(entries):
         raise ValueError("category offsets do not cover every entry")
 
-    entry_ids: set[str] = set()
+    entry_by_id: dict[str, dict[str, Any]] = {}
     for position, item in enumerate(entries):
         if not isinstance(item, dict):
             raise ValueError(f"index entry {position} is not an object")
@@ -99,8 +99,9 @@ def validate(root: Path) -> dict[str, Any]:
                 or not isinstance(item.get("audioTypes"), list)
                 or any(not isinstance(value, str) for value in item["audioTypes"])):
             raise ValueError(f"index entry {position} has invalid metadata")
-        entry_ids.add(entry_id)
+        entry_by_id.setdefault(entry_id, item)
 
+    entry_ids = set(entry_by_id)
     entries_dir = root / version / "entries"
     actual_payloads = {path.name for path in entries_dir.glob("*.json")} if entries_dir.is_dir() else set()
     expected_payloads = {f"{entry_id}.json" for entry_id in entry_ids}
@@ -109,12 +110,11 @@ def validate(root: Path) -> dict[str, Any]:
     for entry_id in entry_ids:
         payload_path = entries_dir / f"{entry_id}.json"
         payload = _read_json(payload_path)
-        matching_index_items = [item for item in entries if item["id"] == entry_id]
         if (not isinstance(payload, dict) or not isinstance(payload.get("title"), str)
                 or not isinstance(payload.get("underlying"), str)
                 or not isinstance(payload.get("filters"), list)):
             raise ValueError(f"entry payload {entry_id} has invalid structure")
-        if payload["title"] != matching_index_items[0]["title"]:
+        if payload["title"] != entry_by_id[entry_id]["title"]:
             raise ValueError(f"entry payload {entry_id} title does not match index")
         if len(payload["filters"]) > 16:
             raise ValueError(f"entry payload {entry_id} exceeds the 16-filter limit")
