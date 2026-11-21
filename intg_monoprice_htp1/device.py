@@ -6,6 +6,7 @@ Monoprice HTP-1 device implementation for Unfolded Circle integration.
 """
 
 import asyncio
+import copy
 import json
 import logging
 import math
@@ -228,22 +229,24 @@ class HTP1Device(WebSocketDevice):
             if not isinstance(data, list):
                 data = [data]
 
-            for piece in data:
-                if not isinstance(piece, dict):
-                    _LOG.warning("[%s] Ignoring invalid JSON patch entry (%s)", self.log_id, type(piece).__name__)
-                    continue
-                op = piece.get("op")
-                path_str = piece.get("path", "")
-                value = piece.get("value")
-                if not isinstance(op, str) or not isinstance(path_str, str):
-                    _LOG.warning("[%s] Ignoring JSON patch with invalid operation/path: %s", self.log_id, piece)
-                    continue
+            # Apply the whole update to a copy so malformed batches cannot
+            # leave a partially-mutated live receiver snapshot.
+            candidate_state = copy.deepcopy(self._state)
+            try:
+                for piece in data:
+                    if not isinstance(piece, dict):
+                        raise ValueError("patch entry must be an object")
+                    op = piece.get("op")
+                    path_str = piece.get("path", "")
+                    if not isinstance(op, str) or not isinstance(path_str, str):
+                        raise ValueError("patch operation and path must be strings")
+                    apply_json_patch(candidate_state, op, path_str, piece.get("value"))
+            except (KeyError, IndexError, TypeError, ValueError) as err:
+                _LOG.error("[%s] Rejecting incomplete msoupdate; requesting fresh state: %s", self.log_id, err)
+                await self.send_message("getmso")
+                return
 
-                try:
-                    apply_json_patch(self._state, op, path_str, value)
-                except (KeyError, IndexError, TypeError, ValueError) as err:
-                    _LOG.error("[%s] Failed to apply JSON patch %s: %s", self.log_id, piece, err)
-
+            self._state = candidate_state
             self._parse_state()
             self.push_update()
 
@@ -412,13 +415,23 @@ class HTP1Device(WebSocketDevice):
         ])  
 
     async def set_volume(self, volume: int) -> bool:
+        if (
+            isinstance(volume, bool)
+            or not isinstance(volume, int)
+            or not _is_finite_number(self.vpl)
+            or not _is_finite_number(self.vph)
+            or self.vpl > self.vph
+            or not self.vpl <= volume <= self.vph
+        ):
+            _LOG.warning("[%s] Rejecting invalid volume value: %r", self.log_id, volume)
+            return False
         _LOG.info("[%s] Setting volume to %d", self.log_id, volume)
         return await self._send_transaction([
             {"op": "replace", "path": "/volume", "value": volume}
         ])
 
     async def set_volume_level(self, level: float) -> bool:
-        if not self._state or "cal" not in self._state:
+        if isinstance(level, bool) or not _is_finite_number(level) or not self._state or "cal" not in self._state:
             return False
 
         span = self.vph - self.vpl
@@ -460,12 +473,16 @@ class HTP1Device(WebSocketDevice):
         return await self.set_volume(current - 1)
 
     async def mute_toggle(self, muted: bool) -> bool:
+        if not isinstance(muted, bool):
+            return False
         _LOG.info("[%s] Setting mute to %s", self.log_id, muted)
         return await self._send_transaction([
             {"op": "replace", "path": "/muted", "value": muted}
         ])
 
     async def ss_mute_toggle(self, muted: bool) -> bool:
+        if not isinstance(muted, bool):
+            return False
         _LOG.info("[%s] Setting seat shaker mute to %s", self.log_id, muted)
         status = "on" if muted else "off"
         return await self._send_transaction([
@@ -473,6 +490,8 @@ class HTP1Device(WebSocketDevice):
         ])
     
     async def set_ss_trim(self, trim: int) -> bool:
+        if isinstance(trim, bool) or not isinstance(trim, int):
+            return False
         _LOG.info("[%s] Setting seat shaker trim to %d", self.log_id, trim)
         return await self._send_transaction([
             {"op": "replace", "path": "/shaker/trim", "value": trim}
@@ -502,6 +521,8 @@ class HTP1Device(WebSocketDevice):
         ])
     
     async def select_ss_preset(self, preset_index: int) -> bool:
+        if isinstance(preset_index, bool) or not isinstance(preset_index, int):
+            return False
         _LOG.info("[%s] Selecting seat shaker preset: %d", self.log_id, preset_index)
         if not self._state or "shaker" not in self._state or not 0 <= preset_index <= 5:
             return False
@@ -599,8 +620,18 @@ class HTP1Device(WebSocketDevice):
             if not all(key in channel_data for key in required):
                 continue
 
+            freq = channel_data.get("Fc")
             gain = channel_data.get("gaindB")
-            if not _is_finite_number(gain):
+            q_value = channel_data.get("Q")
+            filter_type = channel_data.get("FilterType")
+            if (
+                not _is_finite_number(freq)
+                or not _is_finite_number(gain)
+                or not _is_finite_number(q_value)
+                or isinstance(filter_type, bool)
+                or not isinstance(filter_type, int)
+                or filter_type not in FILTER_TYPE_MAP.values()
+            ):
                 continue
             if gain == 0 or channel_data.get("beq") is True:
                 return index
@@ -633,7 +664,14 @@ class HTP1Device(WebSocketDevice):
                 channel_data = _as_dict(raw_channel_data)
                 if channel_data.get("beq") is not True:
                     continue
-                if not all(key in channel_data for key in required):
+                filter_type = channel_data.get("FilterType")
+                if (
+                    not all(key in channel_data for key in required)
+                    or any(not _is_finite_number(channel_data.get(key)) for key in ("Fc", "gaindB", "Q"))
+                    or isinstance(filter_type, bool)
+                    or not isinstance(filter_type, int)
+                    or filter_type not in FILTER_TYPE_MAP.values()
+                ):
                     _LOG.error(
                         "[%s] Cannot clear malformed BEQ slot %d for %s",
                         self.log_id, index, channel,
