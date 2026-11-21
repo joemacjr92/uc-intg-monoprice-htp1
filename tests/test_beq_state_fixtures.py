@@ -118,8 +118,8 @@ def test_empty_peq_slot_requires_complete_finite_coefficients():
         state = json.loads(FIXTURE.read_text(encoding="utf-8"))
         device._state = state
 
-        # A malformed coefficient record must not be selected for a new BEQ band.
+        # A malformed slot must be skipped; the next valid empty slot is usable.
         state["peq"]["slots"][1]["channels"]["sub1"]["Q"] = float("inf")
-        assert device._find_empty_peq_slot(1, "sub1") is None
+        assert device._find_empty_peq_slot(1, "sub1") == 2
     finally:
         loop.close()
