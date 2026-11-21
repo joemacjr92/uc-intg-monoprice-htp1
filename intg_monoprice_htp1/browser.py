@@ -211,8 +211,9 @@ async def get_beq_entry(key: str) -> dict[str, Any] | None:
             _entry_cache.move_to_end(key)
             return _entry_cache[key]
 
+        payload_version = version
         try:
-            payload = await _fetch_entry_payload(version, key)
+            payload = await _fetch_entry_payload(payload_version, key)
         except aiohttp.ClientResponseError as err:
             if err.status != 404:
                 _LOG.error("Unable to load BEQ entry %s: %s", key, err)
@@ -223,7 +224,8 @@ async def get_beq_entry(key: str) -> dict[str, Any] | None:
             if not await _load_index() or _manifest is None or _manifest["version"] == version:
                 return None
             try:
-                payload = await _fetch_entry_payload(_manifest["version"], key)
+                payload_version = _manifest["version"]
+                payload = await _fetch_entry_payload(payload_version, key)
             except asyncio.CancelledError:
                 raise
             except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError, json.JSONDecodeError) as retry_err:
@@ -235,10 +237,14 @@ async def get_beq_entry(key: str) -> dict[str, Any] | None:
             _LOG.error("Unable to load BEQ entry %s: %s", key, err)
             return None
 
-        _entry_cache[key] = payload
-        _entry_cache.move_to_end(key)
-        while len(_entry_cache) > ENTRY_CACHE_MAX:
-            _entry_cache.popitem(last=False)
+        # An older in-flight request may finish after another request has
+        # refreshed the index and cleared the cache. Never repopulate the
+        # current-version cache with a payload from the previous deployment.
+        if _manifest is not None and _manifest.get("version") == payload_version:
+            _entry_cache[key] = payload
+            _entry_cache.move_to_end(key)
+            while len(_entry_cache) > ENTRY_CACHE_MAX:
+                _entry_cache.popitem(last=False)
         return payload
 
 
