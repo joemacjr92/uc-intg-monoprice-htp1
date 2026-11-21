@@ -280,3 +280,34 @@ def test_index_refresh_failure_uses_last_known_good_index(monkeypatch):
         assert browser._index["entries"][0]["title"] == "Film"
 
     asyncio.run(exercise())
+
+
+
+def test_old_inflight_payload_is_not_cached_after_version_change(monkeypatch):
+    from collections import OrderedDict
+
+    monkeypatch.setattr(browser, "_entry_cache", OrderedDict())
+    monkeypatch.setattr(browser, "_entry_locks", {})
+    monkeypatch.setattr(browser, "_manifest", {"version": "0123456789abcdef"})
+
+    async def load_index():
+        return True
+
+    async def fetch(version, key):
+        assert version == "0123456789abcdef"
+        # Simulate a different request refreshing the catalogue while this
+        # older version's payload request is still in flight.
+        browser._manifest = {"version": "fedcba9876543210"}
+        return {"title": "Old Film", "underlying": "Old Film", "filters": [
+            {"type": "PeakingEQ", "freq": 100, "gain": 2, "q": 1}
+        ]}
+
+    monkeypatch.setattr(browser, "_load_index", load_index)
+    monkeypatch.setattr(browser, "_fetch_entry_payload", fetch)
+
+    async def exercise():
+        result = await browser.get_beq_entry("0123456789abcdef")
+        assert result["title"] == "Old Film"
+        assert "0123456789abcdef" not in browser._entry_cache
+
+    asyncio.run(exercise())
