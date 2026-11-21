@@ -30,7 +30,6 @@ You need an internet connection from the Remote or Docker host to use the hosted
 - A BEQ can contain up to 16 filters. The HTP-1 must have enough available PEQ bands on every channel the filter needs. If there is not enough room, the new filter is not loaded and the existing BEQ is left in place.
 - Catalogue values are prepared for the HTP-1's supported PEQ ranges. The supported ranges are 10–20,000 Hz, -99 to +20 dB, and Q 0.1–10.
 
-
 ### Remote entity
 
 The Remote entity includes three built-in pages:
