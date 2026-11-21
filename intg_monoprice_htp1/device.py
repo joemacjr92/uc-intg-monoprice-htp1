@@ -55,12 +55,12 @@ def _number(value: Any, default: float = 0) -> float:
     return value if _is_finite_number(value) else default
 
 
-async def probe_htp1(host: str, timeout: float = PROBE_TIMEOUT) -> str | None:
+async def probe_htp1(\n    host: str, timeout: float = PROBE_TIMEOUT, *, port: int = 80\n) -> str | None:
     """Open a WebSocket to the HTP-1, request its state and close again.
 
     :return: None on success, otherwise a short human readable error.
     """
-    url = f"ws://{host}/ws/controller"
+    url = f"ws://{host}:{port}/ws/controller"
 
     async def _probe() -> None:
         async with websockets.connect(url, ping_interval=None, close_timeout=2) as ws:
@@ -74,9 +74,9 @@ async def probe_htp1(host: str, timeout: float = PROBE_TIMEOUT) -> str | None:
         await asyncio.wait_for(_probe(), timeout=timeout)
         return None
     except asyncio.TimeoutError:
-        return f"No response from {host} within {int(timeout)} seconds"
+        return f"No response from {host}:{port} within {int(timeout)} seconds"
     except Exception as err:  # pylint: disable=broad-exception-caught
-        return f"Could not connect to {host}: {err}"
+        return f"Could not connect to {host}:{port}: {err}"
 
 
 class HTP1Device(WebSocketDevice):
@@ -154,7 +154,7 @@ class HTP1Device(WebSocketDevice):
 
     @property
     def websocket_url(self) -> str:
-        return f"ws://{self._device_config.host}/ws/controller"
+        return f"ws://{self._device_config.host}:{self._device_config.port}/ws/controller"
 
     def get_sensor_value(self, key: str) -> str:
         return self._sensor_data.get(key, "")
@@ -561,7 +561,7 @@ class HTP1Device(WebSocketDevice):
         _LOG.info("[%s] Sending http command: %s", self.log_id, command)
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(f"http://{self.address}/ircmd?code={command}", timeout=5) as response:
+                async with session.get(f"http://{self.address}:{self._device_config.port}/ircmd?code={command}", timeout=5) as response:
                     return response.status == 200
         except asyncio.TimeoutError:
             _LOG.error("[%s] HTTP command timed out", self.log_id)
