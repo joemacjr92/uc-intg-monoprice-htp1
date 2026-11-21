@@ -45,8 +45,14 @@ _entry_cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
 _entry_locks: dict[tuple[str, str], asyncio.Lock] = {}
 
 
+def _new_session() -> aiohttp.ClientSession:
+    """Create an HTTP session using the original Remote-compatible TLS setting."""
+    connector = aiohttp.TCPConnector(ssl=False)
+    return aiohttp.ClientSession(connector=connector, timeout=REQUEST_TIMEOUT)
+
+
 async def _get_json(url: str) -> Any:
-    async with aiohttp.ClientSession(timeout=REQUEST_TIMEOUT) as session:
+    async with _new_session() as session:
         async with session.get(url) as response:
             response.raise_for_status()
             return await response.json(content_type=None)
@@ -122,7 +128,7 @@ async def _load_index() -> bool:
                     or any(char not in "0123456789abcdef" for char in index_sha256)):
                 raise ValueError("invalid BEQ manifest")
 
-            async with aiohttp.ClientSession(timeout=REQUEST_TIMEOUT) as session:
+            async with _new_session() as session:
                 async with session.get(CATALOGUE_BASE_URL + index_path) as response:
                     response.raise_for_status()
                     index_bytes = await response.read()
