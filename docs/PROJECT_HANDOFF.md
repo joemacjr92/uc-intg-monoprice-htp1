@@ -1,6 +1,8 @@
 # HTP-1 Integration — Project Handoff
 
-> **Purpose:** This is the continuity document for future development chats. Read it before proposing or making changes. This project is the Monoprice HTP-1 integration in this repository. It is not CouchOS development and must not be confused with the separate Fire TV or hosted BEQ catalogue workstreams.
+> **Purpose:** This is the continuity document for future development chats. Read it before proposing or making changes. This repository contains the **Unfolded Circle integration for the Monoprice HTP-1**. Keep that integration/platform context distinct from the user's separate Couch device and Couch-related project context, as well as from the Fire TV and hosted BEQ catalogue workstreams.
+>
+> **Critical device distinction:** The remote test client at `10.0.0.25` is the **Couch device**. It is used as a client/test host in the remote access setup; it is **not** the Unfolded Circle Remote and it is **not** the Monoprice HTP-1. Do not call it an Unfolded Circle device or confuse its identity/operating environment with the integration target. The integration target is the HTP-1; the integration platform is Unfolded Circle. Refer to each system by its actual role. If any device identity or role is unclear, verify it or ask rather than importing assumptions from another project or chat.
 
 ## New-chat instructions
 
@@ -127,7 +129,7 @@ The phases below are the approved plan. Phase 0 is added as the prerequisite for
 This is the user's existing private route. Use it as the default remote test path; do not enable public port forwarding or replace it without explicit approval.
 
 ```text
-HTP-1 integration / remote test client
+Couch device — remote test client (10.0.0.25)
     |
     |  htp1-remote:18081
     v
@@ -161,7 +163,8 @@ Operational notes:
 
 - The Synology reverse proxy has WebSocket support/headers enabled.
 - The route passes through Tailscale to Caddy on the UGREEN host, which forwards to the HTP-1.
-- The client/test environment must resolve `htp1-remote` to `10.0.0.56`. A hosts-file entry was used previously; verify it exists in the current test environment rather than assuming it does.
+- The Couch device / remote test client (`10.0.0.25`) must resolve `htp1-remote` to `10.0.0.56`. A hosts-file entry was used previously; verify it exists in the current test environment rather than assuming it does.
+- The remote test client being the Couch device does not change the integration platform (Unfolded Circle) or the controlled device (Monoprice HTP-1). Keep those identities separate in commands, diagnostics, documentation, and discussion.
 - The topology and addresses are operational context for private development. Do not copy them into public upstream documentation or expose credentials.
 - If the connection fails, verify hostname resolution, Tailscale reachability, Caddy forwarding, and WebSocket upgrade handling in that order. Do not change multiple network layers at once.
 - The previously successful SSH/Tailscale connectivity test confirmed the private route was working at that time; always re-check current connectivity when troubleshooting.
@@ -172,7 +175,7 @@ The following are not phases in the roadmap above:
 
 1. **Hosted BEQ catalogue work:** catalogue publishing/compatibility, its own hardening tasks, and related CI. Keep it distinct from the HTP-1 feature roadmap.
 2. **Generic performance/hardening investigations:** treat these as separately scoped tasks unless the user explicitly maps an item into one of the phases above.
-3. **Other integrations or CouchOS development:** outside the scope of this HTP-1 project handoff.
+3. **Couch device / separate Couch-related context:** not the Unfolded Circle integration platform and not the HTP-1. The Couch device at `10.0.0.25` is only the remote test client in the topology above. Keep any separate Couch project or operating-environment details out of HTP-1 implementation assumptions unless the user explicitly asks to work on them.
 
 ## Current status tracking
 
