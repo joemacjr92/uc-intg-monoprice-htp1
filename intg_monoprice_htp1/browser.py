@@ -190,46 +190,56 @@ async def _fetch_entry_payload(version: str, key: str) -> dict[str, Any]:
 
 
 async def get_beq_entry(key: str) -> dict[str, Any] | None:
-    """Fetch a selected payload, retrying once if a Pages deployment changed."""
+    """Fetch a selected payload once per catalogue version and entry ID."""
     global _index_loaded_at
     if not await _load_index() or _manifest is None:
         return None
     if len(key) != 16 or any(char not in "0123456789abcdef" for char in key):
         return None
+
+    version = _manifest["version"]
     if key in _entry_cache:
         _entry_cache.move_to_end(key)
         return _entry_cache[key]
 
-    version = _manifest["version"]
-    try:
-        payload = await _fetch_entry_payload(version, key)
-    except aiohttp.ClientResponseError as err:
-        if err.status != 404:
-            _LOG.error("Unable to load BEQ entry %s: %s", key, err)
-            return None
-        # A Pages deployment may replace the previous version while an old
-        # browse result is still open. Refresh and retry if this ID survived.
-        _index_loaded_at = time.monotonic() - INDEX_CACHE_LIFE - 1
-        if not await _load_index() or _manifest is None or _manifest["version"] == version:
-            return None
+    # Multiple UI requests can select the same item concurrently. Serialize
+    # only requests for the same version/ID, then recheck the cache after
+    # acquiring the lock so only one network fetch is performed.
+    lock = _entry_locks.setdefault((version, key), asyncio.Lock())
+    async with lock:
+        if key in _entry_cache:
+            _entry_cache.move_to_end(key)
+            return _entry_cache[key]
+
         try:
-            payload = await _fetch_entry_payload(_manifest["version"], key)
+            payload = await _fetch_entry_payload(version, key)
+        except aiohttp.ClientResponseError as err:
+            if err.status != 404:
+                _LOG.error("Unable to load BEQ entry %s: %s", key, err)
+                return None
+            # A Pages deployment may replace the previous version while an old
+            # browse result is still open. Refresh and retry if this ID survived.
+            _index_loaded_at = time.monotonic() - INDEX_CACHE_LIFE - 1
+            if not await _load_index() or _manifest is None or _manifest["version"] == version:
+                return None
+            try:
+                payload = await _fetch_entry_payload(_manifest["version"], key)
+            except asyncio.CancelledError:
+                raise
+            except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError, json.JSONDecodeError) as retry_err:
+                _LOG.error("Unable to load BEQ entry %s after catalogue refresh: %s", key, retry_err)
+                return None
         except asyncio.CancelledError:
             raise
-        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError, json.JSONDecodeError) as retry_err:
-            _LOG.error("Unable to load BEQ entry %s after catalogue refresh: %s", key, retry_err)
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError, json.JSONDecodeError) as err:
+            _LOG.error("Unable to load BEQ entry %s: %s", key, err)
             return None
-    except asyncio.CancelledError:
-        raise
-    except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError, json.JSONDecodeError) as err:
-        _LOG.error("Unable to load BEQ entry %s: %s", key, err)
-        return None
 
-    _entry_cache[key] = payload
-    _entry_cache.move_to_end(key)
-    while len(_entry_cache) > ENTRY_CACHE_MAX:
-        _entry_cache.popitem(last=False)
-    return payload
+        _entry_cache[key] = payload
+        _entry_cache.move_to_end(key)
+        while len(_entry_cache) > ENTRY_CACHE_MAX:
+            _entry_cache.popitem(last=False)
+        return payload
 
 
 def _entry_to_item(entry: dict[str, Any]) -> BrowseMediaItem:
