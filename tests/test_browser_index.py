@@ -193,3 +193,90 @@ def test_entry_fetch_retries_after_catalogue_version_changes(monkeypatch):
     assert fetched_versions == ["0123456789abcdef", "fedcba9876543210"]
 
 
+
+
+
+def test_concurrent_entry_requests_share_one_payload_fetch(monkeypatch):
+    from collections import OrderedDict
+
+    monkeypatch.setattr(browser, "_entry_cache", OrderedDict())
+    monkeypatch.setattr(browser, "_entry_locks", {})
+    monkeypatch.setattr(browser, "_manifest", {"version": "0123456789abcdef"})
+    calls = 0
+
+    async def load_index():
+        return True
+
+    async def fetch(version, key):
+        nonlocal calls
+        calls += 1
+        await asyncio.sleep(0)
+        return {"title": "Film", "underlying": "Film", "filters": [
+            {"type": "PeakingEQ", "freq": 100, "gain": 2, "q": 1}
+        ]}
+
+    monkeypatch.setattr(browser, "_load_index", load_index)
+    monkeypatch.setattr(browser, "_fetch_entry_payload", fetch)
+
+    async def exercise():
+        results = await asyncio.gather(*[
+            browser.get_beq_entry("0123456789abcdef") for _ in range(8)
+        ])
+        assert all(result == results[0] for result in results)
+        assert calls == 1
+
+    asyncio.run(exercise())
+
+
+def test_entry_fetch_failure_does_not_poison_cache(monkeypatch):
+    import aiohttp
+    from collections import OrderedDict
+
+    monkeypatch.setattr(browser, "_entry_cache", OrderedDict())
+    monkeypatch.setattr(browser, "_entry_locks", {})
+    monkeypatch.setattr(browser, "_manifest", {"version": "0123456789abcdef"})
+    attempts = 0
+
+    async def load_index():
+        return True
+
+    async def fetch(version, key):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise asyncio.TimeoutError()
+        return {"title": "Film", "underlying": "Film", "filters": [
+            {"type": "PeakingEQ", "freq": 100, "gain": 2, "q": 1}
+        ]}
+
+    monkeypatch.setattr(browser, "_load_index", load_index)
+    monkeypatch.setattr(browser, "_fetch_entry_payload", fetch)
+
+    async def exercise():
+        assert await browser.get_beq_entry("0123456789abcdef") is None
+        assert "0123456789abcdef" not in browser._entry_cache
+        assert (await browser.get_beq_entry("0123456789abcdef"))["title"] == "Film"
+        assert attempts == 2
+
+    asyncio.run(exercise())
+
+
+def test_index_refresh_failure_uses_last_known_good_index(monkeypatch):
+    monkeypatch.setattr(browser, "_index", {
+        "entries": [{"id": "0123456789abcdef", "title": "Film", "author": "",
+                     "year": "", "audioTypes": []}],
+        "categories": {"film": [0]},
+    })
+    monkeypatch.setattr(browser, "_manifest", {"version": "0123456789abcdef"})
+    monkeypatch.setattr(browser, "_index_loaded_at", 0)
+
+    async def fail_fetch(url):
+        raise asyncio.TimeoutError()
+
+    monkeypatch.setattr(browser, "_get_json", fail_fetch)
+
+    async def exercise():
+        assert await browser._load_index()
+        assert browser._index["entries"][0]["title"] == "Film"
+
+    asyncio.run(exercise())
