@@ -65,7 +65,7 @@ def test_invalid_full_state_payload_is_ignored():
     asyncio.run(exercise())
 
 
-def test_malformed_patch_entries_do_not_abort_valid_updates():
+def test_malformed_patch_entries_reject_entire_batch_and_request_full_state():
     import asyncio
     from intg_monoprice_htp1.config import HTP1Config
     from intg_monoprice_htp1.device import HTP1Device
@@ -74,15 +74,24 @@ def test_malformed_patch_entries_do_not_abort_valid_updates():
         device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
         device._state = {"powerIsOn": False}
         updates = []
+        sent = []
         device.push_update = lambda: updates.append(True)
 
+        async def capture(message):
+            sent.append(message)
+            return True
+
+        device.send_message = capture
         await device.handle_message(
             'msoupdate [42, {"op": "replace", "path": null, "value": true}, '
             '{"op": "replace", "path": "/powerIsOn", "value": true}]'
         )
 
-        assert device._state["powerIsOn"] is True
-        assert updates == [True]
+        # Invalid patches are atomic: don't apply the valid trailing operation
+        # to a potentially incomplete state; request a complete receiver snapshot.
+        assert device._state == {"powerIsOn": False}
+        assert updates == []
+        assert sent == ["getmso"]
 
     asyncio.run(exercise())
 
