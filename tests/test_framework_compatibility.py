@@ -667,3 +667,113 @@ def test_beq_clamps_imported_values_and_rejects_malformed_values_and_more_than_1
         assert sent == []
 
     asyncio.run(exercise())
+
+
+
+def test_remote_dispatch_routes_simple_commands_to_expected_device_methods():
+    import asyncio
+    from intg_monoprice_htp1.remote import HTP1Remote, HTTP_COMMANDS
+    from ucapi import StatusCodes
+
+    class Device:
+        power = False
+        muted = False
+        ss_mute = "off"
+        ss_trim = 4
+
+        def __init__(self):
+            self.calls = []
+
+        async def send_http_command(self, value):
+            self.calls.append(("http", value))
+            return True
+
+        async def send_command(self, value):
+            self.calls.append(("command", value))
+            return True
+
+        async def ss_mute_toggle(self, value):
+            self.calls.append(("ss_mute", value))
+            return True
+
+        async def set_ss_trim(self, value):
+            self.calls.append(("trim", value))
+            return True
+
+        async def select_ss_preset(self, value):
+            self.calls.append(("preset", value))
+            return True
+
+    device = Device()
+    remote = HTP1Remote.__new__(HTP1Remote)
+    remote._device = device
+    remote.id = "remote.test"
+
+    async def exercise():
+        assert await remote._handle_command(None, "Mode Native", None) == StatusCodes.OK
+        assert await remote._handle_command(None, "Info", None) == StatusCodes.OK
+        assert await remote._handle_command(None, "Seat Shaker Mute Toggle", None) == StatusCodes.OK
+        assert await remote._handle_command(None, "Seat Shaker Trim +1", None) == StatusCodes.OK
+        assert await remote._handle_command(None, "Seat Shaker Preset 6", None) == StatusCodes.OK
+        assert device.calls == [
+            ("http", HTTP_COMMANDS["Mode Native"]),
+            ("http", HTTP_COMMANDS["Info"]),
+            ("ss_mute", True),
+            ("trim", 5),
+            ("preset", 5),
+        ]
+
+    asyncio.run(exercise())
+
+
+def test_remote_sequence_stops_after_first_failed_command():
+    import asyncio
+    from intg_monoprice_htp1.remote import HTP1Remote
+    from ucapi import StatusCodes
+    from ucapi.remote import Commands
+
+    class Device:
+        def __init__(self):
+            self.calls = []
+
+        async def send_http_command(self, value):
+            self.calls.append(value)
+            return value != "0bf4"
+
+    from intg_monoprice_htp1.remote import HTTP_COMMANDS
+    device = Device()
+    remote = HTP1Remote.__new__(HTP1Remote)
+    remote._device = device
+    remote.id = "remote.test"
+
+    async def exercise():
+        status = await remote._handle_command(
+            None, Commands.SEND_CMD_SEQUENCE,
+            {"sequence": ["VOLUME_DOWN", "VOLUME_UP", "Info"]},
+        )
+        assert status == StatusCodes.SERVER_ERROR
+        assert device.calls == [
+            HTTP_COMMANDS["VOLUME_DOWN"],
+            HTTP_COMMANDS["VOLUME_UP"],
+        ]
+
+    asyncio.run(exercise())
+
+
+def test_remote_command_handlers_reject_malformed_and_unsupported_requests():
+    import asyncio
+    from intg_monoprice_htp1.remote import HTP1Remote
+    from ucapi import StatusCodes
+    from ucapi.remote import Commands
+
+    remote = HTP1Remote.__new__(HTP1Remote)
+    remote.id = "remote.test"
+
+    async def exercise():
+        assert await remote._handle_command(None, Commands.SEND_CMD, None) == StatusCodes.BAD_REQUEST
+        assert await remote._handle_command(None, Commands.SEND_CMD, {"command": 7}) == StatusCodes.BAD_REQUEST
+        assert await remote._handle_command(None, Commands.SEND_CMD_SEQUENCE, {"sequence": []}) == StatusCodes.BAD_REQUEST
+        assert await remote._handle_command(None, Commands.SEND_CMD_SEQUENCE, {"sequence": ["Info"] * 51}) == StatusCodes.BAD_REQUEST
+        assert await remote._handle_command(None, "not-supported", None) == StatusCodes.NOT_IMPLEMENTED
+
+    asyncio.run(exercise())
