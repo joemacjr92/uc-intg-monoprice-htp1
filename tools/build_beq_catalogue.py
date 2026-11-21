@@ -250,7 +250,7 @@ def build(source: Path, output: Path) -> dict[str, Any]:
             filter_label = f"filter {issue['filter_index'] + 1}" if "filter_index" in issue else "filter count"
             unsupported_lines.append(f"{label}: {filter_label}: {reasons}")
     (output / "unsupported-entries.txt").write_text(
-        "\\n".join(unsupported_lines) + "\\n", encoding="utf-8"
+        "\n".join(unsupported_lines) + "\n", encoding="utf-8"
     )
 
     adjusted_entries.sort(key=lambda item: (
@@ -314,14 +314,24 @@ def build(source: Path, output: Path) -> dict[str, Any]:
     return manifest
 
 
+def _reset_output_directory(output: Path) -> None:
+    """Replace generated output without following symlinks or deleting the working tree."""
+    resolved = output.resolve()
+    if resolved == Path(resolved.anchor) or resolved == Path.cwd().resolve():
+        raise ValueError(f"refusing to replace unsafe output directory: {output}")
+    if output.is_symlink() or (output.exists() and not output.is_dir()):
+        output.unlink()
+    elif output.exists():
+        shutil.rmtree(output)
+    output.mkdir(parents=True)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    if args.output.exists():
-        shutil.rmtree(args.output)
-    args.output.mkdir(parents=True)
+    _reset_output_directory(args.output)
     manifest = build(args.source, args.output)
     print(json.dumps(manifest, indent=2))
 

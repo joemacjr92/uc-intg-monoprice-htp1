@@ -217,3 +217,43 @@ def test_catalogue_builder_normalizes_values_to_beq_limits(
     assert manifest["adjusted_count"] == 1
     assert {key: payload["filters"][0][key] for key in ("freq", "gain", "q")} == expected
 
+
+
+def test_unsupported_text_report_uses_real_line_breaks(tmp_path: Path):
+    source = tmp_path / "source.json"
+    output = tmp_path / "public"
+    source.write_text(json.dumps([{
+        "title": "Unsupported filter",
+        "content_type": "film",
+        "filters": [{"type": "AllPass1", "freq": 100, "gain": 0, "q": 1}],
+    }]), encoding="utf-8")
+
+    build(source, output)
+    report = (output / "unsupported-entries.txt").read_text(encoding="utf-8")
+    assert "\\n" not in report
+    assert "Excluded entries: 1\n\nUnsupported filter: filter 1:" in report
+
+
+def test_reset_output_directory_does_not_follow_symlink(tmp_path: Path):
+    from tools.build_beq_catalogue import _reset_output_directory
+
+    target = tmp_path / "target"
+    target.mkdir()
+    sentinel = target / "keep.txt"
+    sentinel.write_text("keep", encoding="utf-8")
+    output_link = tmp_path / "output"
+    output_link.symlink_to(target, target_is_directory=True)
+
+    _reset_output_directory(output_link)
+
+    assert sentinel.read_text(encoding="utf-8") == "keep"
+    assert not output_link.is_symlink()
+    assert output_link.is_dir()
+
+
+def test_reset_output_directory_refuses_current_working_directory(tmp_path: Path, monkeypatch):
+    from tools.build_beq_catalogue import _reset_output_directory
+
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(ValueError, match="unsafe output directory"):
+        _reset_output_directory(Path("."))
