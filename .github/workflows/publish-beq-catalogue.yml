@@ -48,6 +48,8 @@ jobs:
             --retry 3 --retry-all-errors --connect-timeout 10 --max-time 60 \
             https://raw.githubusercontent.com/3ll3d00d/beqfilters/main/LICENSE \
             --output /tmp/beqfilters-LICENSE
+          test -s /tmp/beqcatalogue-LICENSE
+          test -s /tmp/beqfilters-LICENSE
 
       - name: Build compact catalogue
         run: |
