@@ -27,8 +27,7 @@ build/
 *.spec
 *.tar.gz
 
-# Testing files (keep local only)
-tests/
+# Local testing artifacts
 simulator/
 
 # IDE / Editor

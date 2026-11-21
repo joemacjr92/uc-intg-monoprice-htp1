@@ -3,11 +3,11 @@ name: Tests
 on:
   push:
     branches:
-      - main
-      - perf/hosted-beq-catalogue
+      - tests-and-docs
   pull_request:
     branches:
       - main
+      - tests-and-docs
   workflow_dispatch:
 
 permissions:
