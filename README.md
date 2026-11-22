@@ -69,9 +69,14 @@ Control all available input sources:
 - **Clear** - Clear current BEQ filter in the HTP-1
 - **Load** - Load selected BEQ Filter into the HTP-1
 
-- **Note** - Recent changes by UnfoldedCircle have made loading the BEQ Catalogue sub optimal on the remote
-             If you plan on using this feature, it is recommended to install the integration on Docker if available (See below)
-             We will continue to look at ways to make this really cool feature more robust when running on the remote.
+- **Catalogue source** - The BEQ catalogue is loaded from the project's hosted GitHub Pages catalogue:
+  [https://mase1981.github.io/uc-intg-monoprice-htp1/beq/](https://mase1981.github.io/uc-intg-monoprice-htp1/beq/)
+- **HTTPS security** - Catalogue requests use HTTPS with certificate and hostname verification enabled.
+  The integration uses the `certifi` CA bundle, which is included in packaged Remote builds as well as Docker installs.
+- **No insecure fallback** - If the hosted catalogue cannot be reached or its TLS certificate cannot be verified,
+  loading fails rather than disabling certificate verification or switching to an alternate catalogue host.
+- **Remote support** - The hosted catalogue has been verified to load on the Unfolded Circle Remote; Docker is not
+  required solely to use BEQ browsing.
 
 #### **Calibration Control via select entity**
 - **Dynamically reads avaialble Calibrations slots** - Choose from available calibrations
