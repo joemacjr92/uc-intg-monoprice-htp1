@@ -127,6 +127,7 @@ def test_beq_refreshes_state_before_preflight_and_rejects_stale_pre_cache():
 def test_beq_receiver_ignoring_patch_is_reported_as_failure_after_readback():
     async def exercise():
         state = json.loads(BEQ_FIXTURE.read_text(encoding="utf-8"))
+        original_active = state["peq"]["beqActive"]
         device, receiver = _make_device(
             receiver_state=state,
             apply_mode="ignore",
@@ -137,8 +138,8 @@ def test_beq_receiver_ignoring_patch_is_reported_as_failure_after_readback():
         assert result is False
         assert receiver.change_count == 1
         assert receiver.messages.count("getmso") >= 2
-        assert device.beq_active == ""
-        assert "beqActive" not in device._state["peq"]
+        assert device.beq_active == original_active
+        assert device._state["peq"]["beqActive"] == original_active
 
     asyncio.run(exercise())
 
@@ -146,6 +147,7 @@ def test_beq_receiver_ignoring_patch_is_reported_as_failure_after_readback():
 def test_partial_beq_application_is_not_reported_as_success():
     async def exercise():
         state = json.loads(BEQ_FIXTURE.read_text(encoding="utf-8"))
+        original_active = state["peq"]["beqActive"]
         device, receiver = _make_device(
             receiver_state=state,
             apply_mode="partial",
@@ -156,7 +158,7 @@ def test_partial_beq_application_is_not_reported_as_success():
         assert result is False
         assert receiver.change_count == 1
         assert receiver.messages.count("getmso") >= 2
-        assert device.beq_active == ""
+        assert device.beq_active == original_active
         assert receiver.state != state
 
     asyncio.run(exercise())
@@ -199,7 +201,7 @@ def test_disconnect_after_beq_write_does_not_claim_success_or_replay():
         assert result is False
         assert receiver.change_count == 1
         assert sum(message.startswith("changemso ") for message in receiver.messages) == 1
-        assert device.beq_active == ""
+        assert device.beq_active != "Disconnected BEQ"
 
     asyncio.run(exercise())
 
