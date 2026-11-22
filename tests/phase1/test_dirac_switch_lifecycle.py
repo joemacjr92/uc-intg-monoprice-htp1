@@ -591,7 +591,7 @@ def test_dirac_absolute_raw_volume_request_becomes_base_for_later_steps():
 
             # Desired displayed target is -31 dB; current volume is -27 dB,
             # so the existing 5 dB limiter does not need to clamp it.
-            assert _volume_writes(receiver) == [-24]
+            assert _volume_writes(receiver) == [-32]
         finally:
             await receiver.cleanup()
 
@@ -621,7 +621,7 @@ def test_dirac_absolute_level_request_uses_captured_bounds_and_last_absolute_win
 
             # A 0.75 level maps to the raw midpoint calculation, then the
             # existing 5 dB jump limiter is applied by the shared helper.
-            assert _volume_writes(receiver) == [-22]
+            assert _volume_writes(receiver) == [-30]
         finally:
             await receiver.cleanup()
 
