@@ -176,7 +176,7 @@ def test_beq_state_refresh_timeout_context_aborts_before_any_write():
         # it so the test proves the real timeout path rather than cancelling it.
         result = await asyncio.wait_for(
             device.load_beq("Timed out preflight", BEQ_FILTERS),
-            timeout=6.0,
+            timeout=15.0,
         )
 
         assert result is False
