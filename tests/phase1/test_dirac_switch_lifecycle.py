@@ -323,11 +323,12 @@ def test_dirac_busy_lock_preflight_does_not_send_another_slot_change():
 
 
 
-def test_dirac_does_not_block_volume_and_rejects_second_dirac_request():
+def test_dirac_captures_volume_and_rejects_second_dirac_request():
     async def exercise():
-        device, receiver = make_device(delay=1.0)
+        device, receiver = make_device(delay=0.3)
         try:
             original_display = device.dirac_slot_name
+            current_volume = device._state["volume"]
             first = await device.select_calibration(device.slot_names[1])
             assert first is True
 
@@ -336,13 +337,13 @@ def test_dirac_does_not_block_volume_and_rejects_second_dirac_request():
             assert second is False
             assert receiver.change_count == 1
 
-            # A normal state transaction can run while Dirac is applying.
-            current_volume = device._state["volume"]
+            # Volume intent is acknowledged promptly but not written during DSP.
             volume_result = await asyncio.wait_for(
                 device.set_volume(current_volume - 1), timeout=0.2
             )
             assert volume_result is True
-            assert receiver.state["volume"] == current_volume - 1
+            assert receiver.state["volume"] == current_volume
+            assert _volume_writes(receiver) == []
             assert device.dirac_slot_name == original_display
 
             task = device._dirac_task
@@ -350,6 +351,8 @@ def test_dirac_does_not_block_volume_and_rejects_second_dirac_request():
             await asyncio.wait_for(task, timeout=2.0)
             assert device.dirac_slot_name == device.slot_names[1]
             assert receiver.state["cal"]["currentdiracslot"] == 1
+            assert receiver.state["volume"] == current_volume - 1
+            assert _volume_writes(receiver) == [current_volume - 1]
         finally:
             await receiver.cleanup()
 
@@ -411,13 +414,16 @@ def test_dirac_acceptance_and_concurrent_volume_stress():
                     device.set_volume(current_volume - 1), timeout=0.2
                 )
                 assert volume_result is True
-                assert receiver.state["volume"] == current_volume - 1
+                assert receiver.state["volume"] == current_volume
+                assert _volume_writes(receiver) == []
                 assert device.dirac_slot_name == original_display
 
                 task = device._dirac_task
                 assert task is not None
                 await asyncio.wait_for(task, timeout=2.0)
                 assert device.dirac_slot_name == device.slot_names[1]
+                assert receiver.state["volume"] == current_volume - 1
+                assert _volume_writes(receiver) == [current_volume - 1]
             finally:
                 await receiver.cleanup()
 
