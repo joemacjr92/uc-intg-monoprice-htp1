@@ -1,6 +1,7 @@
 """WebSocket connection-probe tests against local simulated endpoints."""
 
 import asyncio
+import socket
 
 import websockets
 
@@ -43,8 +44,9 @@ def test_probe_ignores_non_state_messages_until_valid_state_marker():
 
 def test_probe_times_out_when_server_never_returns_state():
     async def exercise():
-        async def endpoint(_websocket):
-            await asyncio.Event().wait()
+        async def endpoint(websocket):
+            async for _message in websocket:
+                pass
 
         async with websockets.serve(endpoint, "127.0.0.1", 0) as server:
             port = server.sockets[0].getsockname()[1]
@@ -56,8 +58,6 @@ def test_probe_times_out_when_server_never_returns_state():
 
 def test_probe_reports_connection_refused():
     async def exercise():
-        # Bind an ephemeral port, then release it before probing.
-        import socket
         with socket.socket() as sock:
             sock.bind(("127.0.0.1", 0))
             port = sock.getsockname()[1]
