@@ -14,61 +14,73 @@ BEQ_TITLE = (
 
 
 def test_realistic_mso_beq_pre_snapshot_parses_and_preserves_slot_validity():
-    device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
-    state = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    loop = asyncio.new_event_loop()
+    try:
+        device = HTP1Device(
+            HTP1Config("test", "Test HTP-1", "127.0.0.1"),
+            loop=loop,
+        )
+        state = json.loads(FIXTURE.read_text(encoding="utf-8"))
 
-    device._state = state
-    device._parse_state()
+        device._state = state
+        device._parse_state()
 
-    assert device.beq_active == BEQ_TITLE
-    assert device.get_sensor_value("beq_active") == BEQ_TITLE
-    assert state["peq"]["location"] == "pre"
-    assert state["peq"]["peqsw"] is True
+        assert device.beq_active == BEQ_TITLE
+        assert device.get_sensor_value("beq_active") == BEQ_TITLE
+        assert state["peq"]["location"] == "pre"
+        assert state["peq"]["peqsw"] is True
 
-    # The firmware reports valid:false for these slots even though the BEQ
-    # coefficients and per-channel BEQ tags are populated. Do not conflate them.
-    assert all(slot["valid"] is False for slot in state["peq"]["slots"])
-    populated = [
-        (index, slot["channels"]["sub1"])
-        for index, slot in enumerate(state["peq"]["slots"])
-        if slot["channels"]["sub1"].get("beq") is True
-    ]
-    assert [index for index, _ in populated] == [0, 2, 3]
-    assert [(item["Fc"], item["gaindB"], item["Q"], item["FilterType"])
-            for _, item in populated] == [
-        (23, 3.2, 1, 1),
-        (34, -3, 5, 0),
-        (37, 0.8, 0.8, 0),
-    ]
+        # The firmware reports valid:false for these slots even though the BEQ
+        # coefficients and per-channel BEQ tags are populated. Do not conflate them.
+        assert all(slot["valid"] is False for slot in state["peq"]["slots"])
+        populated = [
+            (index, slot["channels"]["sub1"])
+            for index, slot in enumerate(state["peq"]["slots"])
+            if slot["channels"]["sub1"].get("beq") is True
+        ]
+        assert [index for index, _ in populated] == [0, 2, 3]
+        assert [(item["Fc"], item["gaindB"], item["Q"], item["FilterType"])
+                for _, item in populated] == [
+            (23, 3.2, 1, 1),
+            (34, -3, 5, 0),
+            (37, 0.8, 0.8, 0),
+        ]
 
-    assert device._get_sub_channels() == ["sub1"]
-    assert all(
-        slot["channels"][channel].get("beq") is not True
-        for slot in state["peq"]["slots"]
-        for channel in ("sub2", "sub3")
-    )
+        assert device._get_sub_channels() == ["sub1"]
+        assert all(
+            slot["channels"][channel].get("beq") is not True
+            for slot in state["peq"]["slots"]
+            for channel in ("sub2", "sub3")
+        )
+    finally:
+        loop.close()
 
 
 def test_mso_and_msoupdate_messages_keep_beq_state_in_sync():
-    device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
-    device.push_update = lambda: None
-    state = json.loads(FIXTURE.read_text(encoding="utf-8"))
-
-    import asyncio
-
-    async def exercise():
-        await device.handle_message("mso " + json.dumps(state))
-        assert device.beq_active == BEQ_TITLE
-        assert device._get_sub_channels() == ["sub1"]
-
-        await device.handle_message(
-            'msoupdate [{"op":"replace",'
-            '"path":"/peq/slots/0/channels/sub1/gaindB","value":3.5}]'
+    loop = asyncio.new_event_loop()
+    try:
+        device = HTP1Device(
+            HTP1Config("test", "Test HTP-1", "127.0.0.1"),
+            loop=loop,
         )
-        assert device._state["peq"]["slots"][0]["channels"]["sub1"]["gaindB"] == 3.5
-        assert device.beq_active == BEQ_TITLE
+        device.push_update = lambda: None
+        state = json.loads(FIXTURE.read_text(encoding="utf-8"))
 
-    asyncio.run(exercise())
+        async def exercise():
+            await device.handle_message("mso " + json.dumps(state))
+            assert device.beq_active == BEQ_TITLE
+            assert device._get_sub_channels() == ["sub1"]
+
+            await device.handle_message(
+                'msoupdate [{"op":"replace",'
+                '"path":"/peq/slots/0/channels/sub1/gaindB","value":3.5}]'
+            )
+            assert device._state["peq"]["slots"][0]["channels"]["sub1"]["gaindB"] == 3.5
+            assert device.beq_active == BEQ_TITLE
+
+        loop.run_until_complete(exercise())
+    finally:
+        loop.close()
 
 
 def test_clear_beq_fixture_clears_only_beq_tagged_channels():
