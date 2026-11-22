@@ -413,7 +413,6 @@ class HTP1Device(WebSocketDevice):
         dirac_status = cal.get("diracactive", False)
         self.slot_names = []
         self._slot_index = {}
-        self.dirac_slot_name = "Dirac Off"
         slots = _as_list(cal.get("slots"))
         for idx, slot in enumerate(slots):
             if not isinstance(slot, dict) or slot.get("valid") is not True:
@@ -426,6 +425,7 @@ class HTP1Device(WebSocketDevice):
         # finished applying. Keep the last confirmed display value until the
         # background lifecycle monitor verifies the final receiver snapshot.
         if not self._dirac_display_hold:
+            self.dirac_slot_name = "Dirac Off"
             slot_idx = cal.get("currentdiracslot", 0)
             if dirac_status == "on" and isinstance(slot_idx, int) and not isinstance(slot_idx, bool):
                 if 0 <= slot_idx < len(slots):
