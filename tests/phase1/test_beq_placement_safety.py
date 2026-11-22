@@ -36,6 +36,22 @@ def make_device(location):
     return device
 
 
+
+def _capture_transaction(device):
+    operations = []
+
+    async def refresh():
+        return True
+
+    async def execute(patch):
+        operations.append(patch)
+        return True
+
+    device._refresh_state_locked = refresh
+    device._execute_transaction_locked = execute
+    return operations
+
+
 def _browser_device(location, active=""):
     return SimpleNamespace(
         name="BEQ Placement Test",
@@ -67,14 +83,14 @@ def test_beq_load_in_pre_placement_never_writes_peq_location():
         # Some HTP-1 configurations prohibit placement changes; BEQ must not
         # attempt to override that receiver policy.
         device._state["peq"]["allowPEQLocationChange"] = "no"
+        captured = _capture_transaction(device)
         assert await device.load_beq(
             "Pre placement test",
             [{"type": "PeakingEQ", "freq": 25, "gain": 3.5, "q": 1.2}],
         )
 
-        message = device._ws.messages[-1]
-        assert message.startswith("changemso ")
-        operations = json.loads(message.partition(" ")[2])
+        assert len(captured) == 1
+        operations = captured[0]
         assert not any(operation.get("path") == "/peq/location" for operation in operations)
         assert device._state["peq"]["allowPEQLocationChange"] == "no"
         assert any(operation.get("path") == "/peq/beqActive" for operation in operations)
@@ -90,11 +106,12 @@ def test_beq_load_in_pre_placement_never_writes_peq_location():
 def test_beq_load_in_post_placement_is_rejected_without_any_write():
     async def exercise():
         device = make_device("post")
+        captured = _capture_transaction(device)
         assert not await device.load_beq(
             "Post placement test",
             [{"type": "PeakingEQ", "freq": 25, "gain": 3.5, "q": 1.2}],
         )
-        assert device._ws.messages == []
+        assert captured == []
 
     asyncio.run(exercise())
 
@@ -103,11 +120,12 @@ def test_beq_load_in_post_placement_is_rejected_without_any_write():
 def test_beq_load_with_unknown_placement_fails_closed_without_write(location):
     async def exercise():
         device = make_device(location)
+        captured = _capture_transaction(device)
         assert not await device.load_beq(
             "Unknown placement test",
             [{"type": "PeakingEQ", "freq": 25, "gain": 3.5, "q": 1.2}],
         )
-        assert device._ws.messages == []
+        assert captured == []
 
     asyncio.run(exercise())
 
