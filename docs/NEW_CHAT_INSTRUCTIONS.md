@@ -27,10 +27,10 @@ https://github.com/joemacjr92/uc-intg-monoprice-htp1/blob/tests-and-docs/docs/PR
 
 Before proposing or making changes:
 
-1. Read and follow PROJECT_HANDOFF.md, including the Phase 0–6 roadmap, branch strategy, and scope restrictions.
+1. Read and follow PROJECT_HANDOFF.md, including the Phase 0–6 roadmap and the newly approved Phase 1.5 test-hardening phase, branch strategy, and scope restrictions.
 2. Inspect the live GitHub state relevant to this work: branches and their heads, recent commits, open PRs, CI/check results, and the relevant source and test files.
 3. Establish what is actually complete from repository and test evidence. Do not infer completion from the roadmap or an earlier chat summary.
-4. Identify the current phase and the next unfinished task.
+4. Identify the current phase and the next unfinished task. Phase 1.5 is the next planned phase after Phase 1; read its complete scope and acceptance criteria in PROJECT_HANDOFF.md.
 5. Summarize the verified status and recommend the next task. Wait for my agreement before modifying code.
 
 Important project rules:
