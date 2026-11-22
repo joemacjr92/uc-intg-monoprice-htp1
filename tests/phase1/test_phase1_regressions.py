@@ -51,7 +51,7 @@ def test_addon_and_hidden_inputs_are_not_offered_or_selectable():
     asyncio.run(exercise())
 
 
-def test_beq_forces_pre_peq_and_writes_only_lfe_sub1_channel():
+def test_beq_post_peq_is_rejected_without_writes():
     async def exercise():
         device = make_device()
         state = json.loads(BEQ_FIXTURE.read_text(encoding="utf-8"))
@@ -70,16 +70,9 @@ def test_beq_forces_pre_peq_and_writes_only_lfe_sub1_channel():
             {"type": "LowShelf", "freq": 30, "gain": -2.0, "q": 0.8},
         ]
 
-        assert await device.load_beq("Phase 1 test BEQ", filters)
-        assert len(sent) == 1
-        operations = sent[0]
-
-        assert {"op": "replace", "path": "/peq/location", "value": "pre"} in operations
-        assert {"op": "replace", "path": "/peq/peqsw", "value": True} in operations
-        assert {"op": "add", "path": "/peq/beqActive", "value": "Phase 1 test BEQ"} in operations
-        assert all("/channels/sub1/" in op["path"] for op in operations if "/channels/" in op["path"])
-        assert not any("/channels/sub2/" in op["path"] or "/channels/sub3/" in op["path"] for op in operations)
-        assert device.beq_active == "Phase 1 test BEQ"
+        assert not await device.load_beq("Phase 1 test BEQ", filters)
+        assert sent == []
+        assert device.beq_active == ""
 
     asyncio.run(exercise())
 
@@ -191,8 +184,12 @@ def test_beq_entry_lock_registry_is_reclaimed_when_fetch_is_cancelled(monkeypatc
         await started.wait()
         assert browser._entry_locks
         task.cancel()
-        with pytest.raises(asyncio.CancelledError):
+        try:
             await task
+        except asyncio.CancelledError:
+            pass
+        else:
+            pytest.fail("cancelled BEQ fetch unexpectedly completed")
         assert browser._entry_locks == {}
 
     asyncio.run(exercise())
