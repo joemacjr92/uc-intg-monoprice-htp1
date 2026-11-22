@@ -19,13 +19,29 @@ FIXTURE = Path(__file__).parents[1] / "fixtures" / "htp1_full_mso.json"
 
 
 class RecordingWebSocket:
-    """Capture device writes without replacing command or parser behavior."""
+    """Simulate receiver snapshots and state patches for verified transactions."""
 
-    def __init__(self):
+    def __init__(self, device):
+        self.device = device
+        self.state = copy.deepcopy(device._state)
         self.messages = []
 
     async def send(self, message):
         self.messages.append(message)
+        if message == "getmso":
+            await self.device.handle_message(f"mso {json.dumps(self.state)}")
+        elif message.startswith("changemso "):
+            operations = json.loads(message.partition(" ")[2])
+            candidate = copy.deepcopy(self.state)
+            for operation in operations:
+                apply_json_patch(
+                    candidate,
+                    operation["op"],
+                    operation["path"],
+                    operation.get("value"),
+                )
+            self.state = candidate
+            await self.device.handle_message(f"msoupdate {json.dumps(operations)}")
 
 
 def make_device():
@@ -36,25 +52,19 @@ def make_device():
     device._is_connected = True
     device._state = json.loads(FIXTURE.read_text(encoding="utf-8"))
     device._parse_state()
-    device._ws = RecordingWebSocket()
+    device._ws = RecordingWebSocket(device)
     return device
 
 
 async def apply_recorded_transaction(device):
-    """Apply the last captured changemso to a receiver snapshot and read it back."""
-    message = device._ws.messages[-1]
-    assert message.startswith("changemso ")
-    operations = json.loads(message.partition(" ")[2])
-    updated_state = copy.deepcopy(device._state)
-    for operation in operations:
-        apply_json_patch(
-            updated_state,
-            operation["op"],
-            operation["path"],
-            operation.get("value"),
-        )
-    await device.handle_message(f"msoupdate {json.dumps(operations)}")
-    assert device._state == updated_state
+    """Return the captured write after the fake receiver has verified its readback."""
+    messages = [
+        message for message in device._ws.messages
+        if message.startswith("changemso ")
+    ]
+    assert messages
+    operations = json.loads(messages[-1].partition(" ")[2])
+    assert device._state == device._ws.state
     return operations
 
 
