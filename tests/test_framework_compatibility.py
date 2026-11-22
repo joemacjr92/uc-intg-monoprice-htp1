@@ -32,7 +32,8 @@ def _install_transaction_test_doubles(device, sent):
         return True
 
     async def capture_locked(operations):
-        sent.append(operations)
+        if operations:
+            sent.append(operations)
         return True
 
     device._refresh_state_locked = refresh
