@@ -100,6 +100,7 @@ class HTP1Device(WebSocketDevice):
         self._state_update_event = asyncio.Event()
         self._state_update_paths: set[str] = set()
         self._transaction_error: str | None = None
+        self._dirac_switch_timeout = DIRAC_SWITCH_TIMEOUT
         self._dirac_request_id: str | None = None
         self._dirac_request_slot: int | None = None
         self._ws: Any | None = None
@@ -828,7 +829,7 @@ class HTP1Device(WebSocketDevice):
     ) -> str | None:
         """Wait for this slot request to reach a correlated terminal state."""
         loop = asyncio.get_running_loop()
-        deadline = loop.time() + DIRAC_SWITCH_TIMEOUT
+        deadline = loop.time() + self._dirac_switch_timeout
         request_id: str | None = (
             self._dirac_request_id
             if self._dirac_request_slot == slot_idx and self._dirac_request_id != previous_id
