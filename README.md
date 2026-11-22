@@ -166,14 +166,29 @@ An internet connection is required to browse the hosted catalogue and retrieve a
 
 Use the Remote entity's built-in pages or its available commands in Remote activities and macros. Commands include power, volume, mute, input shortcuts, sound modes, Dirac, Night Mode, Loudness, PEQ, and Seat Shaker functions. The Seat Shaker commands include mute, preset selection, and trim up/down.
 
-## Support and credits
+## Credits
 
-- [Report an issue or request a feature](https://github.com/mase1981/uc-intg-monoprice-htp1/issues)
-- [Unfolded Circle Community](https://unfolded.community/)
-- [Monoprice Support](https://www.monoprice.com/pages/support)
-
-Original developer: [Meir Miyara](https://www.linkedin.com/in/meirmiyara).
+- **Developer**: Meir Miyara
+- **Monoprice**: High-performance HTP-1 AV processor
+- **Unfolded Circle**: Remote 2/3 integration framework (ucapi)
+- **Protocol**: Monoprice HTP-1 WebSocket API
+- **Community**: Testing and feedback from UC community
 
 ## License
 
-This project is licensed under the Mozilla Public License 2.0 (MPL-2.0). See the [LICENSE](LICENSE) file for details.
+This project is licensed under the Mozilla Public License 2.0 (MPL-2.0) - see LICENSE file for details.
+
+## Support & Community
+
+- **GitHub Issues**: [Report bugs and request features](https://github.com/mase1981/uc-intg-monoprice-htp1/issues)
+- **UC Community Forum**: [General discussion and support](https://unfolded.community/)
+- **Developer**: [Meir Miyara](https://www.linkedin.com/in/meirmiyara)
+- **Monoprice Support**: [Official Monoprice Support](https://www.monoprice.com/pages/support)
+
+---
+
+**Made with ❤️ for the Unfolded Circle and Monoprice Communities**
+
+
+
+**Thank You**: Meir Miyara
