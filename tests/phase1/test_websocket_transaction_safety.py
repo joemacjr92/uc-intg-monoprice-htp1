@@ -157,7 +157,7 @@ def test_beq_receiver_ignoring_patch_is_reported_as_failure_after_readback():
             receiver_state=state,
             apply_mode="ignore",
         )
-        device._write_convergence_timeout = 0.05
+        device._write_convergence_timeout = 0.0
 
         result = await device.load_beq("Rejected BEQ", BEQ_FILTERS)
 
@@ -178,7 +178,7 @@ def test_partial_beq_application_is_not_reported_as_success():
             receiver_state=state,
             apply_mode="partial",
         )
-        device._write_convergence_timeout = 0.05
+        device._write_convergence_timeout = 0.0
 
         result = await device.load_beq("Partially applied BEQ", BEQ_FILTERS)
 
@@ -220,7 +220,7 @@ def test_disconnect_after_beq_write_does_not_claim_success_or_replay():
             receiver_state=state,
             disconnect_after_change=True,
         )
-        device._write_convergence_timeout = 0.05
+        device._write_convergence_timeout = 0.0
 
         result = await device.load_beq("Disconnected BEQ", BEQ_FILTERS)
 
