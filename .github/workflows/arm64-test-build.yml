@@ -45,24 +45,25 @@ jobs:
             --user="$(id -u):$(id -g)" \
             -v "${GITHUB_WORKSPACE}:/workspace" \
             "docker.io/unfoldedcircle/r2-pyinstaller:${PYTHON_VER}" \
-            bash -c "cd /workspace &&
-              python -m pip install -r requirements.txt &&
-              pyinstaller --clean --onedir --name driver
-                --add-data driver.json:.
-                --collect-all zeroconf
-                --collect-all ucapi
-                --collect-all ucapi_framework
-                --hidden-import intg_${INTG_NAME}.driver
-                --hidden-import intg_${INTG_NAME}.device
-                --hidden-import intg_${INTG_NAME}.config
-                --hidden-import intg_${INTG_NAME}.media_player
-                --hidden-import intg_${INTG_NAME}.remote
-                --hidden-import intg_${INTG_NAME}.sensor
-                --hidden-import intg_${INTG_NAME}.selector
-                --hidden-import intg_${INTG_NAME}.browser
-                --hidden-import intg_${INTG_NAME}.displayvalues
-                --hidden-import intg_${INTG_NAME}.setup_flow
-                --paths .
+            bash -c \
+            "cd /workspace && \
+              python -m pip install -r requirements.txt && \
+              pyinstaller --clean --onedir --name driver \
+                --add-data driver.json:. \
+                --collect-all zeroconf \
+                --collect-all ucapi \
+                --collect-all ucapi_framework \
+                --hidden-import intg_${INTG_NAME}.driver \
+                --hidden-import intg_${INTG_NAME}.device \
+                --hidden-import intg_${INTG_NAME}.config \
+                --hidden-import intg_${INTG_NAME}.media_player \
+                --hidden-import intg_${INTG_NAME}.remote \
+                --hidden-import intg_${INTG_NAME}.sensor \
+                --hidden-import intg_${INTG_NAME}.selector \
+                --hidden-import intg_${INTG_NAME}.browser \
+                --hidden-import intg_${INTG_NAME}.displayvalues \
+                --hidden-import intg_${INTG_NAME}.setup_flow \
+                --paths . \
                 intg_${INTG_NAME}/__init__.py"
 
       - name: Package integration asset
