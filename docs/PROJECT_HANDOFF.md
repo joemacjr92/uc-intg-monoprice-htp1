@@ -154,6 +154,16 @@ The phases below are the approved plan. Phase 0 adds configurable-port support r
 - Preserve the last state actually reported by the receiver. A failed/unverified transaction is not a success, but do not fabricate a rollback when the receiver already echoed a change.
 - Keep the confirmed BEQ PEQ-placement contract above: never write `/peq/location`; require explicit PEQ Pre.
 
+**Real-time HTP-1 monitoring corrections (2026-11-22):**
+
+- Ordinary `changemso` state writes wait up to two seconds for the relevant live `msoupdate` to converge, then perform one confirming `getmso` snapshot. The touched JSON paths must match before success is returned. The write transaction remains serialized; the live update is registered/observed before any subsequent operation can overtake it.
+- Plain-text `error` WebSocket frames are handled as receiver protocol errors, not malformed JSON. Their message is retained for the pending operation.
+- Dirac selection is no longer verified by the early /cal/currentdiracslot value. The HTP-1 generates the request ID; the integration compares the new `cal.diracSwitch.id` with the pre-write ID, waits for that request to reach `complete` (15-second overall budget), then performs one confirming `getmso` readback.
+- `requested` and `running` are progress only. A matching-ID `diracSwitchReply` refusal is a failure; an unrelated `nr-...` busy reply does not cancel an already accepted request. An uncorrelated plain-text error is given a short 750 ms window for the correlated lifecycle update to arrive; if no request is accepted, it is returned as the rejection reason.
+- A receiver already reporting `diracSwitch.locked` or `diracApplying` is rejected locally before sending another slot change.
+- QA-only regressions cover 250 ms delayed volume convergence, delayed Dirac completion, standby refusal, unrelated busy replies, plain-text busy rejection, and Dirac timeout. Tests remain exclusively on `tests-and-docs`; production code remains on `feature-validation`.
+- These are automated/fake-receiver validations only. Real HTP-1 hardware acceptance remains pending.
+
 **Acceptance:** The connection lifecycle is exercised through a fake server; connected entity synchronization and representative command/state round trips are covered; BEQ manifest validation and failure recovery are tested without live network dependencies; a scrubbed real-device fixture is added when available; and CI publishes a reproducible coverage report with documented baseline/targeted expectations. Record automated CI results separately from Remote connectivity and actual HTP-1 hardware acceptance.
 
 ### Phase 2 — Dependency and Number entity support
