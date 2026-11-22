@@ -173,27 +173,25 @@ def test_beq_entry_lock_registry_is_reclaimed_when_fetch_is_cancelled(monkeypatc
     monkeypatch.setattr(browser, "_entry_cache", OrderedDict())
     monkeypatch.setattr(browser, "_entry_locks", {})
     monkeypatch.setattr(browser, "_manifest", {"version": "0123456789abcdef"})
-    started = asyncio.Event()
-
-    async def load_index():
-        return True
-
-    async def fetch(version, key):
-        started.set()
-        await asyncio.Event().wait()
-
-    monkeypatch.setattr(browser, "_load_index", load_index)
-    monkeypatch.setattr(browser, "_fetch_entry_payload", fetch)
 
     async def exercise():
+        started = asyncio.Event()
+
+        async def load_index():
+            return True
+
+        async def fetch(version, key):
+            started.set()
+            await asyncio.Event().wait()
+
+        monkeypatch.setattr(browser, "_load_index", load_index)
+        monkeypatch.setattr(browser, "_fetch_entry_payload", fetch)
         task = asyncio.create_task(browser.get_beq_entry("0123456789abcdef"))
         await started.wait()
         assert browser._entry_locks
         task.cancel()
-        try:
+        with pytest.raises(asyncio.CancelledError):
             await task
-        except asyncio.CancelledError:
-            pass
         assert browser._entry_locks == {}
 
     asyncio.run(exercise())
