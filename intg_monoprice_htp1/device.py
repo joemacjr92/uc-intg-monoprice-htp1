@@ -93,6 +93,7 @@ class HTP1Device(WebSocketDevice):
         self._state: dict[str, Any] | None = None
         self._state_ready = asyncio.Event()
         self._ws: Any | None = None
+        self._send_lock = asyncio.Lock()
 
         self.events.on(DeviceEvents.CONNECTED, self._on_connected)
         self.events.on(DeviceEvents.DISCONNECTED, self._on_disconnected)
@@ -380,12 +381,14 @@ class HTP1Device(WebSocketDevice):
         }
 
     async def send_message(self, message: str) -> bool:
+        """Send one complete WebSocket message without overlapping other writes."""
         try:
-            if self._ws and self.is_connected:
-                await self._ws.send(message)
-                _LOG.debug("[%s] Sent: %s", self.log_id, message[:200])
-                return True
-            return False
+            async with self._send_lock:
+                if self._ws and self.is_connected:
+                    await self._ws.send(message)
+                    _LOG.debug("[%s] Sent: %s", self.log_id, message[:200])
+                    return True
+                return False
         except websockets.ConnectionClosed:
             _LOG.warning("[%s] Send failed: WebSocket connection is closed", self.log_id)
             return False
