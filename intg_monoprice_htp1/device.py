@@ -689,7 +689,10 @@ class HTP1Device(WebSocketDevice):
         self._dirac_volume_absolute_db = None
         self._dirac_volume_capture_active = True
         if not valid:
-            _LOG.warning("[%s] Cannot safely defer volume during Dirac: initial volume calibration state is invalid", self.log_id)
+            _LOG.warning(
+                "[%s] Cannot safely defer volume during Dirac: initial volume calibration state is invalid",
+                self.log_id,
+            )
 
     def _capture_dirac_volume_step(self, delta: int) -> bool | None:
         """Capture a relative volume request; None means no Dirac capture is active."""
@@ -698,12 +701,21 @@ class HTP1Device(WebSocketDevice):
         snapshot = self._dirac_volume_snapshot
         if snapshot is None:
             return False
-        base_db = self._dirac_volume_absolute_db if self._dirac_volume_absolute_db is not None else snapshot["volume"] - snapshot["zp"]
+        base_db = (
+            self._dirac_volume_absolute_db
+            if self._dirac_volume_absolute_db is not None
+            else snapshot["volume"] - snapshot["zp"]
+        )
         minimum_db = snapshot["vpl"] - snapshot["zp"]
         maximum_db = snapshot["vph"] - snapshot["zp"]
         target_db = max(minimum_db, min(maximum_db, base_db + self._dirac_volume_delta + delta))
         self._dirac_volume_delta = int(round(target_db - base_db))
-        _LOG.debug("[%s] Captured volume step %+d during Dirac (pending delta %+d dB)", self.log_id, delta, self._dirac_volume_delta)
+        _LOG.debug(
+            "[%s] Captured volume step %+d during Dirac (pending delta %+d dB)",
+            self.log_id,
+            delta,
+            self._dirac_volume_delta,
+        )
         return True
 
     def _capture_dirac_volume_absolute(self, target_db: float) -> bool | None:
@@ -753,7 +765,11 @@ class HTP1Device(WebSocketDevice):
                 return False
             if absolute_db is None and pending_delta == 0:
                 return True
-            target_display_db = absolute_db if absolute_db is not None else snapshot["volume"] - snapshot["zp"] + pending_delta
+            target_display_db = (
+                absolute_db
+                if absolute_db is not None
+                else snapshot["volume"] - snapshot["zp"] + pending_delta
+            )
             if not all(_is_finite_number(value) for value in (self.zp, self.vpl, self.vph)) or self.vph <= self.vpl:
                 return False
             # Preserve displayed dB across a calibration zero-point change.
