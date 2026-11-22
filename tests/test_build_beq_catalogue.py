@@ -40,7 +40,7 @@ def test_build_writes_compact_index_and_on_demand_entries(tmp_path: Path):
     }
     expected_id = hashlib.md5(json.dumps(
         legacy_id_material, separators=(",", ":"), sort_keys=True
-    ).encode()).hexdigest()[:16]
+    ).encode(), usedforsecurity=False).hexdigest()[:16]
     assert index["entries"][0]["id"] == expected_id
     assert "filters" not in index["entries"][0]
 
