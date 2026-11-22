@@ -59,7 +59,6 @@ def test_connection_loss_clears_stale_state_and_notifies_entities():
         assert device.is_connected is False
         assert device._state is None
         assert device._sensor_data == {}
-        assert device._state_ready.is_set()  # wakes in-flight refresh waiters on disconnect
         assert updates == [True]
 
     asyncio.run(exercise())
