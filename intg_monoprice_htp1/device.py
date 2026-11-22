@@ -783,10 +783,12 @@ class HTP1Device(WebSocketDevice):
         if volume_delta > max_safe_jump:
             target_db = current_volume + max_safe_jump if target_db > current_volume else current_volume - max_safe_jump
             _LOG.warning("[%s] Volume jump clamped to %d dB", self.log_id, target_db)
-        return await self._execute_transaction_locked(
-            [{"op": "replace", "path": "/volume", "value": target_db}],
-            allow_during_dirac=allow_during_dirac,
-        )
+        operations = [{"op": "replace", "path": "/volume", "value": target_db}]
+        if allow_during_dirac:
+            return await self._execute_transaction_locked(
+                operations, allow_during_dirac=True
+            )
+        return await self._execute_transaction_locked(operations)
 
     async def _apply_deferred_dirac_volume_locked(self) -> bool:
         """Apply aggregated volume intent after Dirac confirmation, under the transaction lock."""
