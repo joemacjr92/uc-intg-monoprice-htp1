@@ -4,12 +4,12 @@
 
 Phase 1.5 hardens the integration's connection lifecycle, entity synchronization, command/state round trips, BEQ browser behavior, and state-changing WebSocket transactions. It is a test-hardening phase; QA-only tests, fixtures, and workflow changes remain on `tests-and-docs`. Production corrections remain on `feature-validation`.
 
-**Status: Automated implementation and validation complete; real HTP-1 hardware acceptance remains pending.**
+**Status: Automated implementation and validation complete; two limited physical HTP-1 Dirac-volume tests passed; full Remote/HTP-1 hardware acceptance remains pending.**
 
 ## Production implementation
 
 Production source branch: `feature-validation`  
-Latest verified production head: `366fad4a8457dc0c9895ce37156573236eae20e2`
+Latest verified production implementation commit: `282bf486d4ac6ddc5068b57168177b75e5ccf1b3` (the only later branch change observed is a log-only update to `dumps/integration.log`).
 
 Relevant production commits:
 
@@ -39,8 +39,8 @@ The seat-shaker trim readback correction from PR #4 is merged into `feature-vali
 ## QA-only coverage and results
 
 QA branch: `tests-and-docs`  
-Latest verified QA branch head at documentation review: `e461e7be7ca0203f90260643af1581ea03356c57`  
-Latest test-hardening commit before the handoff update: `49f59ff43610a2f16aa6d58bf7625df7edb32a46`
+QA/test snapshot before the latest documentation-only updates: `7c5ed4c66e7126ddfed106a6cbde89b598c613c0`  
+Later QA coverage includes Dirac asynchronous lifecycle and deferred-volume protection, power/Dirac slow-response tests, power-toggle regressions, HTTP IR commands, Remote command sequences, WebSocket probing, and transaction-safety tests.
 
 Failure-injection coverage includes:
 
@@ -61,7 +61,7 @@ Verified CI results against the intended `feature-validation` production source:
 | Phase 0 QA | [44990210207](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/44990210207) | 33 passed |
 | Phase 1 QA | [44990210163](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/44990210163) | 71 passed |
 
-Phase 1 QA coverage report: `device.py` 76%, `browser.py` 57%, combined 70%.
+Historical Phase 1 QA baseline coverage report: `device.py` 76%, `browser.py` 57%, combined 70%. Later Dirac-focused coverage reached 79% combined for the measured `device.py` and `browser.py` modules (run 45058395723); see the later addendum below for the latest run and reporting limitation.
 
 ## ARM64 build artifact
 
@@ -134,3 +134,14 @@ These tests support the deferred-volume aggregation, calibration translation/bou
 - The user explicitly deferred on-device testing for the power/Dirac slow-response and other regression-gap scenarios to a larger testing effort; those cases are covered by automated tests only.
 - Continue to distinguish fake-receiver/CI results from physical HTP-1 tests and actual Remote acceptance.
 - No deployment, release, merge, tag, or upstream PR has been performed.
+
+
+### Documentation audit commits
+
+The documentation audit was completed on tests-and-docs only:
+
+- README Dirac behavior note: 4a0544c3452f160e343642957e2f7c42c16958e8
+- Handoff hardware/QA status update: b9005bac467642b17603d6634ca041abfa30b34d
+- This validation-record update: 70e49c591e1423382f4d3d6c66a27537e8792f53
+
+The README Credits, License, and Support & Community block was checked against the approved wording and preserved verbatim.
