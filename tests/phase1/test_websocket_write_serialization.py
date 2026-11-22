@@ -360,3 +360,38 @@ def test_all_entity_types_report_unavailable_when_device_disconnects():
         assert selector_updates == [{SelectAttributes.STATE: SelectStates.UNAVAILABLE}]
 
     asyncio.run(exercise())
+
+
+
+def test_catalogue_entry_lock_is_released_when_fetch_is_cancelled(monkeypatch):
+    import pytest
+    from collections import OrderedDict
+    from intg_monoprice_htp1 import browser
+
+    monkeypatch.setattr(browser, "_entry_cache", OrderedDict())
+    monkeypatch.setattr(browser, "_entry_locks", {})
+    monkeypatch.setattr(browser, "_manifest", {"version": "0123456789abcdef"})
+
+    async def load_index():
+        return True
+
+    started = asyncio.Event()
+    never = asyncio.Event()
+
+    async def fetch(version, key):
+        started.set()
+        await never.wait()
+
+    monkeypatch.setattr(browser, "_load_index", load_index)
+    monkeypatch.setattr(browser, "_fetch_entry_payload", fetch)
+
+    async def exercise():
+        task = asyncio.create_task(browser.get_beq_entry("0123456789abcdef"))
+        await started.wait()
+        assert browser._entry_locks
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert browser._entry_locks == {}
+
+    asyncio.run(exercise())
