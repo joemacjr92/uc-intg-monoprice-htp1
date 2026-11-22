@@ -838,6 +838,12 @@ class HTP1Device(WebSocketDevice):
         )
 
         while True:
+            if (
+                request_id is None
+                and self._dirac_request_slot == slot_idx
+                and self._dirac_request_id != previous_id
+            ):
+                request_id = self._dirac_request_id
             cal = _as_dict(_as_dict(self._state).get("cal"))
             switch = _as_dict(cal.get("diracSwitch"))
             switch_id = switch.get("id")
