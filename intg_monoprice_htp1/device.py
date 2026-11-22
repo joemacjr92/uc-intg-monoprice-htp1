@@ -663,7 +663,10 @@ class HTP1Device(WebSocketDevice):
 
     def _dirac_commands_blocked(self) -> bool:
         """Return whether ordinary state mutations must wait for Dirac."""
-        return self._dirac_accepting or self._dirac_task is not None
+        return (
+            getattr(self, "_dirac_accepting", False)
+            or getattr(self, "_dirac_task", None) is not None
+        )
 
     def _discard_dirac_volume_capture(self) -> None:
         """Discard volume requests captured for a Dirac operation."""
