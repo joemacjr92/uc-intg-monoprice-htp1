@@ -16,6 +16,22 @@ def make_device():
     return HTP1Device(HTP1Config("phase1", "Phase 1 HTP-1", "127.0.0.1"))
 
 
+
+def _capture_transaction(device):
+    operations = []
+
+    async def refresh():
+        return True
+
+    async def execute(patch):
+        operations.append(patch)
+        return True
+
+    device._refresh_state_locked = refresh
+    device._execute_transaction_locked = execute
+    return operations
+
+
 def test_addon_and_hidden_inputs_are_not_offered_or_selectable():
     async def exercise():
         device = make_device()
@@ -43,10 +59,12 @@ def test_addon_and_hidden_inputs_are_not_offered_or_selectable():
             return True
 
         device._send_transaction = capture
+        captured = _capture_transaction(device)
         assert not await device.select_source("Streaming App")
         assert not await device.select_source("Hidden Input")
         assert await device.select_source("Movies")
-        assert sent == [[{"op": "replace", "path": "/input", "value": "hdmi1"}]]
+        assert sent == []
+        assert captured == [[{"op": "replace", "path": "/input", "value": "hdmi1"}]]
 
     asyncio.run(exercise())
 
