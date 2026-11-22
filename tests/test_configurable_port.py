@@ -46,10 +46,12 @@ def test_legacy_config_file_without_port_uses_default(tmp_path):
         "name": "Legacy HTP-1",
         "host": "192.0.2.20",
     }]
-    config_path = tmp_path / "config.json"
+    config_dir = tmp_path / "legacy-config"
+    config_dir.mkdir()
+    config_path = config_dir / "config.json"
     config_path.write_text(json.dumps(legacy_config), encoding="utf-8")
 
-    manager = BaseConfigManager(str(config_path), config_class=HTP1Config)
+    manager = BaseConfigManager(str(config_dir), config_class=HTP1Config)
 
     restored = manager.get("legacy")
     assert restored is not None
