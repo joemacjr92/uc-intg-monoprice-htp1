@@ -2,7 +2,7 @@
 
 ## Scope
 
-Verify the configurable HTP-1 connection port and the private reverse-proxy path used by the Unfolded Circle Remote. The implementation is on `feature/configurable-htp1-port`; this branch holds QA material and the test record.
+Verify the configurable HTP-1 connection port and remote operation through the user's private reverse-proxy path. Private endpoint and network-topology details are intentionally omitted. The implementation is on `feature/configurable-htp1-port`; this branch holds QA material and the test record.
 
 ## Automated regression coverage
 
@@ -29,31 +29,21 @@ The workflow runs the two suites separately so Phase 0 tests import the implemen
 
 | Check | Result | Evidence |
 |---|---|---|
-| Synology Caddy route | Pass | User confirmed the HTP-1 interface is reachable through `http://10.0.0.56:18082`. |
-| Unfolded Circle Remote connection | Pass | User confirmed the integration connects using host `10.0.0.56`, port `18082`. |
+| Private reverse-proxy connectivity | Pass | User confirmed the HTP-1 interface is reachable through the established private proxy path. Endpoint details intentionally omitted. |
+| Unfolded Circle Remote connection | Pass | User confirmed the integration connects through the established private proxy path using the configured non-default port. |
 | Sensor operation | Pass | User confirmed the sensors are working on the Remote through this connection. |
 | Backup includes local port | Pass | User inspected the backup and confirmed the local entry contains port `80`. |
-| Backup includes proxy port | Pass | User inspected the backup and confirmed the proxy entry contains port `18082`. |
+| Backup includes non-default port | Pass | User inspected the backup and confirmed the remote entry preserves its configured non-default port. |
 | Legacy default | Automated coverage | Regression tests cover legacy configuration and backup records without a port defaulting to `80`. |
 
 The backup inspection confirms serialization of both configured entries. The automated backup/restore test additionally covers restoring a non-default port and restoring legacy data without a port.
 
-## Network routes
+## Remote connectivity validation
 
-Preferred integration route:
-
-```text
-Unfolded Circle Remote
-  -> Synology Caddy 10.0.0.56:18082
-  -> Tailscale
-  -> UGREEN Caddy 100.125.151.26:18080
-  -> HTP-1 10.0.0.141:80
-```
-
-Fallback route: Synology DSM reverse proxy at `htp1-remote:18081`. The existing DSM rule was left in place.
+The integration was tested through the user's established private reverse-proxy path. The Remote connected successfully and sensors operated as expected. Private addresses, hostnames, ports associated with private infrastructure, tunnel technology, proxy topology, and service deployment details are intentionally not recorded here.
 
 ## Completion decision
 
-Phase 0 acceptance is met. The integration uses the configured port for WebSocket and HTTP command paths; regression tests cover those paths and backward compatibility; the Remote is connected through the preferred private proxy; sensors are working; and the backup contains both entries' correct ports.
+Phase 0 acceptance is met. The integration uses the configured port for WebSocket and HTTP command paths; regression tests cover those paths and backward compatibility; the Remote is connected through the established private proxy; sensors are working; and the backup contains both entries' correct ports.
 
 This does not claim that every possible HTP-1 command has been individually exercised through the proxy. It records the observed Remote sensor operation and the automated HTTP command URL coverage without overstating the hardware test.
