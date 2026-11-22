@@ -54,19 +54,20 @@ Upstream: [mase1981/uc-intg-monoprice-htp1](https://github.com/mase1981/uc-intg-
 
 The phases below are the approved plan. Phase 0 is added as the prerequisite for remote testing through the user's existing reverse-proxy setup. Phases 1–6 retain the user's specified scope.
 
-### Phase 0 — Remote access through the existing reverse proxy
+### Phase 0 — Configurable HTP-1 port and private reverse-proxy access
 
-**Goal:** Make the user's existing private reverse-proxy route a supported, documented, repeatable way to reach and test the remote HTP-1. Do not replace or redesign the network.
+**Goal:** Support a configurable HTP-1 HTTP/WebSocket port so the integration can use the user's private IP-based Synology Caddy route, while preserving the default local connection.
 
-- Use the existing Synology reverse proxy and Tailscale/Caddy route described below.
-- Ensure the HTP-1 controller WebSocket endpoint is reachable through the proxy, including the required WebSocket upgrade/forwarding headers.
-- Ensure the test environment resolves `htp1-remote` to the Synology reverse-proxy host as required.
-- Verify both the HTP-1 web interface route and the controller WebSocket route through the proxy.
-- Document the endpoint, hostname-resolution prerequisite, and troubleshooting/verification steps in the QA documentation.
-- Use this route for remote HTP-1 integration testing instead of enabling public port forwarding or inventing another tunnel.
+- Add a port field to setup; default to `80`.
+- Validate ports as integers in the range 1–65535.
+- Persist the configured port with each device entry.
+- Use the configured port for controller WebSocket connections, setup probing, and HTTP IR commands.
+- Preserve compatibility with existing configuration and backup data that do not contain a port; these entries default to `80`.
+- Preserve configured ports through backup and restore.
+- Use the preferred Synology Caddy route at `10.0.0.56:18082` for remote integration testing; retain the existing DSM hostname route at `htp1-remote:18081` as a fallback.
 - Keep credentials and private access details out of logs and public documentation.
 
-**Acceptance:** The remote test environment can consistently resolve and connect through the existing proxy to the HTP-1 web interface and controller WebSocket endpoint, and the setup is documented on `tests-and-docs`. Network reachability alone does not count as HTP-1 hardware acceptance for later phases.
+**Acceptance:** Setup supports the default and custom ports; all connection paths use the selected port; legacy configuration and backup data default to port 80; backup/restore preserves configured ports; and the Remote successfully operates the HTP-1 through the private proxy route. Automated tests, backup inspection, and actual Remote/HTP-1 behavior are recorded separately in the Phase 0 QA record.
 
 ### Phase 1 — Correctness and safety
 
@@ -249,7 +250,7 @@ Update this section as work progresses. Record verified facts only.
 | Item | Status |
 |---|---|
 | Branch strategy | Agreed: `main` mirrors upstream; `tests-and-docs` holds QA/docs; `feature/*` holds production development. |
-| Phase 0 | Synology Caddy IP-based route deployed and confirmed working from the Unfolded Circle Remote at `10.0.0.56:18082`; original DSM hostname route on `htp1-remote:18081` retained as fallback. Remaining Phase 0 documentation/verification should be checked before marking the phase complete. |
+| Phase 0 | **Complete.** Configurable port setup and connection paths implemented; legacy config/backup defaults to port 80; backup preserves per-entry ports. Remote sensors confirmed working through Synology Caddy at `10.0.0.56:18082`; user inspected backup and confirmed local port `80` and proxy port `18082`. Original DSM hostname route at `htp1-remote:18081` remains fallback. See `docs/phase-0-validation.md`. |
 | Phases 1–6 | Approved scope; implementation status must be verified against current commits, PRs, tests, and hardware checks before being marked complete. |
 | Handoff location | `docs/PROJECT_HANDOFF.md` on `tests-and-docs` only. |
 
