@@ -31,6 +31,7 @@ PROBE_TIMEOUT = 5.0
 STATE_REFRESH_TIMEOUT = 5.0
 WRITE_CONVERGENCE_TIMEOUT = 2.0
 DIRAC_SWITCH_TIMEOUT = 15.0
+DIRAC_ERROR_GRACE = 0.75
 SEAT_SHAKER_TRIM_MIN = -24
 SEAT_SHAKER_TRIM_MAX = 6
 
@@ -808,7 +809,9 @@ class HTP1Device(WebSocketDevice):
         self, previous_id: str | None, slot_idx: int
     ) -> str | None:
         """Wait for this slot request to reach a correlated terminal state."""
-        deadline = asyncio.get_running_loop().time() + DIRAC_SWITCH_TIMEOUT
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + DIRAC_SWITCH_TIMEOUT
+        error_deadline: float | None = None
         request_id: str | None = None
 
         while True:
@@ -838,10 +841,20 @@ class HTP1Device(WebSocketDevice):
             # A plain-text error has no request ID. It can reject this write
             # only if the receiver has not announced an accepted request yet.
             if self._transaction_error and request_id is None:
-                return self._transaction_error
+                if error_deadline is None:
+                    # The receiver may publish the plain-text error just before
+                    # the correlated state update. Give that update a short
+                    # window to arrive before treating the error as our refusal.
+                    error_deadline = loop.time() + DIRAC_ERROR_GRACE
+                if loop.time() >= error_deadline:
+                    return self._transaction_error
 
-            remaining = deadline - asyncio.get_running_loop().time()
+            remaining = deadline - loop.time()
+            if error_deadline is not None and request_id is None:
+                remaining = min(remaining, error_deadline - loop.time())
             if remaining <= 0:
+                if self._transaction_error and request_id is None:
+                    return self._transaction_error
                 return "Timed out waiting for the HTP-1 to complete the Dirac slot change"
 
             self._state_update_event.clear()
