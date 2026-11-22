@@ -302,3 +302,24 @@ def test_calibration_selection_uses_fresh_slot_index():
         assert receiver.state["cal"]["currentdiracslot"] == 1
 
     asyncio.run(exercise())
+
+def test_absolute_volume_uses_fresh_receiver_calibration_bounds():
+    async def exercise():
+        cached = json.loads(FULL_FIXTURE.read_text(encoding="utf-8"))
+        cached["cal"]["vpl"] = -80
+        cached["cal"]["vph"] = 12
+        actual = copy.deepcopy(cached)
+        actual["cal"]["vpl"] = -40
+        actual["cal"]["vph"] = -10
+        device, receiver = _make_device(
+            fixture=FULL_FIXTURE,
+            receiver_state=actual,
+        )
+
+        result = await device.set_volume(0)
+
+        assert result is False
+        assert receiver.change_count == 0
+        assert receiver.state["volume"] == cached["volume"]
+
+    asyncio.run(exercise())
