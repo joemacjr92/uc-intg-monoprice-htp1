@@ -256,14 +256,10 @@ def test_dirac_busy_lock_preflight_does_not_send_another_slot_change():
     asyncio.run(exercise())
 
 
-def test_dirac_switch_timeout_does_not_claim_success(monkeypatch):
+def test_dirac_switch_timeout_does_not_claim_success():
     async def exercise():
-        async def expire_wait(coroutine, timeout):
-            coroutine.close()
-            raise asyncio.TimeoutError
-
-        monkeypatch.setattr(asyncio, "wait_for", expire_wait)
         device, receiver = make_device(mode="never")
+        device._dirac_switch_timeout = 0.0
         try:
             result = await device.select_calibration(device.slot_names[1])
 
