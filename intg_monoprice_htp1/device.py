@@ -30,6 +30,7 @@ KEEPALIVE_TIMEOUT = 10
 PROBE_TIMEOUT = 5.0
 STATE_REFRESH_TIMEOUT = 5.0
 WRITE_CONVERGENCE_TIMEOUT = 2.0
+DIRAC_SWITCH_TIMEOUT = 15.0
 SEAT_SHAKER_TRIM_MIN = -24
 SEAT_SHAKER_TRIM_MAX = 6
 
@@ -803,6 +804,62 @@ class HTP1Device(WebSocketDevice):
                 {"op": "replace", "path": "/shaker/activePreset", "value": preset_index}
             ])
 
+    async def _wait_for_dirac_switch_locked(
+        self, previous_id: str | None, slot_idx: int
+    ) -> str | None:
+        """Wait for this slot request to reach a correlated terminal state."""
+        deadline = asyncio.get_running_loop().time() + DIRAC_SWITCH_TIMEOUT
+        request_id: str | None = None
+
+        while True:
+            cal = _as_dict(_as_dict(self._state).get("cal"))
+            switch = _as_dict(cal.get("diracSwitch"))
+            switch_id = switch.get("id")
+            if (
+                isinstance(switch_id, str)
+                and switch_id
+                and switch_id != previous_id
+                and switch.get("slot") == slot_idx
+            ):
+                request_id = switch_id
+                switch_state = switch.get("state")
+                reply = _as_dict(cal.get("diracSwitchReply"))
+
+                if switch_state in {"refused", "failed", "error"}:
+                    return str(switch.get("message") or "The HTP-1 refused the Dirac slot change")
+                if (
+                    reply.get("id") == request_id
+                    and reply.get("state") in {"refused", "failed", "error"}
+                ):
+                    return str(reply.get("message") or "The HTP-1 refused the Dirac slot change")
+                if switch_state == "complete":
+                    return None
+
+            # A plain-text error has no request ID. It can reject this write
+            # only if the receiver has not announced an accepted request yet.
+            if self._transaction_error and request_id is None:
+                return self._transaction_error
+
+            remaining = deadline - asyncio.get_running_loop().time()
+            if remaining <= 0:
+                return "Timed out waiting for the HTP-1 to complete the Dirac slot change"
+
+            self._state_update_event.clear()
+            # Recheck after clearing to avoid losing an update at the wait boundary.
+            cal = _as_dict(_as_dict(self._state).get("cal"))
+            switch = _as_dict(cal.get("diracSwitch"))
+            if (
+                isinstance(switch.get("id"), str)
+                and switch.get("id") != previous_id
+                and switch.get("slot") == slot_idx
+                and switch.get("state") == "complete"
+            ):
+                return None
+            try:
+                await asyncio.wait_for(self._state_update_event.wait(), timeout=remaining)
+            except asyncio.TimeoutError:
+                return "Timed out waiting for the HTP-1 to complete the Dirac slot change"
+
     async def select_calibration(self, slot_name: str) -> bool:
         if not isinstance(slot_name, str) or not slot_name:
             return False
@@ -813,9 +870,47 @@ class HTP1Device(WebSocketDevice):
             slot_idx = self._slot_index.get(slot_name)
             if slot_idx is None:
                 return False
-            return await self._execute_transaction_locked([
-                {"op": "replace", "path": "/cal/currentdiracslot", "value": slot_idx}
-            ])
+
+            cal = _as_dict(_as_dict(self._state).get("cal"))
+            current_switch = _as_dict(cal.get("diracSwitch"))
+            if current_switch.get("locked") is True or cal.get("diracApplying") is True:
+                _LOG.warning(
+                    "[%s] Cannot change Dirac slot while the receiver is applying a correction",
+                    self.log_id,
+                )
+                return False
+
+            previous_id = current_switch.get("id")
+            previous_id = previous_id if isinstance(previous_id, str) else None
+            self._state_update_event.clear()
+            self._state_update_paths.clear()
+            self._transaction_error = None
+            operation = {
+                "op": "replace",
+                "path": "/cal/currentdiracslot",
+                "value": slot_idx,
+            }
+            payload = json.dumps([operation], separators=(",", ":"))
+            if not await self.send_message(f"changemso {payload}"):
+                return False
+
+            failure = await self._wait_for_dirac_switch_locked(previous_id, slot_idx)
+            if failure:
+                _LOG.warning("[%s] Dirac slot change failed: %s", self.log_id, failure)
+                return False
+
+            # The lifecycle event is authoritative for completion. Confirm the
+            # selected slot once with a fresh snapshot, not during requested/running.
+            if not await self._refresh_state_locked():
+                return False
+            cal = _as_dict(_as_dict(self._state).get("cal"))
+            final_switch = _as_dict(cal.get("diracSwitch"))
+            return (
+                final_switch.get("id") != previous_id
+                and final_switch.get("state") == "complete"
+                and final_switch.get("slot") == slot_idx
+                and cal.get("currentdiracslot") == slot_idx
+            )
 
     async def send_command(self, command: str) -> bool:
         _LOG.info("[%s] Sending menu command: %s", self.log_id, command)
