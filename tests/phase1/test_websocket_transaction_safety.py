@@ -80,8 +80,35 @@ class FakeReceiver:
                     operation["path"],
                     operation.get("value"),
                 )
+            update_operations = list(applied)
+            if any(operation.get("path") == "/cal/currentdiracslot" for operation in applied):
+                slot = next(
+                    operation["value"]
+                    for operation in applied
+                    if operation.get("path") == "/cal/currentdiracslot"
+                )
+                lifecycle = {
+                    "version": 1,
+                    "id": "fake-dirac-accepted",
+                    "state": "complete",
+                    "locked": False,
+                    "slot": slot,
+                    "message": "Slot change verified.",
+                }
+                lifecycle_patch = {
+                    "op": "replace",
+                    "path": "/cal/diracSwitch",
+                    "value": lifecycle,
+                }
+                apply_json_patch(
+                    candidate,
+                    lifecycle_patch["op"],
+                    lifecycle_patch["path"],
+                    lifecycle_patch["value"],
+                )
+                update_operations.append(lifecycle_patch)
             self.state = candidate
-            await self.device.handle_message(f"msoupdate {json.dumps(applied)}")
+            await self.device.handle_message(f"msoupdate {json.dumps(update_operations)}")
 
         if self.disconnect_after_change:
             self.device._on_connection_lost()
