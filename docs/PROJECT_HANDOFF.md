@@ -243,3 +243,12 @@ A broader diagnostic Ruff audit was added to the QA-only `phase1-qa.yml` workflo
 - The broader diagnostic run completed and the full Phase 1 QA workflow passed; the regular Tests workflow also passed. These are automated results only, not HTP-1 hardware acceptance.
 
 No production source files, tests, or test fixtures were changed by this audit. QA workflow and handoff changes remain on `tests-and-docs`.
+
+
+### Ruff configuration alignment follow-up — 2026-11-22
+
+- The broader diagnostic invocation now passes `--line-length 120`, matching the existing `setup.cfg` `[flake8]` max-line-length setting. Ruff's default isort profile is Black-compatible, matching the existing `[isort]` profile.
+- The aligned diagnostic reports 519 findings, down from 663. E501 findings fell from 190 to 46; the remaining 46 exceed the actual 120-character project limit.
+- Remaining largest groups: TRY003 (86), I001 (47), E501 (46), TRY004 (21), UP041 (12), and TRY301 (10).
+- Focused Pyflakes check passed. The aligned broader diagnostic completed with findings as expected; full Phase 1 QA and regular Tests workflows passed on commit `04aa707605024cda2f71605a40c5694138e38699`.
+- This was configuration alignment only. No automatic fixes or production/test source edits were made. Do not bulk-fix remaining rules; review categories against behavior and project conventions before adopting them.
