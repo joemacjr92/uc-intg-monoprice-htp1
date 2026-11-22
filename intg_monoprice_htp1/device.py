@@ -659,19 +659,22 @@ class HTP1Device(WebSocketDevice):
         ])
 
     async def select_source(self, source: str) -> bool:
-        if not isinstance(source, str) or not source.strip() or not self._state:
+        if not isinstance(source, str) or not source.strip():
             return False
         _LOG.info("[%s] Selecting source: %s", self.log_id, source)
-        inputs = _as_dict(self._state.get("inputs"))
-        for inp_id, inp_info in inputs.items():
-            if (
-                self._is_eligible_input(inp_info)
-                and inp_info.get("label") == source
-            ):
-                return await self._send_transaction([
-                    {"op": "replace", "path": "/input", "value": inp_id}
-                ])
-        _LOG.warning("[%s] Source not found: %s", self.log_id, source)
+        async with self._transaction_lock:
+            if not await self._refresh_state_locked():
+                return False
+            inputs = _as_dict(self._state.get("inputs"))
+            for inp_id, inp_info in inputs.items():
+                if (
+                    self._is_eligible_input(inp_info)
+                    and inp_info.get("label") == source
+                ):
+                    return await self._execute_transaction_locked([
+                        {"op": "replace", "path": "/input", "value": inp_id}
+                    ])
+        _LOG.warning("[%s] Source not found in fresh receiver state: %s", self.log_id, source)
         return False
 
     async def select_sound_mode(self, sound_mode: str) -> bool:
@@ -687,21 +690,31 @@ class HTP1Device(WebSocketDevice):
     async def select_ss_preset(self, preset_index: int) -> bool:
         if isinstance(preset_index, bool) or not isinstance(preset_index, int):
             return False
-        _LOG.info("[%s] Selecting seat shaker preset: %d", self.log_id, preset_index)
-        if not self._state or "shaker" not in self._state or not 0 <= preset_index <= 5:
+        if not 0 <= preset_index <= 5:
             return False
-        return await self._send_transaction([
-            {"op": "replace", "path": "/shaker/activePreset", "value": preset_index}
-        ])
+        _LOG.info("[%s] Selecting seat shaker preset: %d", self.log_id, preset_index)
+        async with self._transaction_lock:
+            if not await self._refresh_state_locked():
+                return False
+            if not isinstance(self._state.get("shaker"), dict):
+                return False
+            return await self._execute_transaction_locked([
+                {"op": "replace", "path": "/shaker/activePreset", "value": preset_index}
+            ])
 
     async def select_calibration(self, slot_name: str) -> bool:
-        _LOG.info("[%s] Selecting calibration: %s", self.log_id, slot_name)
-        slot_idx = self._slot_index.get(slot_name)
-        if slot_idx is None:
+        if not isinstance(slot_name, str) or not slot_name:
             return False
-        return await self._send_transaction([
-            {"op": "replace", "path": "/cal/currentdiracslot", "value": slot_idx}
-        ])
+        _LOG.info("[%s] Selecting calibration: %s", self.log_id, slot_name)
+        async with self._transaction_lock:
+            if not await self._refresh_state_locked():
+                return False
+            slot_idx = self._slot_index.get(slot_name)
+            if slot_idx is None:
+                return False
+            return await self._execute_transaction_locked([
+                {"op": "replace", "path": "/cal/currentdiracslot", "value": slot_idx}
+            ])
 
     async def send_command(self, command: str) -> bool:
         _LOG.info("[%s] Sending menu command: %s", self.log_id, command)
