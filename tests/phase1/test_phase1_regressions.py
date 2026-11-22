@@ -183,7 +183,6 @@ def test_beq_entry_lock_registry_is_reclaimed_after_many_distinct_requests(monke
 
 
 def test_beq_entry_lock_registry_is_reclaimed_when_fetch_is_cancelled(monkeypatch):
-    import pytest
     from intg_monoprice_htp1 import browser
 
     monkeypatch.setattr(browser, "_entry_cache", OrderedDict())
