@@ -70,6 +70,12 @@ class DiracReceiver:
         elif self.mode == "complete":
             task = asyncio.create_task(self._complete(slot))
             self.tasks.append(task)
+        elif self.mode == "error-before-accepted":
+            await self.device.handle_message(
+                "error Dirac is busy. Wait for it to finish; this change was not applied."
+            )
+            task = asyncio.create_task(self._accept_after_error(slot, operations))
+            self.tasks.append(task)
         elif self.mode == "busy-reply":
             await self.device.handle_message(
                 "error Dirac is busy. Wait for it to finish; this change was not applied."
@@ -87,6 +93,31 @@ class DiracReceiver:
             await self.device.handle_message(f"msoupdate {json.dumps([reply])}")
             task = asyncio.create_task(self._complete(slot))
             self.tasks.append(task)
+
+    async def _accept_after_error(self, slot, operations):
+        await asyncio.sleep(0.10)
+        candidate = copy.deepcopy(self.state)
+        for operation in operations:
+            apply_json_patch(
+                candidate,
+                operation["op"],
+                operation["path"],
+                operation.get("value"),
+            )
+        requested = {
+            "version": 1,
+            "id": self.request_id,
+            "slot": slot,
+            "state": "requested",
+            "locked": True,
+            "message": "Changing Dirac slot.",
+        }
+        patch = {"op": "replace", "path": "/cal/diracSwitch", "value": requested}
+        apply_json_patch(candidate, patch["op"], patch["path"], patch["value"])
+        self.state = candidate
+        await self.device.handle_message(f"msoupdate {json.dumps(operations + [patch])}")
+        task = asyncio.create_task(self._complete(slot))
+        self.tasks.append(task)
 
     async def _complete(self, slot):
         await asyncio.sleep(self.delay)
@@ -207,6 +238,21 @@ def test_dirac_standby_refusal_with_matching_reply_fails_immediately():
 def test_unrelated_busy_reply_does_not_fail_accepted_dirac_request():
     async def exercise():
         device, receiver = make_device(mode="busy-reply", delay=0.05)
+        try:
+            result = await device.select_calibration(device.slot_names[1])
+
+            assert result is True
+            assert receiver.state["cal"]["diracSwitch"]["id"] == receiver.request_id
+            assert receiver.state["cal"]["diracSwitch"]["state"] == "complete"
+        finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
+
+def test_plain_error_before_accepted_request_does_not_hide_later_correlation():
+    async def exercise():
+        device, receiver = make_device(mode="error-before-accepted", delay=0.05)
         try:
             result = await device.select_calibration(device.slot_names[1])
 
