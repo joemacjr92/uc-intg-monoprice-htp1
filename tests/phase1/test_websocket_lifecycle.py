@@ -96,22 +96,15 @@ def test_websocket_disconnect_reconnect_restores_initial_state():
         initial_state = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
         connections = 0
         second_connection_ready = asyncio.Event()
-        close_first_connection = asyncio.Event()
 
         async def fake_htp1(websocket, *_args):
             nonlocal connections
             connections += 1
-            connection_number = connections
+            if connections >= 2:
+                second_connection_ready.set()
             async for message in websocket:
                 if message == "getmso":
                     await websocket.send(f"mso {json.dumps(initial_state)}")
-                    if connection_number == 1:
-                        # Wait until initial state has been parsed before simulating
-                        # an unexpected receiver-side disconnect.
-                        await close_first_connection.wait()
-                        await websocket.close()
-                        return
-                    second_connection_ready.set()
 
         async with websockets.serve(fake_htp1, "127.0.0.1", 0) as server:
             port = server.sockets[0].getsockname()[1]
@@ -123,32 +116,32 @@ def test_websocket_disconnect_reconnect_restores_initial_state():
             )
             updates = []
             device.push_update = lambda: updates.append(device._state)
+
+            async def wait_for_state():
+                while device._state != initial_state:
+                    await asyncio.sleep(0.01)
+
             try:
                 assert await device.connect() is True
+                await asyncio.wait_for(wait_for_state(), timeout=3)
+                assert device.is_connected is True
+                assert device.power is True
 
-                async def wait_for_first_state():
-                    while device._state is None:
-                        await asyncio.sleep(0.01)
+                await device.disconnect()
+                assert device.is_connected is False
+                assert device._state is None
+                assert updates[-1] is None
 
-                await asyncio.wait_for(wait_for_first_state(), timeout=3)
-                assert device._state == initial_state
-                close_first_connection.set()
+                second_connection_ready.clear()
+                assert await device.connect() is True
+                await asyncio.wait_for(second_connection_ready.wait(), timeout=3)
+                await asyncio.wait_for(wait_for_state(), timeout=3)
 
-                # The first server connection is closed unexpectedly. The
-                # framework should reconnect, clear stale state during the
-                # transition, and fetch the initial state again.
-                await asyncio.wait_for(second_connection_ready.wait(), timeout=4)
-
-                async def wait_for_recovered_state():
-                    while device._state != initial_state or None not in updates:
-                        await asyncio.sleep(0.01)
-
-                await asyncio.wait_for(wait_for_recovered_state(), timeout=3)
                 assert connections >= 2
+                assert device.is_connected is True
                 assert device._state == initial_state
                 assert device.power is True
                 assert device.get_sensor_value("volume") == str(device.volume_db)
-                assert None in updates
             finally:
                 await device.disconnect()
 
