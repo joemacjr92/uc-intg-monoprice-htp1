@@ -825,7 +825,7 @@ class HTP1Device(WebSocketDevice):
             ])
 
     async def _wait_for_dirac_switch_locked(
-        self, previous_id: str | None, slot_idx: int
+        self, previous_id: str | None, previous_reply_id: str | None, slot_idx: int
     ) -> str | None:
         """Wait for this slot request to reach a correlated terminal state."""
         loop = asyncio.get_running_loop()
@@ -858,13 +858,21 @@ class HTP1Device(WebSocketDevice):
                 if switch_state in {"refused", "failed", "error"}:
                     return str(switch.get("message") or "The HTP-1 refused the Dirac slot change")
 
-            if request_id is not None:
-                reply = _as_dict(cal.get("diracSwitchReply"))
-                if (
-                    reply.get("id") == request_id
-                    and reply.get("state") in {"refused", "failed", "error"}
-                ):
-                    return str(reply.get("message") or "The HTP-1 refused the Dirac slot change")
+            reply = _as_dict(cal.get("diracSwitchReply"))
+            reply_id = reply.get("id")
+            if (
+                reply.get("state") in {"refused", "failed", "error"}
+                and (
+                    (request_id is not None and reply_id == request_id)
+                    or (
+                        isinstance(reply_id, str)
+                        and reply_id
+                        and reply_id != previous_reply_id
+                        and not reply_id.startswith("nr-")
+                    )
+                )
+            ):
+                return str(reply.get("message") or "The HTP-1 refused the Dirac slot change")
 
             if request_id is not None and switch.get("id") == request_id and switch.get("state") == "complete":
                 return None
@@ -928,6 +936,9 @@ class HTP1Device(WebSocketDevice):
 
             previous_id = current_switch.get("id")
             previous_id = previous_id if isinstance(previous_id, str) else None
+            current_reply = _as_dict(cal.get("diracSwitchReply"))
+            previous_reply_id = current_reply.get("id")
+            previous_reply_id = previous_reply_id if isinstance(previous_reply_id, str) else None
             self._state_update_event.clear()
             self._state_update_paths.clear()
             self._transaction_error = None
@@ -942,7 +953,7 @@ class HTP1Device(WebSocketDevice):
             if not await self.send_message(f"changemso {payload}"):
                 return False
 
-            failure = await self._wait_for_dirac_switch_locked(previous_id, slot_idx)
+            failure = await self._wait_for_dirac_switch_locked(previous_id, previous_reply_id, slot_idx)
             if failure:
                 _LOG.warning("[%s] Dirac slot change failed: %s", self.log_id, failure)
                 return False
