@@ -47,7 +47,7 @@ jobs:
       - name: Audit broader Ruff rule families (diagnostic)
         continue-on-error: true
         run: |
-          ruff check --select E,F,W,I,UP,B,SIM,ASYNC,PERF,PIE,PT,RET,RUF,C4,DTZ,LOG,PGH,PL,TRY implementation/intg_monoprice_htp1 tests tools
+          ruff check --line-length 120 --select E,F,W,I,UP,B,SIM,ASYNC,PERF,PIE,PT,RET,RUF,C4,DTZ,LOG,PGH,PL,TRY implementation/intg_monoprice_htp1 tests tools
 
       - name: Run complete existing regression suite against implementation
         working-directory: implementation
