@@ -45,8 +45,7 @@ jobs:
             --user="$(id -u):$(id -g)" \
             -v "${GITHUB_WORKSPACE}:/workspace" \
             "docker.io/unfoldedcircle/r2-pyinstaller:${PYTHON_VER}" \
-            bash -c "
-              cd /workspace &&
+            bash -c "cd /workspace &&
               python -m pip install -r requirements.txt &&
               pyinstaller --clean --onedir --name driver
                 --add-data driver.json:.
@@ -64,8 +63,7 @@ jobs:
                 --hidden-import intg_${INTG_NAME}.displayvalues
                 --hidden-import intg_${INTG_NAME}.setup_flow
                 --paths .
-                intg_${INTG_NAME}/__init__.py
-            "
+                intg_${INTG_NAME}/__init__.py"
 
       - name: Package integration asset
         shell: bash
