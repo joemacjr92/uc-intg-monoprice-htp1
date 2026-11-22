@@ -234,7 +234,6 @@ def test_concurrent_entry_requests_share_one_payload_fetch(monkeypatch):
 
 
 def test_entry_fetch_failure_does_not_poison_cache(monkeypatch):
-    import aiohttp
     from collections import OrderedDict
 
     monkeypatch.setattr(browser, "_entry_cache", OrderedDict())
