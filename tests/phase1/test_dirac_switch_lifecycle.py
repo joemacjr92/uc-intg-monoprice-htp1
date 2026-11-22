@@ -878,3 +878,44 @@ def test_non_volume_mutation_queued_before_dirac_start_is_rejected_after_lock_re
 
     asyncio.run(exercise())
 
+def test_absolute_volume_requests_queued_before_dirac_start_are_captured_after_lock_release():
+    async def exercise():
+        device, receiver = make_device()
+        try:
+            async with device._transaction_lock:
+                pending = asyncio.create_task(device.set_volume(-40))
+                await asyncio.sleep(0)
+                device._begin_dirac_volume_capture()
+                device._dirac_accepting = True
+
+            assert await asyncio.wait_for(pending, timeout=0.2) is True
+            assert device._dirac_volume_absolute_db == -33
+            assert device._dirac_volume_delta == 0
+            assert receiver.messages == []
+        finally:
+            device._dirac_accepting = False
+            device._discard_dirac_volume_capture()
+            await receiver.cleanup()
+
+        device, receiver = make_device()
+        try:
+            async with device._transaction_lock:
+                pending = asyncio.create_task(device.set_volume_level(0.5))
+                await asyncio.sleep(0)
+                device._begin_dirac_volume_capture()
+                device._dirac_accepting = True
+
+            assert await asyncio.wait_for(pending, timeout=0.2) is True
+            snapshot = device._dirac_volume_snapshot
+            assert snapshot is not None
+            expected_raw = round(snapshot["vpl"] + 0.5 * (snapshot["vph"] - snapshot["vpl"]))
+            assert device._dirac_volume_absolute_db == expected_raw - snapshot["zp"]
+            assert device._dirac_volume_delta == 0
+            assert receiver.messages == []
+        finally:
+            device._dirac_accepting = False
+            device._discard_dirac_volume_capture()
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
