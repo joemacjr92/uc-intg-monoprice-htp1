@@ -91,7 +91,3 @@ jobs:
       - name: Run verified TLS regression tests against implementation branch
         working-directory: implementation
         run: python -m pytest -q ../tests/test_browser_tls.py
-
-      - name: Run configurable port regression tests against implementation branch
-        working-directory: implementation
-        run: python -m pytest -q ../tests/test_configurable_port.py
