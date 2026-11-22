@@ -200,6 +200,7 @@ def test_device_command_boundaries_reject_invalid_arguments():
 
         device._send_transaction = capture
         install_transaction_test_doubles(device, sent)
+        device._state = {"cal": {"vpl": -80, "vph": 12}}
         device.vpl = -80
         device.vph = 12
         for value in (True, 12.5, float("nan"), float("inf"), -81, 13):
