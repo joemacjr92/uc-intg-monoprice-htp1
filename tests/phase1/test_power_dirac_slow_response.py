@@ -18,10 +18,11 @@ FIXTURE = Path(__file__).parents[1] / "fixtures" / "htp1_full_mso.json"
 class DelayedStateReceiver:
     """Receiver fake that schedules delayed full-state replies independently."""
 
-    def __init__(self, device, state, *, delayed_getmso_calls):
+    def __init__(self, device, state, *, delayed_getmso_calls, apply_delay=0):
         self.device = device
         self.state = copy.deepcopy(state)
         self.delayed_getmso_calls = set(delayed_getmso_calls)
+        self.apply_delay = apply_delay
         self.getmso_count = 0
         self.change_count = 0
         self.messages = []
@@ -47,7 +48,19 @@ class DelayedStateReceiver:
                     operation["path"],
                     operation.get("value"),
                 )
+            if self.apply_delay:
+                task = asyncio.create_task(
+                    self._apply_change(candidate, operations, self.apply_delay)
+                )
+                self.reply_tasks.append(task)
+                return
             self.state = candidate
+            await self.device.handle_message(f"msoupdate {json.dumps(operations)}")
+
+    async def _apply_change(self, candidate, operations, delay):
+        await asyncio.sleep(delay)
+        self.state = candidate
+        if self.device.is_connected:
             await self.device.handle_message(f"msoupdate {json.dumps(operations)}")
 
     async def _reply_state(self, delay):
@@ -63,7 +76,7 @@ class DelayedStateReceiver:
         await asyncio.gather(*self.reply_tasks, return_exceptions=True)
 
 
-def make_device(*, delayed_getmso_calls):
+def make_device(*, delayed_getmso_calls, apply_delay=0):
     device = HTP1Device(
         HTP1Config("slow-response", "Slow Response HTP-1", "127.0.0.1"),
         loop=asyncio.get_running_loop(),
@@ -73,7 +86,10 @@ def make_device(*, delayed_getmso_calls):
     device._is_connected = True
     device._parse_state()
     receiver = DelayedStateReceiver(
-        device, state, delayed_getmso_calls=delayed_getmso_calls
+        device,
+        state,
+        delayed_getmso_calls=delayed_getmso_calls,
+        apply_delay=apply_delay,
     )
     device._ws = receiver
     return device, receiver
@@ -137,6 +153,40 @@ def test_slow_post_write_state_response_does_not_claim_power_or_dirac_success(
                 ]
             await asyncio.wait_for(device._transaction_lock.acquire(), timeout=0.1)
             device._transaction_lock.release()
+        finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
+
+
+def test_volume_write_waits_for_delayed_live_update_before_confirming():
+    async def exercise():
+        device, receiver = make_device(delayed_getmso_calls=set(), apply_delay=0.25)
+        try:
+            started = asyncio.get_running_loop().time()
+            result = await device.set_volume(device._state["volume"] - 1)
+            elapsed = asyncio.get_running_loop().time() - started
+
+            assert result is True
+            assert elapsed >= 0.20
+            assert receiver.change_count == 1
+            assert receiver.getmso_count == 2
+            assert device._state["volume"] == receiver.state["volume"]
+        finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
+
+def test_receiver_error_frame_is_not_logged_as_json_decode_failure(caplog):
+    async def exercise():
+        device, receiver = make_device(delayed_getmso_calls=set())
+        try:
+            await device.handle_message("error Dirac is busy; try again later")
+            assert device._transaction_error == "Dirac is busy; try again later"
+            assert any("HTP-1 command error" in record.message for record in caplog.records)
+            assert not any("Failed to decode JSON payload" in record.message for record in caplog.records)
         finally:
             await receiver.cleanup()
 
