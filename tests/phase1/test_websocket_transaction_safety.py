@@ -10,8 +10,6 @@ import copy
 import json
 from pathlib import Path
 
-import pytest
-
 from intg_monoprice_htp1.config import HTP1Config
 from intg_monoprice_htp1.device import HTP1Device, apply_json_patch
 
