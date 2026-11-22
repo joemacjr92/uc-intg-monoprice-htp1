@@ -166,6 +166,16 @@ An internet connection is required to browse the hosted catalogue and retrieve a
 
 Use the Remote entity's built-in pages or its available commands in Remote activities and macros. Commands include power, volume, mute, input shortcuts, sound modes, Dirac, Night Mode, Loudness, PEQ, and Seat Shaker functions. The Seat Shaker commands include mute, preset selection, and trim up/down.
 
+### During a Dirac calibration change
+
+A Dirac change is acknowledged once the HTP-1 accepts it; the integration then monitors the receiver until the change completes. While the receiver is applying the calibration:
+
+- Volume up/down and absolute volume requests are held and consolidated rather than sent individually. After successful completion and state confirmation, at most one volume adjustment is sent, using the receiver's calibration limits and the normal 5 dB maximum-change protection.
+- Other state-changing commands—including power, mute, input, surround mode, BEQ, Seat Shaker, menu, and IR commands—are temporarily rejected. Retry them after the Dirac change completes.
+- If the receiver refuses the change, times out, or disconnects, the held volume requests are discarded. The last confirmed calibration remains displayed.
+
+This avoids competing writes while the HTP-1's DSP is busy and prevents a burst of queued volume presses from becoming a sudden volume jump.
+
 ## Credits
 
 - **Developer**: Meir Miyara
