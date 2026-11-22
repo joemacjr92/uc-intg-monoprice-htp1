@@ -369,6 +369,14 @@ async def browse(device: HTP1Device, options: BrowseOptions) -> BrowseResults | 
 
 
 async def search(device: HTP1Device, options: SearchOptions) -> SearchResults | StatusCodes:
+    # Search must obey the same PEQ-placement gate as browsing. The media
+    # browser may still invoke search directly even when its UI hides it.
+    if _peq_location(device) != "pre":
+        return SearchResults(
+            media=[],
+            pagination=Pagination(page=1, limit=0, count=0),
+        )
+
     query = options.query.casefold().strip()
     if not query:
         return SearchResults(media=[], pagination=Pagination(page=1, limit=0, count=0))
