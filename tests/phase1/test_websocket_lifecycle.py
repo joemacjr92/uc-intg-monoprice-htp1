@@ -96,6 +96,7 @@ def test_websocket_disconnect_reconnect_restores_initial_state():
         initial_state = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
         connections = 0
         second_connection_ready = asyncio.Event()
+        close_first_connection = asyncio.Event()
 
         async def fake_htp1(websocket, *_args):
             nonlocal connections
@@ -105,8 +106,9 @@ def test_websocket_disconnect_reconnect_restores_initial_state():
                 if message == "getmso":
                     await websocket.send(f"mso {json.dumps(initial_state)}")
                     if connection_number == 1:
-                        # Simulate an unexpected receiver-side disconnect after
-                        # the first initial-state response.
+                        # Wait until initial state has been parsed before simulating
+                        # an unexpected receiver-side disconnect.
+                        await close_first_connection.wait()
                         await websocket.close()
                         return
                     second_connection_ready.set()
@@ -130,6 +132,7 @@ def test_websocket_disconnect_reconnect_restores_initial_state():
 
                 await asyncio.wait_for(wait_for_first_state(), timeout=3)
                 assert device._state == initial_state
+                close_first_connection.set()
 
                 # The first server connection is closed unexpectedly. The
                 # framework should reconnect, clear stale state during the
