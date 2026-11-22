@@ -26,6 +26,19 @@ def test_driver_waits_for_receiver_connection_before_registry():
     asyncio.run(check())
 
 
+
+def _install_transaction_test_doubles(device, sent):
+    async def refresh():
+        return True
+
+    async def capture_locked(operations):
+        sent.append(operations)
+        return True
+
+    device._refresh_state_locked = refresh
+    device._execute_transaction_locked = capture_locked
+
+
 def test_connection_loss_clears_stale_state_and_notifies_entities():
     import asyncio
     from intg_monoprice_htp1.config import HTP1Config
@@ -45,7 +58,7 @@ def test_connection_loss_clears_stale_state_and_notifies_entities():
         assert device.is_connected is False
         assert device._state is None
         assert device._sensor_data == {}
-        assert not device._state_ready.is_set()
+        assert device._state_ready.is_set()  # wakes in-flight refresh waiters on disconnect
         assert updates == [True]
 
     asyncio.run(exercise())
@@ -123,6 +136,7 @@ def test_device_command_validation_and_requested_mute_state():
             return True
 
         device._send_transaction = capture
+        _install_transaction_test_doubles(device, sent)
 
         assert await device.mute_toggle(True)
         assert sent[-1][0]["value"] is True
