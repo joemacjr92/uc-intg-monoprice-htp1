@@ -109,7 +109,7 @@ Real-time monitoring of receiver state:
 ### **Protocol Requirements**
 
 - **Protocol**: Monoprice HTP-1 WebSocket API
-- **WebSocket Port**: 80 (HTTP) or 443 (HTTPS)
+- **WebSocket Port**: 80 (HTTP only; the HTP-1 does not support SSL/TLS)
 - **WebSocket Path**: `/ws/controller`
 - **Network Access**: Receiver must be on same local network
 - **Connection**: Persistent WebSocket with automatic reconnection
@@ -118,7 +118,7 @@ Real-time monitoring of receiver state:
 ### **Network Requirements**
 
 - **Local Network Access** - Integration requires same network as HTP-1 receiver
-- **HTTP Protocol** - WebSocket over HTTP (port 80) or HTTPS (port 443)
+- **HTTP Protocol** - WebSocket over HTTP (port 80)
 - **Static IP Recommended** - Receiver should have static IP or DHCP reservation
 - **Firewall** - Must allow HTTP/WebSocket traffic
 
