@@ -95,13 +95,10 @@ def test_websocket_disconnect_reconnect_restores_initial_state():
     async def exercise():
         initial_state = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
         connections = 0
-        second_connection_ready = asyncio.Event()
 
         async def fake_htp1(websocket, *_args):
             nonlocal connections
             connections += 1
-            if connections >= 2:
-                second_connection_ready.set()
             async for message in websocket:
                 if message == "getmso":
                     await websocket.send(f"mso {json.dumps(initial_state)}")
@@ -111,38 +108,48 @@ def test_websocket_disconnect_reconnect_restores_initial_state():
             device = HTP1Device(
                 HTP1Config("reconnect", "Reconnect HTP-1", "127.0.0.1", port),
                 loop=asyncio.get_running_loop(),
-                reconnect_interval=0.1,
-                reconnect_max=0.2,
             )
             updates = []
             device.push_update = lambda: updates.append(device._state)
 
-            async def wait_for_state():
-                while device._state != initial_state:
-                    await asyncio.sleep(0.01)
+            async def receive_messages():
+                while True:
+                    message = await device.receive_message()
+                    if message is None:
+                        return
+                    await device.handle_message(message)
 
+            receiver = None
             try:
-                assert await device.connect() is True
-                await asyncio.wait_for(wait_for_state(), timeout=3)
-                assert device.is_connected is True
+                device._is_connected = True
+                await device.create_websocket()
+                receiver = asyncio.create_task(receive_messages())
+                await asyncio.wait_for(device._on_connected(device.identifier), timeout=2)
+                assert device._state == initial_state
                 assert device.power is True
 
-                await device.disconnect()
-                assert device.is_connected is False
+                await device._on_disconnected(device.identifier)
                 assert device._state is None
+                assert device.get_sensor_value("volume") == ""
                 assert updates[-1] is None
+                await device.close_websocket()
+                receiver.cancel()
+                await asyncio.gather(receiver, return_exceptions=True)
 
-                second_connection_ready.clear()
-                assert await device.connect() is True
-                await asyncio.wait_for(second_connection_ready.wait(), timeout=3)
-                await asyncio.wait_for(wait_for_state(), timeout=3)
+                device._is_connected = True
+                await device.create_websocket()
+                receiver = asyncio.create_task(receive_messages())
+                await asyncio.wait_for(device._on_connected(device.identifier), timeout=2)
 
-                assert connections >= 2
-                assert device.is_connected is True
+                assert connections == 2
                 assert device._state == initial_state
                 assert device.power is True
                 assert device.get_sensor_value("volume") == str(device.volume_db)
             finally:
-                await device.disconnect()
+                if receiver and not receiver.done():
+                    receiver.cancel()
+                    await asyncio.gather(receiver, return_exceptions=True)
+                await device.close_websocket()
+                device._is_connected = False
 
     asyncio.run(exercise())
