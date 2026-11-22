@@ -8,6 +8,19 @@ def make_device():
     return HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
 
 
+
+def install_transaction_test_doubles(device, sent):
+    async def refresh():
+        return True
+
+    async def capture_locked(operations):
+        sent.append(operations)
+        return True
+
+    device._refresh_state_locked = refresh
+    device._execute_transaction_locked = capture_locked
+
+
 def test_power_mute_and_volume_commands_send_expected_patches():
     async def exercise():
         device = make_device()
@@ -18,6 +31,7 @@ def test_power_mute_and_volume_commands_send_expected_patches():
             return True
 
         device._send_transaction = capture
+        install_transaction_test_doubles(device, sent)
         assert await device.turn_on()
         assert sent[-1] == [{"op": "replace", "path": "/powerIsOn", "value": True}]
         assert await device.turn_off()
