@@ -50,8 +50,8 @@ def test_probe_times_out_when_server_never_returns_state():
 
         async with websockets.serve(endpoint, "127.0.0.1", 0) as server:
             port = server.sockets[0].getsockname()[1]
-            result = await probe_htp1("127.0.0.1", timeout=0.05, port=port)
-            assert result == f"No response from 127.0.0.1:{port} within 0 seconds"
+            result = await probe_htp1("127.0.0.1", timeout=1.0, port=port)
+            assert result == f"No response from 127.0.0.1:{port} within 1 seconds"
 
     asyncio.run(exercise())
 
