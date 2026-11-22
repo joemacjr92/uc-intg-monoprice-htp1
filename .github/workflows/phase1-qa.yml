@@ -12,7 +12,7 @@ on:
       source_ref:
         description: "Production branch or commit containing the Phase 1 implementation"
         required: true
-        default: "feature/phase-1-websocket-safety"
+        default: "feature/seat-shaker-trim-readback"
 
 permissions:
   contents: read
