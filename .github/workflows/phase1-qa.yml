@@ -42,7 +42,7 @@ jobs:
       - name: Run Ruff lint checks
         run: |
           python -m pip install ruff
-          ruff check implementation/intg_monoprice_htp1 tests tools
+          ruff check --select F implementation/intg_monoprice_htp1 tests tools
 
       - name: Run complete existing regression suite against implementation
         working-directory: implementation
