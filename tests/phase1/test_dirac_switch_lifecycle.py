@@ -222,9 +222,12 @@ def test_dirac_standby_refusal_with_matching_reply_fails_immediately():
     async def exercise():
         device, receiver = make_device(mode="standby")
         try:
+            started = asyncio.get_running_loop().time()
             result = await device.select_calibration(device.slot_names[1])
+            elapsed = asyncio.get_running_loop().time() - started
 
             assert result is False
+            assert elapsed < 1.0
             assert receiver.change_count == 1
             assert receiver.getmso_count == 1
             assert receiver.state["cal"]["currentdiracslot"] == 0
@@ -269,9 +272,12 @@ def test_dirac_busy_error_without_accepted_request_is_reported():
     async def exercise():
         device, receiver = make_device(mode="busy")
         try:
+            started = asyncio.get_running_loop().time()
             result = await device.select_calibration(device.slot_names[1])
+            elapsed = asyncio.get_running_loop().time() - started
 
             assert result is False
+            assert elapsed < 1.5
             assert receiver.change_count == 1
             assert receiver.getmso_count == 1
             assert device._transaction_error.startswith("Dirac is busy")
