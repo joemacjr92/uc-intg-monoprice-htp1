@@ -431,10 +431,9 @@ class HTP1Device(WebSocketDevice):
         if not await self.send_message("getmso"):
             return False
         try:
-            await asyncio.wait_for(
-                self._state_ready.wait(), timeout=STATE_REFRESH_TIMEOUT
-            )
-        except asyncio.TimeoutError:
+            async with asyncio.timeout(STATE_REFRESH_TIMEOUT):
+                await self._state_ready.wait()
+        except TimeoutError:
             _LOG.warning("[%s] Timed out waiting for fresh HTP-1 state", self.log_id)
             return False
 
