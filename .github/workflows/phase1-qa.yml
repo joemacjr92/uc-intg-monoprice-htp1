@@ -39,10 +39,15 @@ jobs:
       - name: Install test dependencies
         run: python -m pip install -r implementation/requirements.txt pytest pytest-cov
 
-      - name: Run Ruff lint checks
+      - name: Run focused Ruff correctness checks
         run: |
           python -m pip install ruff
           ruff check --select F implementation/intg_monoprice_htp1 tests tools
+
+      - name: Audit broader Ruff rule families (diagnostic)
+        continue-on-error: true
+        run: |
+          ruff check --select E,F,W,I,UP,B,SIM,ASYNC,PERF,PIE,PT,RET,RUF,C4,DTZ,LOG,PGH,PL,TRY implementation/intg_monoprice_htp1 tests tools
 
       - name: Run complete existing regression suite against implementation
         working-directory: implementation
