@@ -31,7 +31,6 @@ PROBE_TIMEOUT = 5.0
 STATE_REFRESH_TIMEOUT = 5.0
 WRITE_CONVERGENCE_TIMEOUT = 2.0
 DIRAC_SWITCH_TIMEOUT = 15.0
-DIRAC_ERROR_GRACE = 0.75
 SEAT_SHAKER_TRIM_MIN = -24
 SEAT_SHAKER_TRIM_MAX = 6
 
@@ -878,23 +877,13 @@ class HTP1Device(WebSocketDevice):
             if request_id is not None and switch.get("id") == request_id and switch.get("state") == "complete":
                 return None
 
-            # A plain-text error has no request ID. It can reject this write
-            # only if the receiver has not announced an accepted request yet.
+            # A plain-text error can reject this request only before the
+            # receiver has announced an accepted Dirac lifecycle ID.
             if self._transaction_error and request_id is None:
-                if error_deadline is None:
-                    # The receiver may publish the plain-text error just before
-                    # the correlated state update. Give that update a short
-                    # window to arrive before treating the error as our refusal.
-                    error_deadline = loop.time() + DIRAC_ERROR_GRACE
-                if loop.time() >= error_deadline:
-                    return self._transaction_error
+                return self._transaction_error
 
             remaining = deadline - loop.time()
-            if error_deadline is not None and request_id is None:
-                remaining = min(remaining, error_deadline - loop.time())
             if remaining <= 0:
-                if self._transaction_error and request_id is None:
-                    return self._transaction_error
                 return "Timed out waiting for the HTP-1 to complete the Dirac slot change"
 
             self._state_update_event.clear()
@@ -911,8 +900,6 @@ class HTP1Device(WebSocketDevice):
             try:
                 await asyncio.wait_for(self._state_update_event.wait(), timeout=remaining)
             except asyncio.TimeoutError:
-                if self._transaction_error and request_id is None:
-                    return self._transaction_error
                 return "Timed out waiting for the HTP-1 to complete the Dirac slot change"
 
     async def select_calibration(self, slot_name: str) -> bool:
