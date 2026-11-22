@@ -28,6 +28,8 @@ BEQ_SLOT_END = 15
 KEEPALIVE_INTERVAL = 20
 KEEPALIVE_TIMEOUT = 10
 PROBE_TIMEOUT = 5.0
+SEAT_SHAKER_TRIM_MIN = -24
+SEAT_SHAKER_TRIM_MAX = 6
 
 
 def _as_dict(value: Any) -> dict:
@@ -93,6 +95,7 @@ class HTP1Device(WebSocketDevice):
         self._state: dict[str, Any] | None = None
         self._state_ready = asyncio.Event()
         self._ws: Any | None = None
+        self._send_lock = asyncio.Lock()
 
         self.events.on(DeviceEvents.CONNECTED, self._on_connected)
         self.events.on(DeviceEvents.DISCONNECTED, self._on_disconnected)
@@ -293,6 +296,20 @@ class HTP1Device(WebSocketDevice):
         preset = _as_dict(presets.get(str(active_index)))
         self.ss_trim = _number(preset.get("trim"), 0)
 
+    @staticmethod
+    def _is_eligible_input(info: Any) -> bool:
+        """Return whether an input can be selected directly by the user.
+
+        Add-on audio sources are started by their owning player and are
+        intentionally hidden from manual input selection, even if malformed
+        or older state reports them as visible.
+        """
+        return (
+            isinstance(info, dict)
+            and info.get("visible") is True
+            and not info.get("addon")
+        )
+
     def _parse_inputs(self) -> None:
         state = _as_dict(self._state)
         input_id = state.get("input", "")
@@ -304,7 +321,7 @@ class HTP1Device(WebSocketDevice):
             label = info.get("label", inp_id)
             if not isinstance(label, str):
                 continue
-            if info.get("visible") is True:
+            if self._is_eligible_input(info):
                 self.source_list.append(label)
             if inp_id == input_id:
                 self.current_source = label
@@ -380,12 +397,14 @@ class HTP1Device(WebSocketDevice):
         }
 
     async def send_message(self, message: str) -> bool:
+        """Send one complete WebSocket message without overlapping other writes."""
         try:
-            if self._ws and self.is_connected:
-                await self._ws.send(message)
-                _LOG.debug("[%s] Sent: %s", self.log_id, message[:200])
-                return True
-            return False
+            async with self._send_lock:
+                if self._ws and self.is_connected:
+                    await self._ws.send(message)
+                    _LOG.debug("[%s] Sent: %s", self.log_id, message[:200])
+                    return True
+                return False
         except websockets.ConnectionClosed:
             _LOG.warning("[%s] Send failed: WebSocket connection is closed", self.log_id)
             return False
@@ -444,7 +463,9 @@ class HTP1Device(WebSocketDevice):
         target_db = int(round(self.vpl + (level * span)))
         target_db = max(int(self.vpl), min(int(self.vph), target_db))
 
-        current_volume = self._state.get("volume", 0)
+        current_volume = self._state.get("volume")
+        if isinstance(current_volume, bool) or not isinstance(current_volume, int):
+            return False
         volume_delta = abs(target_db - current_volume)
         max_safe_jump = 5
 
@@ -460,7 +481,9 @@ class HTP1Device(WebSocketDevice):
     async def volume_up(self) -> bool:
         if not self._state:
             return False
-        current = self._state.get("volume", 0)
+        current = self._state.get("volume")
+        if isinstance(current, bool) or not isinstance(current, int) or not _is_finite_number(self.vph):
+            return False
         if current >= self.vph:
             return True
         return await self.set_volume(current + 1)
@@ -468,7 +491,14 @@ class HTP1Device(WebSocketDevice):
     async def volume_down(self) -> bool:
         if not self._state:
             return False
-        current = self._state.get("volume", 0)
+        current = self._state.get("volume")
+        if (
+            isinstance(current, bool)
+            or not isinstance(current, int)
+            or not _is_finite_number(self.vpl)
+            or not _is_finite_number(self.zp)
+        ):
+            return False
         limit = self.vpl - self.zp
         if current - self.zp <= limit:
             return True
@@ -492,7 +522,12 @@ class HTP1Device(WebSocketDevice):
         ])
     
     async def set_ss_trim(self, trim: int) -> bool:
-        if isinstance(trim, bool) or not isinstance(trim, int):
+        if (
+            isinstance(trim, bool)
+            or not isinstance(trim, int)
+            or not SEAT_SHAKER_TRIM_MIN <= trim <= SEAT_SHAKER_TRIM_MAX
+        ):
+            _LOG.warning("[%s] Rejecting invalid seat shaker trim: %r", self.log_id, trim)
             return False
         _LOG.info("[%s] Setting seat shaker trim to %d", self.log_id, trim)
         return await self._send_transaction([
@@ -505,7 +540,10 @@ class HTP1Device(WebSocketDevice):
         _LOG.info("[%s] Selecting source: %s", self.log_id, source)
         inputs = _as_dict(self._state.get("inputs"))
         for inp_id, inp_info in inputs.items():
-            if isinstance(inp_info, dict) and inp_info.get("label") == source:
+            if (
+                self._is_eligible_input(inp_info)
+                and inp_info.get("label") == source
+            ):
                 return await self._send_transaction([
                     {"op": "replace", "path": "/input", "value": inp_id}
                 ])
@@ -576,30 +614,13 @@ class HTP1Device(WebSocketDevice):
             return False
 
     def _get_sub_channels(self) -> list[str]:
-        """Return the subwoofer PEQ channels used by the established BEQ path.
+        """Return the single LFE path used for BEQ before Dirac processing.
 
-        The HTP-1's Pre placement targets Sub1 only. Other PEQ placements
-        target each configured subwoofer output, matching the original
-        Python integration behavior.
+        PEQ Pre is required for BEQ compatibility. In the HTP-1 MSO this
+        signal is represented by the sub1 PEQ channel; it must not be copied
+        independently to the post-Dirac subwoofer outputs.
         """
-        if not self._state:
-            return ["sub1"]
-
-        peq = _as_dict(self._state.get("peq"))
-        if peq.get("location") == "pre":
-            return ["sub1"]
-
-        speakers = _as_dict(self._state.get("speakers"))
-        groups = _as_dict(speakers.get("groups"))
-        channels = [
-            key
-            for key, value in groups.items()
-            if isinstance(key, str)
-            and key.startswith("sub")
-            and isinstance(value, dict)
-            and value.get("present") is True
-        ]
-        return channels or ["sub1"]
+        return ["sub1"]
 
     def _find_empty_peq_slot(self, start_slot: int = BEQ_SLOT_START, ch: str | None = None) -> int | None:
         """Find a reusable band with a complete PEQ record for this channel."""
@@ -736,10 +757,14 @@ class HTP1Device(WebSocketDevice):
         slots = peq.get("slots")
         if not isinstance(slots, list) or not slots:
             return False
-
-        sub_channels = self._get_sub_channels()
-        if not sub_channels:
+        if peq.get("location") not in ("pre", "post"):
+            _LOG.warning("[%s] BEQ requires a known PEQ placement", self.log_id)
             return False
+
+        # BEQ must run before Dirac so it modifies the LFE channel signal,
+        # not individual post-Dirac subwoofer outputs. In the HTP-1 MSO,
+        # sub1 is the Pre-PEQ LFE path.
+        sub_channels = self._get_sub_channels()
 
         next_slot = BEQ_SLOT_START
         filter_ops: list[dict[str, Any]] = []
@@ -773,6 +798,7 @@ class HTP1Device(WebSocketDevice):
         # Send cleanup and replacement together. A preflight or send failure
         # no longer clears the current BEQ in a separate earlier transaction.
         ops = clear_ops + filter_ops + [
+            {"op": "replace", "path": "/peq/location", "value": "pre"},
             {"op": "add", "path": "/peq/beqActive", "value": title.strip()},
             {"op": "replace", "path": "/peq/peqsw", "value": True},
         ]

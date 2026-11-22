@@ -13,6 +13,7 @@ import logging
 import math
 import time
 from collections import OrderedDict
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import aiohttp
@@ -42,7 +43,17 @@ _manifest: dict[str, Any] | None = None
 _index_loaded_at: float = 0.0
 _index_lock = asyncio.Lock()
 _entry_cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
-_entry_locks: dict[tuple[str, str], asyncio.Lock] = {}
+
+
+@dataclass
+class _EntryLock:
+    """Reference-counted lock shared by in-flight requests for one entry."""
+
+    lock: asyncio.Lock
+    users: int = 0
+
+
+_entry_locks: dict[tuple[str, str], _EntryLock] = {}
 
 
 def _new_session() -> aiohttp.ClientSession:
@@ -208,50 +219,62 @@ async def get_beq_entry(key: str) -> dict[str, Any] | None:
         _entry_cache.move_to_end(key)
         return _entry_cache[key]
 
-    # Multiple UI requests can select the same item concurrently. Serialize
-    # only requests for the same version/ID, then recheck the cache after
-    # acquiring the lock so only one network fetch is performed.
-    lock = _entry_locks.setdefault((version, key), asyncio.Lock())
-    async with lock:
-        if key in _entry_cache:
-            _entry_cache.move_to_end(key)
-            return _entry_cache[key]
+    # Keep one lock per in-flight (version, ID) request, but remove it once
+    # the final holder/waiter exits. The reference count is incremented before
+    # awaiting acquisition, so a lock cannot be removed while another task is
+    # queued behind it.
+    lock_key = (version, key)
+    lock_entry = _entry_locks.get(lock_key)
+    if lock_entry is None:
+        lock_entry = _EntryLock(asyncio.Lock())
+        _entry_locks[lock_key] = lock_entry
+    lock_entry.users += 1
+    lock = lock_entry.lock
+    try:
+        async with lock:
+            if key in _entry_cache:
+                _entry_cache.move_to_end(key)
+                return _entry_cache[key]
 
-        payload_version = version
-        try:
-            payload = await _fetch_entry_payload(payload_version, key)
-        except aiohttp.ClientResponseError as err:
-            if err.status != 404:
-                _LOG.error("Unable to load BEQ entry %s: %s", key, err)
-                return None
-            # A Pages deployment may replace the previous version while an old
-            # browse result is still open. Refresh and retry if this ID survived.
-            _index_loaded_at = time.monotonic() - INDEX_CACHE_LIFE - 1
-            if not await _load_index() or _manifest is None or _manifest["version"] == version:
-                return None
+            payload_version = version
             try:
-                payload_version = _manifest["version"]
                 payload = await _fetch_entry_payload(payload_version, key)
+            except aiohttp.ClientResponseError as err:
+                if err.status != 404:
+                    _LOG.error("Unable to load BEQ entry %s: %s", key, err)
+                    return None
+                # A Pages deployment may replace the previous version while an old
+                # browse result is still open. Refresh and retry if this ID survived.
+                _index_loaded_at = time.monotonic() - INDEX_CACHE_LIFE - 1
+                if not await _load_index() or _manifest is None or _manifest["version"] == version:
+                    return None
+                try:
+                    payload_version = _manifest["version"]
+                    payload = await _fetch_entry_payload(payload_version, key)
+                except asyncio.CancelledError:
+                    raise
+                except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError, json.JSONDecodeError) as retry_err:
+                    _LOG.error("Unable to load BEQ entry %s after catalogue refresh: %s", key, retry_err)
+                    return None
             except asyncio.CancelledError:
                 raise
-            except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError, json.JSONDecodeError) as retry_err:
-                _LOG.error("Unable to load BEQ entry %s after catalogue refresh: %s", key, retry_err)
+            except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError, json.JSONDecodeError) as err:
+                _LOG.error("Unable to load BEQ entry %s: %s", key, err)
                 return None
-        except asyncio.CancelledError:
-            raise
-        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError, json.JSONDecodeError) as err:
-            _LOG.error("Unable to load BEQ entry %s: %s", key, err)
-            return None
 
-        # An older in-flight request may finish after another request has
-        # refreshed the index and cleared the cache. Never repopulate the
-        # current-version cache with a payload from the previous deployment.
-        if _manifest is not None and _manifest.get("version") == payload_version:
-            _entry_cache[key] = payload
-            _entry_cache.move_to_end(key)
-            while len(_entry_cache) > ENTRY_CACHE_MAX:
-                _entry_cache.popitem(last=False)
-        return payload
+            # An older in-flight request may finish after another request has
+            # refreshed the index and cleared the cache. Never repopulate the
+            # current-version cache with a payload from the previous deployment.
+            if _manifest is not None and _manifest.get("version") == payload_version:
+                _entry_cache[key] = payload
+                _entry_cache.move_to_end(key)
+                while len(_entry_cache) > ENTRY_CACHE_MAX:
+                    _entry_cache.popitem(last=False)
+            return payload
+    finally:
+        lock_entry.users -= 1
+        if lock_entry.users == 0 and _entry_locks.get(lock_key) is lock_entry:
+            del _entry_locks[lock_key]
 
 
 def _entry_to_item(entry: dict[str, Any]) -> BrowseMediaItem:
