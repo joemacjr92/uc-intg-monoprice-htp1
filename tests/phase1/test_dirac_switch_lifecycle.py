@@ -422,3 +422,363 @@ def test_dirac_acceptance_and_concurrent_volume_stress():
                 await receiver.cleanup()
 
     asyncio.run(exercise())
+
+def _volume_writes(receiver):
+    """Return receiver volume patches sent by the integration."""
+    writes = []
+    for message in receiver.messages:
+        if not message.startswith("changemso "):
+            continue
+        operations = json.loads(message.partition(" ")[2])
+        writes.extend(
+            operation["value"]
+            for operation in operations
+            if operation.get("path") == "/volume"
+        )
+    return writes
+
+
+def test_dirac_volume_steps_are_captured_and_aggregated_into_one_write():
+    async def exercise():
+        device, receiver = make_device(delay=0.1)
+        try:
+            starting_volume = receiver.state["volume"]
+            result = await device.select_calibration(device.slot_names[1])
+            assert result is True
+
+            for _ in range(5):
+                assert await device.volume_up() is True
+            for _ in range(2):
+                assert await device.volume_down() is True
+
+            # No volume transaction is sent while the receiver applies Dirac.
+            assert receiver.change_count == 1
+            assert _volume_writes(receiver) == []
+            assert receiver.state["volume"] == starting_volume
+            assert device._dirac_volume_delta == 3
+
+            task = device._dirac_task
+            assert task is not None
+            await asyncio.wait_for(task, timeout=1.0)
+
+            assert _volume_writes(receiver) == [starting_volume + 3]
+            assert receiver.change_count == 2
+            assert receiver.state["volume"] == starting_volume + 3
+            assert device._dirac_volume_capture_active is False
+            assert device._dirac_volume_snapshot is None
+        finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
+
+def test_dirac_volume_capture_preserves_displayed_db_when_zero_point_changes():
+    async def exercise():
+        device, receiver = make_device(delay=0.1)
+        try:
+            start_display_db = receiver.state["volume"] - receiver.state["cal"]["zeroPoint"]
+            assert await device.select_calibration(device.slot_names[1]) is True
+            assert await device.volume_up() is True
+            assert await device.volume_up() is True
+
+            # Model a calibration whose zero point and raw volume bounds differ
+            # after the selected Dirac slot has finished applying.
+            receiver.state["cal"]["zeroPoint"] = -10
+            receiver.state["cal"]["vpl"] = -70
+            receiver.state["cal"]["vph"] = -10
+
+            task = device._dirac_task
+            assert task is not None
+            await asyncio.wait_for(task, timeout=1.0)
+
+            expected_display_db = start_display_db + 2
+            assert receiver.state["volume"] - receiver.state["cal"]["zeroPoint"] == expected_display_db
+            assert _volume_writes(receiver) == [expected_display_db + receiver.state["cal"]["zeroPoint"]]
+        finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
+
+def test_dirac_volume_burst_reuses_existing_five_db_jump_limiter():
+    async def exercise():
+        device, receiver = make_device(delay=0.1)
+        try:
+            starting_volume = receiver.state["volume"]
+            assert await device.select_calibration(device.slot_names[1]) is True
+
+            for _ in range(12):
+                assert await device.volume_up() is True
+            assert device._dirac_volume_delta == 12
+            assert _volume_writes(receiver) == []
+
+            task = device._dirac_task
+            assert task is not None
+            await asyncio.wait_for(task, timeout=1.0)
+
+            # The desired target is +12 dB, but the existing set-volume
+            # limiter allows only a +5 dB write in one operation.
+            assert _volume_writes(receiver) == [starting_volume + 5]
+        finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
+
+def test_dirac_volume_capture_clamps_pending_delta_at_upper_and_lower_bounds():
+    async def exercise():
+        device, receiver = make_device(delay=0.1)
+        try:
+            receiver.state["volume"] = -15
+            receiver.state["cal"]["vph"] = -14
+            device._state["volume"] = -15
+            device._state["cal"]["vph"] = -14
+            device._parse_state()
+
+            assert await device.select_calibration(device.slot_names[1]) is True
+            for _ in range(8):
+                assert await device.volume_up() is True
+            assert device._dirac_volume_delta == 1
+            assert await device.volume_down() is True
+            assert device._dirac_volume_delta == 0
+
+            task = device._dirac_task
+            assert task is not None
+            await asyncio.wait_for(task, timeout=1.0)
+            assert _volume_writes(receiver) == []
+        finally:
+            await receiver.cleanup()
+
+        device, receiver = make_device(delay=0.1)
+        try:
+            receiver.state["volume"] = -79
+            device._state["volume"] = -79
+            device._parse_state()
+
+            assert await device.select_calibration(device.slot_names[1]) is True
+            for _ in range(8):
+                assert await device.volume_down() is True
+            assert device._dirac_volume_delta == -1
+            assert await device.volume_up() is True
+            assert device._dirac_volume_delta == 0
+
+            task = device._dirac_task
+            assert task is not None
+            await asyncio.wait_for(task, timeout=1.0)
+            assert _volume_writes(receiver) == []
+        finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
+
+def test_dirac_absolute_raw_volume_request_becomes_base_for_later_steps():
+    async def exercise():
+        device, receiver = make_device(delay=0.1)
+        try:
+            assert await device.select_calibration(device.slot_names[1]) is True
+            assert await device.set_volume(-40) is True
+            assert await device.volume_up() is True
+            assert await device.volume_up() is True
+
+            assert device._dirac_volume_absolute_db == -33
+            assert device._dirac_volume_delta == 2
+            assert _volume_writes(receiver) == []
+
+            task = device._dirac_task
+            assert task is not None
+            await asyncio.wait_for(task, timeout=1.0)
+
+            # Desired displayed target is -31 dB; current volume is -27 dB,
+            # so the existing 5 dB limiter does not need to clamp it.
+            assert _volume_writes(receiver) == [-24]
+        finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
+
+def test_dirac_absolute_level_request_uses_captured_bounds_and_last_absolute_wins():
+    async def exercise():
+        device, receiver = make_device(delay=0.1)
+        try:
+            assert await device.select_calibration(device.slot_names[1]) is True
+            assert await device.volume_up() is True
+            assert await device.set_volume_level(0.5) is True
+            assert await device.volume_down() is True
+            assert await device.set_volume_level(0.75) is True
+
+            snapshot = device._dirac_volume_snapshot
+            assert snapshot is not None
+            expected_raw = round(snapshot["vpl"] + 0.75 * (snapshot["vph"] - snapshot["vpl"]))
+            assert device._dirac_volume_absolute_db == expected_raw - snapshot["zp"]
+            assert device._dirac_volume_delta == 0
+            assert _volume_writes(receiver) == []
+
+            task = device._dirac_task
+            assert task is not None
+            await asyncio.wait_for(task, timeout=1.0)
+
+            # A 0.75 level maps to the raw midpoint calculation, then the
+            # existing 5 dB jump limiter is applied by the shared helper.
+            assert _volume_writes(receiver) == [-22]
+        finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
+
+def test_dirac_rejects_invalid_absolute_volume_without_losing_relative_requests():
+    async def exercise():
+        device, receiver = make_device(delay=0.1)
+        try:
+            assert await device.select_calibration(device.slot_names[1]) is True
+            assert await device.volume_up() is True
+            assert await device.set_volume(999) is False
+            assert await device.set_volume_level(float("nan")) is False
+            assert device._dirac_volume_delta == 1
+            assert device._dirac_volume_absolute_db is None
+
+            task = device._dirac_task
+            assert task is not None
+            await asyncio.wait_for(task, timeout=1.0)
+            assert _volume_writes(receiver) == [-26]
+        finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
+
+def test_dirac_blocks_non_volume_mutations_without_refreshing_receiver():
+    async def exercise():
+        device, receiver = make_device(delay=0.1)
+        try:
+            assert await device.select_calibration(device.slot_names[1]) is True
+            messages_before = list(receiver.messages)
+            getmso_before = receiver.getmso_count
+
+            assert await device.mute_toggle(True) is False
+            assert await device.turn_off() is False
+            assert await device.select_source("HDMI 1") is False
+            assert await device.select_ss_preset(1) is False
+            assert await device.clear_beq() is False
+            assert await device.load_beq("test", []) is False
+
+            assert receiver.messages == messages_before
+            assert receiver.getmso_count == getmso_before
+            assert receiver.change_count == 1
+
+            task = device._dirac_task
+            assert task is not None
+            await asyncio.wait_for(task, timeout=1.0)
+        finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
+
+def test_dirac_refusal_discards_captured_volume_requests():
+    async def exercise():
+        device, receiver = make_device(mode="delayed-standby")
+        try:
+            assert await device.select_calibration(device.slot_names[1]) is True
+            assert await device.volume_up() is True
+            assert await device.volume_up() is True
+            assert receiver.change_count == 1
+
+            task = device._dirac_task
+            assert task is not None
+            await asyncio.wait_for(task, timeout=1.0)
+
+            assert _volume_writes(receiver) == []
+            assert receiver.state["volume"] == -27
+            assert device._dirac_volume_capture_active is False
+            assert device._dirac_volume_snapshot is None
+        finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
+
+def test_dirac_timeout_discards_captured_volume_requests():
+    async def exercise():
+        device, receiver = make_device(mode="never")
+        device._dirac_switch_timeout = 0.0
+        try:
+            assert await device.select_calibration(device.slot_names[1]) is True
+            assert await device.volume_up() is True
+
+            task = device._dirac_task
+            assert task is not None
+            await asyncio.wait_for(task, timeout=0.2)
+
+            assert _volume_writes(receiver) == []
+            assert device._dirac_volume_capture_active is False
+            assert device._dirac_volume_snapshot is None
+        finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
+
+def test_dirac_disconnect_discards_captured_volume_requests():
+    async def exercise():
+        device, receiver = make_device(mode="never")
+        try:
+            assert await device.select_calibration(device.slot_names[1]) is True
+            assert await device.volume_up() is True
+            device._on_connection_lost()
+
+            task = device._dirac_task
+            assert task is not None
+            await asyncio.wait_for(task, timeout=0.2)
+
+            assert _volume_writes(receiver) == []
+            assert device._dirac_volume_capture_active is False
+            assert device._dirac_volume_snapshot is None
+        finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
+
+def test_dirac_invalid_start_volume_snapshot_fails_closed():
+    async def exercise():
+        device, receiver = make_device(delay=0.1)
+        try:
+            receiver.state["cal"]["vph"] = "invalid"
+            device._state["cal"]["vph"] = "invalid"
+            device._parse_state()
+
+            assert await device.select_calibration(device.slot_names[1]) is True
+            assert await device.volume_up() is False
+
+            task = device._dirac_task
+            assert task is not None
+            await asyncio.wait_for(task, timeout=1.0)
+
+            assert _volume_writes(receiver) == []
+            assert device._dirac_volume_capture_active is False
+        finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
+
+def test_dirac_completion_without_volume_requests_does_not_send_volume_write():
+    async def exercise():
+        device, receiver = make_device(delay=0.1)
+        try:
+            assert await device.select_calibration(device.slot_names[1]) is True
+            task = device._dirac_task
+            assert task is not None
+            await asyncio.wait_for(task, timeout=1.0)
+
+            assert receiver.change_count == 1
+            assert _volume_writes(receiver) == []
+            assert device._dirac_volume_capture_active is False
+        finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
