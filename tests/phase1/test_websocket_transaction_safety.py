@@ -172,8 +172,8 @@ def test_beq_state_refresh_timeout_context_aborts_before_any_write():
             reply_to_getmso=False,
         )
 
-        # The production timeout is five seconds; allow a small margin around
-        # it so the test proves the real timeout path rather than cancelling it.
+        # The production timeout is five seconds. Keep a much larger outer
+        # guard so only the production waiter can end this operation.
         result = await asyncio.wait_for(
             device.load_beq("Timed out preflight", BEQ_FILTERS),
             timeout=15.0,
