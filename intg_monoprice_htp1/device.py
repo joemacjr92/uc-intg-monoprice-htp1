@@ -547,23 +547,27 @@ class HTP1Device(WebSocketDevice):
                 return missing
         return current
 
-    def _transaction_matches_state(
+    def _transaction_mismatch_path(
         self, expected_state: dict[str, Any], operations: list[dict[str, Any]]
-    ) -> bool:
-        """Verify every touched path against the receiver's fresh full snapshot."""
+    ) -> str | None:
+        """Return the first touched path that differs, without logging transient state."""
         if not isinstance(self._state, dict):
-            return False
+            return "<no state>"
         for path in dict.fromkeys(operation["path"] for operation in operations):
             expected = self._json_pointer_value(expected_state, path)
             actual = self._json_pointer_value(self._state, path)
             if expected is self._MISSING or actual is self._MISSING:
                 if expected is not actual:
-                    _LOG.error("[%s] Receiver did not apply transaction path %s", self.log_id, path)
-                    return False
+                    return path
             elif expected != actual:
-                _LOG.error("[%s] Receiver state mismatch after transaction at %s", self.log_id, path)
-                return False
-        return True
+                return path
+        return None
+
+    def _transaction_matches_state(
+        self, expected_state: dict[str, Any], operations: list[dict[str, Any]]
+    ) -> bool:
+        """Quiet predicate used while waiting for live receiver-state convergence."""
+        return self._transaction_mismatch_path(expected_state, operations) is None
 
     @staticmethod
     def _paths_overlap(first: str, second: str) -> bool:
@@ -665,7 +669,27 @@ class HTP1Device(WebSocketDevice):
                 self._transaction_error,
             )
             return False
-        return self._transaction_matches_state(expected_state, operations)
+        mismatch_path = self._transaction_mismatch_path(expected_state, operations)
+        if mismatch_path is None:
+            return True
+        if mismatch_path == "<no state>":
+            _LOG.error("[%s] Receiver did not apply transaction path: no state returned", self.log_id)
+        else:
+            expected = self._json_pointer_value(expected_state, mismatch_path)
+            actual = self._json_pointer_value(self._state, mismatch_path)
+            if expected is self._MISSING or actual is self._MISSING:
+                _LOG.error(
+                    "[%s] Receiver did not apply transaction path %s",
+                    self.log_id,
+                    mismatch_path,
+                )
+            else:
+                _LOG.error(
+                    "[%s] Receiver state mismatch after transaction at %s",
+                    self.log_id,
+                    mismatch_path,
+                )
+        return False
 
     def _dirac_commands_blocked(self) -> bool:
         """Return whether ordinary state mutations must wait for Dirac."""
