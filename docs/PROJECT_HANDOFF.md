@@ -164,6 +164,16 @@ The phases below are the approved plan. Phase 0 adds configurable-port support r
 - QA-only regressions cover 250 ms delayed volume convergence, delayed Dirac completion, standby refusal, unrelated busy replies, plain-text busy rejection, and Dirac timeout. Tests remain exclusively on `tests-and-docs`; production code remains on `feature-validation`.
 - These are automated/fake-receiver validations only. Real HTP-1 hardware acceptance remains pending.
 
+**Validation results (2026-11-22):**
+
+- Production source branch: `feature-validation` at `27ae1f47af651ba7dc63b9c535ebffbe9a8f9b29`.
+- QA/handoff branch: `tests-and-docs` at `f1d3b68d18b6bb13136a1105178687365b1daa37`.
+- ARM64 Test Build: passed — [run 45055106945](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45055106945).
+- Phase 1 WebSocket Safety QA: passed — [run 45055356382](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45055356382). Results: 95 regression tests passed, 1 skipped; 33 Phase 0 compatibility tests passed; 21 added regression-gap tests passed; 111 Phase 1 tests passed; 2 TLS tests passed. Focused Ruff correctness checks passed. Broader Ruff audit remains diagnostic.
+- Full QA and Phase 0 workflow: passed — [run 45055356346](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45055356346).
+- Standard Tests workflow: passed — [run 45055356339](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45055356339). Results: 93 passed, 1 skipped.
+- Coverage during Phase 1 suite: 79% across the measured device/browser modules.
+
 **Acceptance:** The connection lifecycle is exercised through a fake server; connected entity synchronization and representative command/state round trips are covered; BEQ manifest validation and failure recovery are tested without live network dependencies; a scrubbed real-device fixture is added when available; and CI publishes a reproducible coverage report with documented baseline/targeted expectations. Record automated CI results separately from Remote connectivity and actual HTP-1 hardware acceptance.
 
 ### Phase 2 — Dependency and Number entity support
