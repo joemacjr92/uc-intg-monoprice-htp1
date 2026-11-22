@@ -114,8 +114,8 @@ def test_input_mode_and_dirac_selection_send_expected_native_values():
         device._send_transaction = capture
         device._state = {
             "inputs": {
-                "hdmi1": {"label": "Apple TV"},
-                "hdmi2": {"label": "Game"},
+                "hdmi1": {"label": "Apple TV", "visible": True},
+                "hdmi2": {"label": "Game", "visible": True},
             },
             "shaker": {},
         }
