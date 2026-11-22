@@ -149,7 +149,8 @@ Update this section as work progresses. Record verified facts only.
 |---|---|
 | Branch strategy | Agreed: `main` mirrors upstream; `tests-and-docs` holds QA/docs; `feature/*` holds production development. |
 | Phase 0 | **Complete.** Configurable port setup and connection paths implemented; legacy config/backup defaults to port 80; backup preserves per-entry ports. Remote sensors confirmed working through the user's private reverse-proxy path. Endpoint and topology details are intentionally not recorded. See `docs/phase-0-validation.md`. |
-| Phases 1–6 | Approved scope; implementation status must be verified against current commits, PRs, tests, and hardware checks before being marked complete. |
+| Phase 1 | Implementation complete on `feature/phase-1-websocket-safety` at `d218f8a`; production changes are limited to `device.py` and `browser.py`. Automated QA: 91 regression tests passed, 1 skipped, plus 11 Phase 1 tests passed ([run](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/44977557651)). Remote/HTP-1 hardware validation is still pending; do not mark Phase 1 complete until that passes. |
+| Phases 2–6 | Approved scope; implementation status must be verified against current commits, PRs, tests, and hardware checks before being marked complete. |
 | Handoff location | `docs/PROJECT_HANDOFF.md` on `tests-and-docs` only. |
 
 **When updating status:** include the relevant branch, commit SHA, PR link (if applicable), CI run/result, and whether real HTP-1 hardware was tested. Do not mark a phase complete based only on an implementation commit.
