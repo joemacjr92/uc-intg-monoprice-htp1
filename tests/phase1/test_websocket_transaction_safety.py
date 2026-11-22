@@ -1,0 +1,243 @@
+"""Failure-injection tests for HTP-1 state-changing WebSocket transactions.
+
+The receiver protocol has no documented changemso acknowledgement. These tests
+model the established request/write/getmso/readback sequence and verify that a
+successful socket write alone is never treated as proof of an applied change.
+"""
+
+import asyncio
+import copy
+import json
+from pathlib import Path
+
+import pytest
+
+from intg_monoprice_htp1.config import HTP1Config
+from intg_monoprice_htp1.device import HTP1Device, apply_json_patch
+
+
+FULL_FIXTURE = Path(__file__).parents[1] / "fixtures" / "htp1_full_mso.json"
+BEQ_FIXTURE = Path(__file__).parents[1] / "fixtures" / "mso_beq_pre_active.json"
+BEQ_FILTERS = [
+    {"type": "PeakingEQ", "freq": 25, "gain": 3.5, "q": 1.2},
+    {"type": "LowShelf", "freq": 30, "gain": -2.0, "q": 0.8},
+]
+
+
+class FakeReceiver:
+    """Small deterministic receiver that can apply, ignore, or partly apply writes."""
+
+    def __init__(
+        self,
+        device,
+        state,
+        *,
+        apply_mode="all",
+        reply_to_getmso=True,
+        disconnect_after_change=False,
+        first_change_gate=None,
+    ):
+        self.device = device
+        self.state = copy.deepcopy(state)
+        self.apply_mode = apply_mode
+        self.reply_to_getmso = reply_to_getmso
+        self.disconnect_after_change = disconnect_after_change
+        self.first_change_gate = first_change_gate
+        self.first_change_started = asyncio.Event()
+        self.messages = []
+        self.change_count = 0
+
+    async def send(self, message):
+        self.messages.append(message)
+        if message == "getmso":
+            if self.reply_to_getmso and self.device.is_connected:
+                await self.device.handle_message(f"mso {json.dumps(self.state)}")
+            return
+
+        if not message.startswith("changemso "):
+            return
+
+        self.change_count += 1
+        operations = json.loads(message.partition(" ")[2])
+        if self.change_count == 1:
+            self.first_change_started.set()
+            if self.first_change_gate is not None:
+                await self.first_change_gate.wait()
+
+        if self.apply_mode == "all":
+            applied = operations
+        elif self.apply_mode == "partial":
+            applied = operations[: max(1, len(operations) // 2)]
+        elif self.apply_mode == "ignore":
+            applied = []
+        else:
+            raise AssertionError(f"unknown fake receiver apply mode: {self.apply_mode}")
+
+        if applied:
+            candidate = copy.deepcopy(self.state)
+            for operation in applied:
+                apply_json_patch(
+                    candidate,
+                    operation["op"],
+                    operation["path"],
+                    operation.get("value"),
+                )
+            self.state = candidate
+            await self.device.handle_message(f"msoupdate {json.dumps(applied)}")
+
+        if self.disconnect_after_change:
+            self.device._on_connection_lost()
+
+
+def _make_device(fixture=BEQ_FIXTURE, receiver_state=None, **receiver_options):
+    device = HTP1Device(
+        HTP1Config("transaction-safety", "Transaction Safety HTP-1", "127.0.0.1"),
+        loop=asyncio.get_running_loop(),
+    )
+    cached_state = json.loads(fixture.read_text(encoding="utf-8"))
+    device._state = cached_state
+    device._is_connected = True
+    device._parse_state()
+    receiver = FakeReceiver(
+        device,
+        receiver_state if receiver_state is not None else cached_state,
+        **receiver_options,
+    )
+    device._ws = receiver
+    return device, receiver
+
+
+def test_beq_refreshes_state_before_preflight_and_rejects_stale_pre_cache():
+    async def exercise():
+        cached = json.loads(BEQ_FIXTURE.read_text(encoding="utf-8"))
+        actual = copy.deepcopy(cached)
+        actual["peq"]["location"] = "post"
+        device, receiver = _make_device(receiver_state=actual)
+
+        result = await device.load_beq("Stale PEQ state", BEQ_FILTERS)
+
+        assert result is False
+        assert receiver.messages == ["getmso"]
+        assert receiver.change_count == 0
+        assert device._state["peq"]["location"] == "post"
+
+    asyncio.run(exercise())
+
+
+def test_beq_receiver_ignoring_patch_is_reported_as_failure_after_readback():
+    async def exercise():
+        state = json.loads(BEQ_FIXTURE.read_text(encoding="utf-8"))
+        device, receiver = _make_device(
+            receiver_state=state,
+            apply_mode="ignore",
+        )
+
+        result = await device.load_beq("Rejected BEQ", BEQ_FILTERS)
+
+        assert result is False
+        assert receiver.change_count == 1
+        assert receiver.messages.count("getmso") >= 2
+        assert device.beq_active == ""
+        assert "beqActive" not in device._state["peq"]
+
+    asyncio.run(exercise())
+
+
+def test_partial_beq_application_is_not_reported_as_success():
+    async def exercise():
+        state = json.loads(BEQ_FIXTURE.read_text(encoding="utf-8"))
+        device, receiver = _make_device(
+            receiver_state=state,
+            apply_mode="partial",
+        )
+
+        result = await device.load_beq("Partially applied BEQ", BEQ_FILTERS)
+
+        assert result is False
+        assert receiver.change_count == 1
+        assert receiver.messages.count("getmso") >= 2
+        assert device.beq_active == ""
+        assert receiver.state != state
+
+    asyncio.run(exercise())
+
+
+def test_beq_state_refresh_timeout_aborts_before_any_write(monkeypatch):
+    async def exercise():
+        state = json.loads(BEQ_FIXTURE.read_text(encoding="utf-8"))
+        device, receiver = _make_device(
+            receiver_state=state,
+            reply_to_getmso=False,
+        )
+        # Keep the failure-injection test fast while exercising the same
+        # production timeout path.
+        monkeypatch.setattr(
+            "intg_monoprice_htp1.device.STATE_REFRESH_TIMEOUT",
+            0.01,
+            raising=False,
+        )
+
+        result = await device.load_beq("Timed out preflight", BEQ_FILTERS)
+
+        assert result is False
+        assert receiver.messages == ["getmso"]
+        assert receiver.change_count == 0
+
+    asyncio.run(exercise())
+
+
+def test_disconnect_after_beq_write_does_not_claim_success_or_replay():
+    async def exercise():
+        state = json.loads(BEQ_FIXTURE.read_text(encoding="utf-8"))
+        device, receiver = _make_device(
+            receiver_state=state,
+            disconnect_after_change=True,
+        )
+
+        result = await device.load_beq("Disconnected BEQ", BEQ_FILTERS)
+
+        assert result is False
+        assert receiver.change_count == 1
+        assert sum(message.startswith("changemso ") for message in receiver.messages) == 1
+        assert device.beq_active == ""
+
+    asyncio.run(exercise())
+
+
+def test_concurrent_relative_volume_updates_use_fresh_serialized_state():
+    async def exercise():
+        state = json.loads(FULL_FIXTURE.read_text(encoding="utf-8"))
+        state["volume"] = -20
+        state["cal"]["vpl"] = -80
+        state["cal"]["vph"] = 12
+        state["cal"]["zeroPoint"] = 0
+        first_change_gate = asyncio.Event()
+        device, receiver = _make_device(
+            fixture=FULL_FIXTURE,
+            receiver_state=state,
+            first_change_gate=first_change_gate,
+        )
+        device._state["volume"] = -20
+        device.vpl = -80
+        device.vph = 12
+        device.zp = 0
+
+        first = asyncio.create_task(device.volume_up())
+        await asyncio.wait_for(receiver.first_change_started.wait(), timeout=1)
+        second = asyncio.create_task(device.volume_up())
+        await asyncio.sleep(0)
+        first_change_gate.set()
+
+        results = await asyncio.gather(first, second)
+
+        assert results == [True, True]
+        assert receiver.state["volume"] == -18
+        assert device._state["volume"] == -18
+        changes = [
+            json.loads(message.partition(" ")[2])
+            for message in receiver.messages
+            if message.startswith("changemso ")
+        ]
+        assert [change[0]["value"] for change in changes] == [-19, -18]
+
+    asyncio.run(exercise())
