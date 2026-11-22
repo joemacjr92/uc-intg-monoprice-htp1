@@ -759,8 +759,11 @@ class HTP1Device(WebSocketDevice):
         slots = peq.get("slots")
         if not isinstance(slots, list) or not slots:
             return False
-        if peq.get("location") not in ("pre", "post"):
-            _LOG.warning("[%s] BEQ requires a known PEQ placement", self.log_id)
+        if peq.get("location") != "pre":
+            _LOG.warning(
+                "[%s] BEQ requires PEQ Location to be Pre-Dirac; current placement is %r",
+                self.log_id, peq.get("location"),
+            )
             return False
 
         # BEQ must run before Dirac so it modifies the LFE channel signal,
@@ -800,7 +803,6 @@ class HTP1Device(WebSocketDevice):
         # Send cleanup and replacement together. A preflight or send failure
         # no longer clears the current BEQ in a separate earlier transaction.
         ops = clear_ops + filter_ops + [
-            {"op": "replace", "path": "/peq/location", "value": "pre"},
             {"op": "add", "path": "/peq/beqActive", "value": title.strip()},
             {"op": "replace", "path": "/peq/peqsw", "value": True},
         ]
