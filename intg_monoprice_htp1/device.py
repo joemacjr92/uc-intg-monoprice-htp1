@@ -857,8 +857,6 @@ class HTP1Device(WebSocketDevice):
                 switch_state = switch.get("state")
                 if switch_state in {"refused", "failed", "error"}:
                     return str(switch.get("message") or "The HTP-1 refused the Dirac slot change")
-                if switch_state == "complete":
-                    return None
 
             if request_id is not None:
                 reply = _as_dict(cal.get("diracSwitchReply"))
@@ -867,6 +865,9 @@ class HTP1Device(WebSocketDevice):
                     and reply.get("state") in {"refused", "failed", "error"}
                 ):
                     return str(reply.get("message") or "The HTP-1 refused the Dirac slot change")
+
+            if request_id is not None and switch.get("id") == request_id and switch.get("state") == "complete":
+                return None
 
             # A plain-text error has no request ID. It can reject this write
             # only if the receiver has not announced an accepted request yet.
