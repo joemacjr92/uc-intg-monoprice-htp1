@@ -3,6 +3,7 @@
 import asyncio
 import hashlib
 import json
+import time
 
 import aiohttp
 import pytest
@@ -201,7 +202,7 @@ def test_load_index_returns_false_for_http_failure(monkeypatch):
         index_bytes = json.dumps(INDEX).encode()
         manifest = manifest_for(index_bytes)
         error = aiohttp.ClientResponseError(
-            request_info=None, history=(), status=503
+            request_info=type("RequestInfo", (), {"real_url": "https://example.invalid/index.json"})(), history=(), status=503
         )
         install_responses(
             monkeypatch, manifest, FakeResponse(error=error)
@@ -259,7 +260,7 @@ def test_load_index_retains_last_known_good_index_on_refresh_failure(monkeypatch
         old_manifest = {"version": "old"}
         browser._index = old_index
         browser._manifest = old_manifest
-        browser._index_loaded_at = 1
+        browser._index_loaded_at = time.monotonic() - browser.INDEX_CACHE_LIFE - 1
 
         async def get_json(_url):
             raise asyncio.TimeoutError()
@@ -270,6 +271,6 @@ def test_load_index_retains_last_known_good_index_on_refresh_failure(monkeypatch
         assert browser._index is old_index
         assert browser._manifest is old_manifest
         # Failed refresh is deferred for five minutes, avoiding request storms.
-        assert browser._index_loaded_at > 1
+        assert browser._index_loaded_at > time.monotonic() - browser.INDEX_CACHE_LIFE
 
     asyncio.run(exercise())
