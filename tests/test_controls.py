@@ -149,7 +149,43 @@ def test_input_mode_and_dirac_selection_send_expected_native_values():
         assert not await device.select_sound_mode("Unknown")
         assert len(sent) == before
 
+        device._state = {
+            "cal": {
+                "currentdiracslot": 0,
+                "diracSwitch": {"id": "previous-request", "state": "complete", "locked": False, "slot": 0},
+            }
+        }
         device._slot_index = {"Movie": 2}
+
+        async def refresh():
+            return True
+
+        async def send_dirac(message):
+            operations = json.loads(message.partition(" ")[2])
+            sent.append(operations)
+            for operation in operations:
+                apply_json_patch(
+                    device._state,
+                    operation["op"],
+                    operation["path"],
+                    operation.get("value"),
+                )
+            slot = operations[0]["value"]
+            apply_json_patch(
+                device._state,
+                "replace",
+                "/cal/diracSwitch",
+                {
+                    "id": "new-request",
+                    "state": "complete",
+                    "locked": False,
+                    "slot": slot,
+                },
+            )
+            return True
+
+        device._refresh_state_locked = refresh
+        device.send_message = send_dirac
         assert await device.select_calibration("Movie")
         assert sent[-1] == [{"op": "replace", "path": "/cal/currentdiracslot", "value": 2}]
         before = len(sent)
