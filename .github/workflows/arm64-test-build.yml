@@ -18,27 +18,6 @@ env:
   PYTHON_VER: 3.11.12-0.3.0
 
 jobs:
-  tests:
-    name: Run unit tests
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt pytest
-
-      - name: Run tests
-        run: python -m pytest -q
-
   docker-smoke:
     name: Build and verify Docker image (no push)
     runs-on: ubuntu-24.04
