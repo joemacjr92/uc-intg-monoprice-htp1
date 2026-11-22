@@ -64,6 +64,9 @@ def _assert_unavailable_item(result):
 def test_beq_load_in_pre_placement_never_writes_peq_location():
     async def exercise():
         device = make_device("pre")
+        # Some HTP-1 configurations prohibit placement changes; BEQ must not
+        # attempt to override that receiver policy.
+        device._state["peq"]["allowPEQLocationChange"] = "no"
         assert await device.load_beq(
             "Pre placement test",
             [{"type": "PeakingEQ", "freq": 25, "gain": 3.5, "q": 1.2}],
@@ -73,6 +76,7 @@ def test_beq_load_in_pre_placement_never_writes_peq_location():
         assert message.startswith("changemso ")
         operations = json.loads(message.partition(" ")[2])
         assert not any(operation.get("path") == "/peq/location" for operation in operations)
+        assert device._state["peq"]["allowPEQLocationChange"] == "no"
         assert any(operation.get("path") == "/peq/beqActive" for operation in operations)
         assert all(
             "/sub1/" in operation.get("path", "")
