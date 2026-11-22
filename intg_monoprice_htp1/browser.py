@@ -295,7 +295,62 @@ def _entry_to_item(entry: dict[str, Any]) -> BrowseMediaItem:
     )
 
 
+def _peq_location(device: HTP1Device) -> str | None:
+    """Return the reported PEQ placement, or None when it is unavailable."""
+    state = getattr(device, "_state", None)
+    if not isinstance(state, dict):
+        return None
+    peq = state.get("peq")
+    if not isinstance(peq, dict):
+        return None
+    location = peq.get("location")
+    return location if isinstance(location, str) else None
+
+
+def _browse_unavailable(device: HTP1Device) -> BrowseResults:
+    """Show an explanatory, non-actionable media item when BEQ is unavailable."""
+    items = [
+        BrowseMediaItem(
+            title="BEQ Unavailable",
+            media_class=MediaClass.TRACK,
+            media_type="beq_unavailable",
+            media_id="beq:unavailable",
+            can_play=False,
+            can_browse=False,
+            subtitle="BEQ loading requires PEQ Location to be set to Pre-Dirac.",
+        )
+    ]
+    # Keep the existing clear action reachable if a BEQ is already active.
+    if getattr(device, "beq_active", ""):
+        items.append(BrowseMediaItem(
+            title=f"Clear BEQ: {device.beq_active}",
+            media_class=MediaClass.TRACK,
+            media_type="beq_clear",
+            media_id="beq:clear",
+            can_play=True,
+            can_browse=False,
+            subtitle="Remove currently loaded BEQ filter",
+        ))
+    return BrowseResults(
+        media=BrowseMediaItem(
+            title=getattr(device, "name", "BEQ Catalogue"),
+            media_class=MediaClass.DIRECTORY,
+            media_type="root",
+            media_id="root",
+            can_browse=True,
+            can_search=False,
+            items=items,
+        ),
+        pagination=Pagination(page=1, limit=len(items), count=len(items)),
+    )
+
+
 async def browse(device: HTP1Device, options: BrowseOptions) -> BrowseResults | StatusCodes:
+    # BEQ is applied before Dirac on the LFE path. Never expose the catalogue
+    # when placement is post-Dirac or the receiver state cannot confirm Pre.
+    if _peq_location(device) != "pre":
+        return _browse_unavailable(device)
+
     media_type = options.media_type or "root"
     media_id = options.media_id or ""
     if media_type == "root":
