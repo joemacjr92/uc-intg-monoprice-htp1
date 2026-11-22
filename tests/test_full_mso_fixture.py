@@ -36,7 +36,9 @@ def test_sanitized_full_mso_fixture_is_valid_and_retains_real_device_sections():
     assert state["shaker"]["content"] == "lfe"
     assert len(state["cal"]["slots"]) == 6
     assert len(state["peq"]["slots"]) == 16
-    assert len(state["speakers"]) == 16
+    assert isinstance(state["speakers"], dict)
+    assert isinstance(state["speakers"]["mapping"], list)
+    assert len(state["speakers"]["mapping"]) >= 20
 
 
 def test_full_mso_fixture_parses_into_device_state_and_sensors():
