@@ -229,3 +229,17 @@ Update this section as work progresses. Record verified facts only.
 | Handoff location | `docs/PROJECT_HANDOFF.md` on `tests-and-docs` only. |
 
 **When updating status:** include the relevant branch, commit SHA, PR link (if applicable), CI run/result, and whether real HTP-1 hardware was tested. Do not mark a phase complete based only on an implementation commit.
+
+
+## Lint audit — 2026-11-22
+
+A broader diagnostic Ruff audit was added to the QA-only `phase1-qa.yml` workflow in commit `d66ec384b5781a6e10c9a537ece93cf2c332445d`. It checks implementation code from the selected production source ref together with QA tests and tools. The existing focused `F` check remains a required step; the broader rule-family audit is diagnostic and uses `continue-on-error`.
+
+- Focused Pyflakes check (`ruff check --select F`): passed.
+- Broader diagnostic check (`E,F,W,I,UP,B,SIM,ASYNC,PERF,PIE,PT,RET,RUF,C4,DTZ,LOG,PGH,PL,TRY`): reported 663 findings across implementation, tests, and tools.
+- The largest reported groups include E501 line length, TRY003/TRY004 exception-style rules, and I001 import ordering.
+- Existing `setup.cfg` declares a 120-character line limit, while the diagnostic Ruff invocation used Ruff's default 88-character limit. E501 findings therefore require a correctly aligned configuration before they can be treated as actionable.
+- Many additional rules are opinionated modernization/style guidance, not evidence of runtime defects. Do not apply bulk `--fix`, unsafe fixes, or broad refactoring. Review rule families individually, preserve behavior, and add any adopted rules deliberately.
+- The broader diagnostic run completed and the full Phase 1 QA workflow passed; the regular Tests workflow also passed. These are automated results only, not HTP-1 hardware acceptance.
+
+No production source files, tests, or test fixtures were changed by this audit. QA workflow and handoff changes remain on `tests-and-docs`.
