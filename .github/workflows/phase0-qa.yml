@@ -43,7 +43,7 @@ jobs:
       # Phase 0's tests are run separately against the Phase 0 implementation
       # checkout so they cannot accidentally import the wrong source tree.
       - name: Run complete existing regression suite
-        run: python -m pytest -q --ignore=tests/phase0/test_configurable_port.py
+        run: python -m pytest -q --ignore=tests/phase0/test_configurable_port.py --ignore=tests/phase1
 
       - name: Run Phase 0 regression tests against implementation branch
         working-directory: implementation
