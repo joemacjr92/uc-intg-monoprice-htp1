@@ -38,6 +38,24 @@ def test_legacy_config_without_port_uses_default():
     assert config.port == 80
 
 
+
+
+def test_legacy_config_file_without_port_uses_default(tmp_path):
+    legacy_config = [{
+        "identifier": "legacy",
+        "name": "Legacy HTP-1",
+        "host": "192.0.2.20",
+    }]
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(legacy_config), encoding="utf-8")
+
+    manager = BaseConfigManager(str(config_path), config_class=HTP1Config)
+
+    restored = manager.get("legacy")
+    assert restored is not None
+    assert restored.port == 80
+
+
 def test_device_websocket_url_uses_configured_port():
     config = HTP1Config("test", "Test HTP-1", "192.0.2.10", 8088)
     device = HTP1Device(config)
@@ -162,6 +180,29 @@ def test_setup_form_prefills_saved_port(monkeypatch):
     assert fields["port"]["field"]["text"]["value"] == "8088"
 
 
+
+
+def test_setup_uses_default_port_when_field_is_omitted(monkeypatch):
+    from intg_monoprice_htp1 import setup_flow
+
+    flow = setup_flow.HTP1SetupFlow.__new__(setup_flow.HTP1SetupFlow)
+    flow._add_mode = True
+    seen = []
+
+    async def fake_probe(host, port=80):
+        seen.append((host, port))
+        return None
+
+    monkeypatch.setattr(setup_flow, "probe_htp1", fake_probe)
+    config = asyncio.run(
+        flow.query_device({"name": "Receiver", "host": "192.0.2.10"})
+    )
+
+    assert isinstance(config, HTP1Config)
+    assert config.port == 80
+    assert seen == [("192.0.2.10", 80)]
+
+
 def test_setup_parses_port_and_passes_it_to_probe(monkeypatch):
     from intg_monoprice_htp1 import setup_flow
 
@@ -184,6 +225,38 @@ def test_setup_parses_port_and_passes_it_to_probe(monkeypatch):
 
 
 @pytest.mark.parametrize("port", ["0", "65536", "-1", "80.5", "abc", ""])
+
+
+def test_setup_update_preserves_identifier_and_applies_new_port(monkeypatch):
+    from intg_monoprice_htp1 import setup_flow
+
+    flow = setup_flow.HTP1SetupFlow.__new__(setup_flow.HTP1SetupFlow)
+    flow._add_mode = False
+    existing = HTP1Config("stable-id", "Old Name", "192.0.2.10", 80)
+    monkeypatch.setattr(flow, "_existing_config", lambda: existing)
+    seen = []
+
+    async def fake_probe(host, port=80):
+        seen.append((host, port))
+        return None
+
+    monkeypatch.setattr(setup_flow, "probe_htp1", fake_probe)
+    config = asyncio.run(
+        flow.query_device({
+            "name": "Updated Receiver",
+            "host": "192.0.2.11",
+            "port": "8088",
+        })
+    )
+
+    assert isinstance(config, HTP1Config)
+    assert config.identifier == "stable-id"
+    assert config.name == "Updated Receiver"
+    assert config.host == "192.0.2.11"
+    assert config.port == 8088
+    assert seen == [("192.0.2.11", 8088)]
+
+
 def test_setup_rejects_invalid_port_without_probing(monkeypatch, port):
     from intg_monoprice_htp1 import setup_flow
 
