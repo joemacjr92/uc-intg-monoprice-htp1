@@ -83,7 +83,7 @@ def test_http_ir_command_handles_connection_refused():
 
 def test_http_ir_command_handles_timeout(monkeypatch):
     class TimeoutRequest:
-        async def __aaenter__(self):
+        async def __aenter__(self):
             raise asyncio.TimeoutError
 
         async def __aexit__(self, *_args):
