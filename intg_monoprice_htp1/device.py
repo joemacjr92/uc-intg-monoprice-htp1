@@ -812,8 +812,6 @@ class HTP1Device(WebSocketDevice):
             if snapshot is None or not snapshot["vpl"] <= volume <= snapshot["vph"]:
                 return False
             return bool(self._capture_dirac_volume_absolute(volume - snapshot["zp"]))
-        if self._dirac_commands_blocked():
-            return False
         async with self._transaction_lock:
             if not await self._refresh_state_locked() or not isinstance(self._state, dict):
                 return False
@@ -836,8 +834,6 @@ class HTP1Device(WebSocketDevice):
             normalized = max(0.0, min(1.0, level))
             target_raw = int(round(snapshot["vpl"] + normalized * (snapshot["vph"] - snapshot["vpl"])))
             return bool(self._capture_dirac_volume_absolute(target_raw - snapshot["zp"]))
-        if self._dirac_commands_blocked():
-            return False
         async with self._transaction_lock:
             if not await self._refresh_state_locked():
                 return False
