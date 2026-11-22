@@ -1,0 +1,181 @@
+"""Command-to-state round-trip tests using the captured HTP-1 state fixture."""
+
+import asyncio
+import copy
+import json
+from pathlib import Path
+from types import SimpleNamespace
+
+from intg_monoprice_htp1.config import HTP1Config
+from intg_monoprice_htp1.device import HTP1Device, apply_json_patch
+from intg_monoprice_htp1.media_player import HTP1MediaPlayer
+from intg_monoprice_htp1.selector import HTP1Select
+from ucapi import StatusCodes
+from ucapi.media_player import Commands as MediaCommands
+from ucapi.select import Commands as SelectCommands
+
+
+FIXTURE = Path(__file__).parents[1] / "fixtures" / "htp1_full_mso.json"
+
+
+class RecordingWebSocket:
+    """Capture device writes without replacing command or parser behavior."""
+
+    def __init__(self):
+        self.messages = []
+
+    async def send(self, message):
+        self.messages.append(message)
+
+
+def make_device():
+    device = HTP1Device(
+        HTP1Config("roundtrip", "Round Trip HTP-1", "127.0.0.1"),
+        loop=asyncio.get_running_loop(),
+    )
+    device._is_connected = True
+    device._state = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    device._parse_state()
+    device._ws = RecordingWebSocket()
+    return device
+
+
+async def apply_recorded_transaction(device):
+    """Apply the last captured changemso to a receiver snapshot and read it back."""
+    message = device._ws.messages[-1]
+    assert message.startswith("changemso ")
+    operations = json.loads(message.partition(" ")[2])
+    updated_state = copy.deepcopy(device._state)
+    for operation in operations:
+        apply_json_patch(
+            updated_state,
+            operation["op"],
+            operation["path"],
+            operation.get("value"),
+        )
+    await device.handle_message(f"msoupdate {json.dumps(operations)}")
+    assert device._state == updated_state
+    return operations
+
+
+def test_media_player_volume_command_round_trips_through_receiver_state():
+    async def exercise():
+        device = make_device()
+        entity = SimpleNamespace(_device=device, id="media_player.roundtrip")
+
+        status = await HTP1MediaPlayer._handle_command(
+            entity, entity, MediaCommands.VOLUME, {"volume": 50}
+        )
+
+        assert status == StatusCodes.OK
+        operations = await apply_recorded_transaction(device)
+        # The fixture's current raw volume is -27. The existing five-dB
+        # safeguard clamps the requested 50% target to -32 raw HTP-1 volume.
+        assert operations == [
+            {"op": "replace", "path": "/volume", "value": -32}
+        ]
+        assert device._state["volume"] == -32
+        assert device.volume_db == -25
+        assert device.get_sensor_value("volume") == "-25"
+
+        updates = []
+        player = SimpleNamespace(
+            _device=device,
+            update=lambda values: updates.append(values),
+        )
+        await HTP1MediaPlayer.sync_state(player)
+        from ucapi.media_player import Attributes
+
+        assert updates[-1][Attributes.VOLUME] == -25
+
+    asyncio.run(exercise())
+
+
+def test_media_player_mute_command_round_trips_through_receiver_state():
+    async def exercise():
+        device = make_device()
+        entity = SimpleNamespace(_device=device, id="media_player.roundtrip")
+
+        status = await HTP1MediaPlayer._handle_command(
+            entity, entity, MediaCommands.MUTE, None
+        )
+
+        assert status == StatusCodes.OK
+        operations = await apply_recorded_transaction(device)
+        assert operations == [
+            {"op": "replace", "path": "/muted", "value": True}
+        ]
+        assert device._state["muted"] is True
+        assert device.muted is True
+        assert device.get_sensor_value("mute") == "On"
+
+        updates = []
+        player = SimpleNamespace(
+            _device=device,
+            update=lambda values: updates.append(values),
+        )
+        await HTP1MediaPlayer.sync_state(player)
+        from ucapi.media_player import Attributes
+
+        assert updates[-1][Attributes.MUTED] is True
+
+    asyncio.run(exercise())
+
+
+def test_input_select_command_round_trips_through_receiver_state():
+    async def exercise():
+        device = make_device()
+        entity = SimpleNamespace(
+            _device=device,
+            name="Input",
+            _get_options=lambda: device.source_list,
+            _command_fn=device.select_source,
+        )
+
+        status = await HTP1Select._handle_command(
+            entity, entity, SelectCommands.SELECT_OPTION, {"option": "Streaming"}
+        )
+
+        assert status == StatusCodes.OK
+        operations = await apply_recorded_transaction(device)
+        assert operations == [
+            {"op": "replace", "path": "/input", "value": "h2"}
+        ]
+        assert device._state["input"] == "h2"
+        assert device.current_source == "Streaming"
+        assert device.get_sensor_value("input") == "Streaming"
+
+        updates = []
+        selector = SimpleNamespace(
+            _device=device,
+            _get_options=lambda: device.source_list,
+            _get_current=lambda: device.current_source,
+            update=lambda values: updates.append(values),
+        )
+        await HTP1Select.sync_state(selector)
+        from ucapi.select import Attributes
+
+        assert updates[-1][Attributes.CURRENT_OPTION] == "Streaming"
+        assert updates[-1][Attributes.OPTIONS] == device.source_list
+
+    asyncio.run(exercise())
+
+
+def test_input_select_rejects_source_not_in_current_eligible_options():
+    async def exercise():
+        device = make_device()
+        entity = SimpleNamespace(
+            _device=device,
+            name="Input",
+            _get_options=lambda: device.source_list,
+            _command_fn=device.select_source,
+        )
+
+        status = await HTP1Select._handle_command(
+            entity, entity, SelectCommands.SELECT_OPTION, {"option": "Hidden Input"}
+        )
+
+        assert status == StatusCodes.BAD_REQUEST
+        assert device._ws.messages == []
+
+    asyncio.run(exercise())
