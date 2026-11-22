@@ -13,6 +13,7 @@ import logging
 import math
 import time
 from collections import OrderedDict
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import aiohttp
@@ -42,7 +43,17 @@ _manifest: dict[str, Any] | None = None
 _index_loaded_at: float = 0.0
 _index_lock = asyncio.Lock()
 _entry_cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
-_entry_locks: dict[tuple[str, str], list[Any]] = {}
+
+
+@dataclass
+class _EntryLock:
+    """Reference-counted lock shared by in-flight requests for one entry."""
+
+    lock: asyncio.Lock
+    users: int = 0
+
+
+_entry_locks: dict[tuple[str, str], _EntryLock] = {}
 
 
 def _new_session() -> aiohttp.ClientSession:
@@ -215,10 +226,10 @@ async def get_beq_entry(key: str) -> dict[str, Any] | None:
     lock_key = (version, key)
     lock_entry = _entry_locks.get(lock_key)
     if lock_entry is None:
-        lock_entry = [asyncio.Lock(), 0]
+        lock_entry = _EntryLock(asyncio.Lock())
         _entry_locks[lock_key] = lock_entry
-    lock_entry[1] += 1
-    lock = lock_entry[0]
+    lock_entry.users += 1
+    lock = lock_entry.lock
     try:
         async with lock:
             if key in _entry_cache:
@@ -261,8 +272,8 @@ async def get_beq_entry(key: str) -> dict[str, Any] | None:
                     _entry_cache.popitem(last=False)
             return payload
     finally:
-        lock_entry[1] -= 1
-        if lock_entry[1] == 0 and _entry_locks.get(lock_key) is lock_entry:
+        lock_entry.users -= 1
+        if lock_entry.users == 0 and _entry_locks.get(lock_key) is lock_entry:
             del _entry_locks[lock_key]
 
 
