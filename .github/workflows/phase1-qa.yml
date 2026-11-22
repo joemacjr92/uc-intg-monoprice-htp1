@@ -68,6 +68,25 @@ jobs:
           raise SystemExit(pytest.main(["-q", "../tests/phase0"]))
           PY
 
+      - name: Run newly added regression-gap tests against implementation branch
+        working-directory: implementation
+        run: |
+          python - <<'PY'
+          import os
+          import sys
+          import pytest
+
+          sys.path.insert(0, os.getcwd())
+          raise SystemExit(pytest.main([
+              "-q",
+              "--import-mode=importlib",
+              "../tests/phase1/test_power_toggle_regressions.py",
+              "../tests/phase1/test_http_ir_commands.py",
+              "../tests/phase1/test_remote_command_sequences.py",
+              "../tests/phase1/test_websocket_probe.py",
+          ]))
+          PY
+
       - name: Run Phase 1 tests against implementation branch
         working-directory: implementation
         run: |
