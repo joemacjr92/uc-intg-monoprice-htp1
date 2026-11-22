@@ -114,14 +114,12 @@ def test_setup_form_exposes_port_field_with_default(monkeypatch):
     assert fields["port"]["field"]["text"]["value"] == "80"
 
 
-def test_setup_form_prefills_saved_port():
+def test_setup_form_prefills_saved_port(monkeypatch):
     from intg_monoprice_htp1.setup_flow import HTP1SetupFlow
 
     flow = HTP1SetupFlow.__new__(HTP1SetupFlow)
-    flow._add_mode = False
-    flow.selected_config_entry = HTP1Config(
-        "test", "Test HTP-1", "192.0.2.10", 8088
-    )
+    existing = HTP1Config("test", "Test HTP-1", "192.0.2.10", 8088)
+    monkeypatch.setattr(flow, "_existing_config", lambda: existing)
     form = flow.get_manual_entry_form()
     fields = {item["id"]: item for item in form.settings}
 
@@ -192,8 +190,9 @@ def test_http_ir_command_uses_configured_port(monkeypatch):
             return FakeResponse()
 
     monkeypatch.setattr(device_module.aiohttp, "ClientSession", FakeSession)
-    receiver = HTP1Device(
-        HTP1Config("test", "Test HTP-1", "192.0.2.10", 8088)
+    receiver = HTP1Device.__new__(HTP1Device)
+    receiver._device_config = HTP1Config(
+        "test", "Test HTP-1", "192.0.2.10", 8088
     )
 
     assert asyncio.run(receiver.send_http_command("0BF4"))
