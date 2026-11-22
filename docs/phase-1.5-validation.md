@@ -90,3 +90,47 @@ Suggested checks:
 7. Confirm Clear BEQ remains available when a BEQ is already active but placement is no longer eligible.
 
 Record actual Remote/HTP-1 observations separately from automated test and build results. No merge, release, tag, or deployment has been performed as part of this validation record.
+
+
+## Later implementation and validation addendum — 2026-11-22
+
+This addendum supersedes the earlier "latest verified" commit and CI references above for the newer Dirac lifecycle and deferred-volume work. The earlier Phase 1.5 results remain as historical baseline evidence.
+
+### Current branch state
+
+- Production implementation commit: 282bf486d4ac6ddc5068b57168177b75e5ccf1b3 on feature-validation. The branch has one later log-only update to dumps/integration.log; no later production source change was found during this review.
+- QA/documentation head before this documentation update: 7c5ed4c66e7126ddfed106a6cbde89b598c613c0 on tests-and-docs.
+- QA-only test files and workflows remain isolated on tests-and-docs.
+
+### Dirac asynchronous lifecycle and apply-window behavior
+
+- Dirac selection acknowledges the Remote after receiver acceptance, then monitors the matching receiver-generated request asynchronously until completion or failure.
+- While Dirac is applying, volume requests are captured and consolidated; at most one volume write is applied after successful completion and confirming receiver readback.
+- The shared volume helper applies calibration bounds, zero-point translation, and the existing 5 dB maximum-change limiter.
+- Other state-changing commands—including power, mute, input, surround mode, BEQ, Seat Shaker, menu, and IR commands—are rejected during the apply window. A second Dirac selection is also rejected.
+- Refusal, timeout, disconnect, or invalid volume/calibration metadata discards pending volume intent. The last confirmed calibration remains displayed until completion is confirmed.
+- QA coverage includes relative/absolute volume aggregation, high-frequency bursts, calibration bounds, zero-point changes, the 5 dB limiter, queued commands across the lock boundary, refusal, timeout, disconnect, and release of the operation lock.
+
+### Latest automated validation
+
+- Phase 1 WebSocket Safety QA [run 45070175008](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45070175008): passed, 132 Phase 1 tests; Phase 0/general/TLS checks passed; five isolated Dirac stress repetitions × 20 attempts (100 total) passed; focused Ruff checks passed.
+- Phase 0 and Full QA [run 45070175100](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45070175100): passed.
+- Standard Tests [run 45070175088](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45070175088): passed.
+- ARM64 Test Build [run 45070154233](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45070154233): passed against production commit 282bf486d4ac6ddc5068b57168177b75e5ccf1b3.
+- Latest explicitly recorded coverage percentage remains 79% combined for the measured device.py and browser.py modules (run 45058395723). The later coverage-enabled run 45070175008 passed, but the exact percentage was not recorded in the handoff. The workflow emits terminal and XML coverage reports but does not enforce a minimum threshold. Do not represent 79% as a freshly measured value for run 45070175008.
+
+### Limited physical HTP-1 verification
+
+Two tests used the integration debug/simulator session connected to the physical HTP-1; no actual Unfolded Circle Remote was involved.
+
+- Volume up: from displayed -20 dB, a +13 dB accumulated request resulted in one consolidated write and final displayed volume -15 dB, limited to +5 dB.
+- Volume down: from displayed -15 dB, 30 accumulated down requests resulted in one consolidated write and final displayed volume -20 dB, limited to -5 dB.
+
+These tests support the deferred-volume aggregation, calibration translation/bounds, and shared limiter for the tested cases. Both also logged "Receiver state mismatch after transaction at /volume" immediately after the write, followed by a later state event showing the expected displayed volume. The cause remains unresolved; treat it as an outstanding verification timing/race investigation, not as a confirmed harmless warning or a confirmed failed volume operation. Do not add automatic retries without proving the cause.
+
+### Remaining hardware scope
+
+- Full actual Remote plus HTP-1 acceptance remains pending.
+- The user explicitly deferred on-device testing for the power/Dirac slow-response and other regression-gap scenarios to a larger testing effort; those cases are covered by automated tests only.
+- Continue to distinguish fake-receiver/CI results from physical HTP-1 tests and actual Remote acceptance.
+- No deployment, release, merge, tag, or upstream PR has been performed.
