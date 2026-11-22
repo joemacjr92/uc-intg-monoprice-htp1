@@ -17,7 +17,13 @@ Verify the configurable HTP-1 connection port and the private reverse-proxy path
 - Backup/restore preserving a configured port.
 - Legacy backup restore defaulting to port 80.
 
-The tests were originally run in the feature branch CI. The feature branch's successful test run was GitHub Actions run **44965976353** (33 tests; feature commit `6e2a2ee8a6170b4123b71e033cdfdb53934c6f01`). This records the result at that commit; it is not a claim that the test suite has been rerun from this QA branch.
+The Phase 0 tests were rerun from this QA branch against the actual implementation checkout using the dedicated **Phase 0 and Full QA Tests** workflow. GitHub Actions run **44974796280** completed successfully:
+
+- Existing regression suite on `tests-and-docs`: **92 passed, 1 skipped**.
+- Phase 0 regression suite against `feature/configurable-htp1-port`: **33 passed**.
+- Combined: **125 passed, 1 skipped**.
+
+The workflow runs the two suites separately so Phase 0 tests import the implementation branch rather than the QA branch's source tree. The two BEQ fixture tests also now supply explicit event loops, avoiding dependence on implicit event-loop creation in Python 3.11. The earlier feature-branch run **44965976353** also passed 33 tests at feature commit `6e2a2ee8a6170b4123b71e033cdfdb53934c6f01`.
 
 ## Remote and backup verification
 
