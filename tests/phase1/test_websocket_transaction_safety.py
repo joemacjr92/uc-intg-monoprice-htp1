@@ -165,21 +165,22 @@ def test_partial_beq_application_is_not_reported_as_success():
 
 
 def test_beq_state_refresh_timeout_aborts_before_any_write(monkeypatch):
+    # Set the production timeout before creating the device/event loop.
+    import intg_monoprice_htp1.device as device_module
+
+    monkeypatch.setattr(device_module, "STATE_REFRESH_TIMEOUT", 0.05)
+
     async def exercise():
         state = json.loads(BEQ_FIXTURE.read_text(encoding="utf-8"))
         device, receiver = _make_device(
             receiver_state=state,
             reply_to_getmso=False,
         )
-        # Keep the failure-injection test fast while exercising the same
-        # production timeout path.
-        monkeypatch.setattr(
-            "intg_monoprice_htp1.device.STATE_REFRESH_TIMEOUT",
-            0.01,
-            raising=False,
-        )
 
-        result = await device.load_beq("Timed out preflight", BEQ_FILTERS)
+        result = await asyncio.wait_for(
+            device.load_beq("Timed out preflight", BEQ_FILTERS),
+            timeout=1.0,
+        )
 
         assert result is False
         assert receiver.messages == ["getmso"]
