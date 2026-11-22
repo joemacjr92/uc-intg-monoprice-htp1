@@ -32,6 +32,7 @@ def test_power_mute_and_volume_commands_send_expected_patches():
 
         device._send_transaction = capture
         install_transaction_test_doubles(device, sent)
+        install_transaction_test_doubles(device, sent)
         assert await device.turn_on()
         assert sent[-1] == [{"op": "replace", "path": "/powerIsOn", "value": True}]
         assert await device.turn_off()
@@ -62,6 +63,7 @@ def test_volume_up_down_respect_receiver_limits():
             return True
 
         device._send_transaction = capture
+        install_transaction_test_doubles(device, sent)
         device._state = {"volume": 11}
         device.vph = 12
         assert await device.volume_up()
@@ -94,6 +96,7 @@ def test_volume_slider_clamps_range_and_limits_large_jumps():
             return True
 
         device._send_transaction = capture
+        install_transaction_test_doubles(device, sent)
         device._state = {"volume": -30, "cal": {}}
         device.vpl = -80
         device.vph = 12
@@ -126,6 +129,7 @@ def test_input_mode_and_dirac_selection_send_expected_native_values():
             return True
 
         device._send_transaction = capture
+        install_transaction_test_doubles(device, sent)
         device._state = {
             "inputs": {
                 "hdmi1": {"label": "Apple TV", "visible": True},
@@ -165,6 +169,7 @@ def test_seat_shaker_controls_validate_and_send_native_values():
             return True
 
         device._send_transaction = capture
+        install_transaction_test_doubles(device, sent)
         device._state = {"shaker": {}}
         assert await device.ss_mute_toggle(True)
         assert sent[-1][0]["value"] == "on"
@@ -194,6 +199,7 @@ def test_device_command_boundaries_reject_invalid_arguments():
             return True
 
         device._send_transaction = capture
+        install_transaction_test_doubles(device, sent)
         device.vpl = -80
         device.vph = 12
         for value in (True, 12.5, float("nan"), float("inf"), -81, 13):
