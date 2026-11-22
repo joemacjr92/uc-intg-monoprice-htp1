@@ -6,13 +6,13 @@ Use this document when starting a new ChatGPT conversation about this repository
 
 Repository: https://github.com/joemacjr92/uc-intg-monoprice-htp1
 
-**Before doing project work, read the complete [PROJECT_HANDOFF.md](PROJECT_HANDOFF.md) on the `tests-and-docs` branch.** It is the canonical source for the approved roadmap, branch strategy, development constraints, remote reverse-proxy setup, and project-specific decisions.
+**Before doing project work, read the complete [PROJECT_HANDOFF.md](PROJECT_HANDOFF.md) on the `tests-and-docs` branch.** It is the canonical source for the approved roadmap, branch strategy, development constraints, and project-specific decisions.
 
 The live GitHub repository is authoritative for current implementation status. The handoff document records agreed intent and context; it must not be treated as proof that a task, test, or phase is complete.
 
 ## Critical product and device-context distinction
 
-This repository is the **Unfolded Circle integration for the Monoprice HTP-1**. Keep the Unfolded Circle platform/integration context separate from the user's Couch device and any Couch-related project or operating-environment context. The remote test client at `10.0.0.25` is the **Couch device**; it is a test/client host in the remote access setup, not the Unfolded Circle Remote itself and not the HTP-1. Do not relabel it as an Unfolded Circle device, and do not describe the HTP-1 integration as Couch development. When discussing the topology, name each system by its actual role. If a role or device identity is uncertain, verify it or ask rather than infer from prior project context.
+This repository is the **Unfolded Circle integration for the Monoprice HTP-1**. Keep the Unfolded Circle platform/integration context separate from the user's Couch device and any Couch-related project or operating-environment context. The integration target is the HTP-1; the platform is Unfolded Circle. Do not conflate device identities or project environments. If a role or device identity is uncertain, verify it or ask rather than infer from prior project context.
 
 ## Copy-and-paste prompt for a new chat
 
@@ -27,7 +27,7 @@ https://github.com/joemacjr92/uc-intg-monoprice-htp1/blob/tests-and-docs/docs/PR
 
 Before proposing or making changes:
 
-1. Read and follow PROJECT_HANDOFF.md, including the Phase 0–6 roadmap, branch strategy, remote proxy details, and scope restrictions.
+1. Read and follow PROJECT_HANDOFF.md, including the Phase 0–6 roadmap, branch strategy, and scope restrictions.
 2. Inspect the live GitHub state relevant to this work: branches and their heads, recent commits, open PRs, CI/check results, and the relevant source and test files.
 3. Establish what is actually complete from repository and test evidence. Do not infer completion from the roadmap or an earlier chat summary.
 4. Identify the current phase and the next unfinished task.
@@ -36,7 +36,6 @@ Before proposing or making changes:
 Important project rules:
 
 - This is the Unfolded Circle integration for the Monoprice HTP-1. Keep it distinct from the separate Couch device/project context and from Fire TV development.
-- The remote test client at `10.0.0.25` is the Couch device. It is not the Unfolded Circle Remote and is not the HTP-1. Refer to it as the Couch device / remote test client, according to context.
 - Keep the fork's main branch aligned with Mase's upstream; do not develop independent production changes on main.
 - Use tests-and-docs for tests, fixtures, documentation, handoff material, and QA-only workflows.
 - Make production changes on focused feature/* branches.
@@ -44,7 +43,7 @@ Important project rules:
 - Preserve existing behavior unless an approved task explicitly requires a correction.
 - Keep scope tight; do not add deferred features or reinterpret requirements without asking.
 - Add regression tests for corrections and distinguish unit tests, CI, remote connectivity, and real HTP-1 hardware validation.
-- Use the existing private Synology reverse-proxy/Tailscale/Caddy route for remote testing as documented in PROJECT_HANDOFF.md. Do not enable public port forwarding or invent another tunnel.
+- Use only the user's established private remote-access path for remote testing. Do not record private endpoints, addresses, hostnames, tunnel details, or proxy topology in repository documentation. Do not enable public port forwarding or change the access setup without approval.
 - Do not merge, publish, release, deploy, or push upstream without my explicit approval.
 - Keep PROJECT_HANDOFF.md updated on tests-and-docs when I approve material plan or status changes. Do not include QA/handoff files in production PRs.
 
