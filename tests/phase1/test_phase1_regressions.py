@@ -184,12 +184,9 @@ def test_beq_entry_lock_registry_is_reclaimed_when_fetch_is_cancelled(monkeypatc
         await started.wait()
         assert browser._entry_locks
         task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
-        else:
-            pytest.fail("cancelled BEQ fetch unexpectedly completed")
+        result = await asyncio.gather(task, return_exceptions=True)
+        assert len(result) == 1
+        assert isinstance(result[0], asyncio.CancelledError)
         assert browser._entry_locks == {}
 
     asyncio.run(exercise())
