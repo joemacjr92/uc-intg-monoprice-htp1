@@ -28,6 +28,8 @@ BEQ_SLOT_END = 15
 KEEPALIVE_INTERVAL = 20
 KEEPALIVE_TIMEOUT = 10
 PROBE_TIMEOUT = 5.0
+SEAT_SHAKER_TRIM_MIN = -24
+SEAT_SHAKER_TRIM_MAX = 6
 
 
 def _as_dict(value: Any) -> dict:
@@ -294,6 +296,20 @@ class HTP1Device(WebSocketDevice):
         preset = _as_dict(presets.get(str(active_index)))
         self.ss_trim = _number(preset.get("trim"), 0)
 
+    @staticmethod
+    def _is_eligible_input(info: Any) -> bool:
+        """Return whether an input can be selected directly by the user.
+
+        Add-on audio sources are started by their owning player and are
+        intentionally hidden from manual input selection, even if malformed
+        or older state reports them as visible.
+        """
+        return (
+            isinstance(info, dict)
+            and info.get("visible") is True
+            and not info.get("addon")
+        )
+
     def _parse_inputs(self) -> None:
         state = _as_dict(self._state)
         input_id = state.get("input", "")
@@ -305,7 +321,7 @@ class HTP1Device(WebSocketDevice):
             label = info.get("label", inp_id)
             if not isinstance(label, str):
                 continue
-            if info.get("visible") is True:
+            if self._is_eligible_input(info):
                 self.source_list.append(label)
             if inp_id == input_id:
                 self.current_source = label
@@ -495,7 +511,12 @@ class HTP1Device(WebSocketDevice):
         ])
     
     async def set_ss_trim(self, trim: int) -> bool:
-        if isinstance(trim, bool) or not isinstance(trim, int):
+        if (
+            isinstance(trim, bool)
+            or not isinstance(trim, int)
+            or not SEAT_SHAKER_TRIM_MIN <= trim <= SEAT_SHAKER_TRIM_MAX
+        ):
+            _LOG.warning("[%s] Rejecting invalid seat shaker trim: %r", self.log_id, trim)
             return False
         _LOG.info("[%s] Setting seat shaker trim to %d", self.log_id, trim)
         return await self._send_transaction([
@@ -508,7 +529,10 @@ class HTP1Device(WebSocketDevice):
         _LOG.info("[%s] Selecting source: %s", self.log_id, source)
         inputs = _as_dict(self._state.get("inputs"))
         for inp_id, inp_info in inputs.items():
-            if isinstance(inp_info, dict) and inp_info.get("label") == source:
+            if (
+                self._is_eligible_input(inp_info)
+                and inp_info.get("label") == source
+            ):
                 return await self._send_transaction([
                     {"op": "replace", "path": "/input", "value": inp_id}
                 ])
@@ -740,9 +764,10 @@ class HTP1Device(WebSocketDevice):
         if not isinstance(slots, list) or not slots:
             return False
 
-        sub_channels = self._get_sub_channels()
-        if not sub_channels:
-            return False
+        # BEQ must run before Dirac so it modifies the LFE channel signal,
+        # not individual post-Dirac subwoofer outputs. In the HTP-1 MSO,
+        # sub1 is the Pre-PEQ LFE path.
+        sub_channels = ["sub1"]
 
         next_slot = BEQ_SLOT_START
         filter_ops: list[dict[str, Any]] = []
@@ -776,6 +801,7 @@ class HTP1Device(WebSocketDevice):
         # Send cleanup and replacement together. A preflight or send failure
         # no longer clears the current BEQ in a separate earlier transaction.
         ops = clear_ops + filter_ops + [
+            {"op": "replace", "path": "/peq/location", "value": "pre"},
             {"op": "add", "path": "/peq/beqActive", "value": title.strip()},
             {"op": "replace", "path": "/peq/peqsw", "value": True},
         ]
