@@ -837,3 +837,44 @@ def test_dirac_command_gate_releases_after_confirmed_completion():
 
     asyncio.run(exercise())
 
+def test_volume_request_queued_before_dirac_start_is_captured_after_lock_release():
+    async def exercise():
+        device, receiver = make_device()
+        try:
+            async with device._transaction_lock:
+                pending = asyncio.create_task(device.volume_up())
+                await asyncio.sleep(0)
+                device._begin_dirac_volume_capture()
+                device._dirac_accepting = True
+
+            assert await asyncio.wait_for(pending, timeout=0.2) is True
+            assert device._dirac_volume_delta == 1
+            assert receiver.change_count == 0
+            assert receiver.getmso_count == 0
+        finally:
+            device._dirac_accepting = False
+            device._discard_dirac_volume_capture()
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
+
+def test_non_volume_mutation_queued_before_dirac_start_is_rejected_after_lock_release():
+    async def exercise():
+        device, receiver = make_device()
+        try:
+            async with device._transaction_lock:
+                pending = asyncio.create_task(device.mute_toggle(True))
+                await asyncio.sleep(0)
+                device._dirac_accepting = True
+
+            assert await asyncio.wait_for(pending, timeout=0.2) is False
+            assert receiver.messages == []
+            assert receiver.change_count == 0
+            assert receiver.getmso_count == 0
+        finally:
+            device._dirac_accepting = False
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
