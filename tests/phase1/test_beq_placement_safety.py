@@ -36,10 +36,10 @@ def make_device(location):
     return device
 
 
-def _browser_device(location):
+def _browser_device(location, active=""):
     return SimpleNamespace(
         name="BEQ Placement Test",
-        beq_active="",
+        beq_active=active,
         _state={"peq": {"location": location}},
     )
 
@@ -137,5 +137,28 @@ def test_beq_browse_with_non_pre_placement_shows_only_unavailable_item(
             _browse_options(media_type=media_type, media_id=media_id),
         )
         _assert_unavailable_item(result)
+
+    asyncio.run(exercise())
+
+
+
+def test_unavailable_beq_browser_keeps_existing_clear_action_available(monkeypatch):
+    async def exercise():
+        async def index_must_not_load():
+            raise AssertionError("BEQ catalogue must not load unless PEQ is Pre")
+
+        monkeypatch.setattr(browser, "_load_index", index_must_not_load)
+        result = await browser.browse(
+            _browser_device("post", active="Previously loaded BEQ"),
+            _browse_options(),
+        )
+
+        assert [item.title for item in result.media.items] == [
+            "BEQ Unavailable",
+            "Clear BEQ: Previously loaded BEQ",
+        ]
+        assert result.media.items[0].can_play is False
+        assert result.media.items[1].can_play is True
+        assert result.media.can_search is False
 
     asyncio.run(exercise())
