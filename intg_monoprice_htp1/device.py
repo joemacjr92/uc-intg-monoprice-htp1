@@ -28,6 +28,7 @@ BEQ_SLOT_END = 15
 KEEPALIVE_INTERVAL = 20
 KEEPALIVE_TIMEOUT = 10
 PROBE_TIMEOUT = 5.0
+STATE_REFRESH_TIMEOUT = 5.0
 SEAT_SHAKER_TRIM_MIN = -24
 SEAT_SHAKER_TRIM_MAX = 6
 
@@ -96,6 +97,8 @@ class HTP1Device(WebSocketDevice):
         self._state_ready = asyncio.Event()
         self._ws: Any | None = None
         self._send_lock = asyncio.Lock()
+        self._transaction_lock = asyncio.Lock()
+        self._connection_generation = 0
 
         self.events.on(DeviceEvents.CONNECTED, self._on_connected)
         self.events.on(DeviceEvents.DISCONNECTED, self._on_disconnected)
@@ -121,6 +124,7 @@ class HTP1Device(WebSocketDevice):
 
     async def _on_connected(self, identifier: str) -> None:
         _LOG.info("[%s] WebSocket connected", self.log_id)
+        self._connection_generation += 1
         self._state = None
         self._state_ready.clear()
         await asyncio.sleep(0.1)
@@ -136,8 +140,9 @@ class HTP1Device(WebSocketDevice):
 
     async def _on_disconnected(self, identifier: str) -> None:
         _LOG.info("[%s] WebSocket disconnected", self.log_id)
+        self._connection_generation += 1
         self._state = None
-        self._state_ready.clear()
+        self._state_ready.set()
         self._sensor_data = {}
         self.push_update()
 
@@ -199,8 +204,10 @@ class HTP1Device(WebSocketDevice):
     def _on_connection_lost(self) -> None:
         """Mark the device offline right away so entities show UNAVAILABLE."""
         self._is_connected = False
+        self._connection_generation += 1
         self._state = None
-        self._state_ready.clear()
+        # Wake an in-flight refresh so it can abort immediately on disconnect.
+        self._state_ready.set()
         self._sensor_data = {}
         self.push_update()
 
@@ -414,9 +421,110 @@ class HTP1Device(WebSocketDevice):
             _LOG.error("[%s] Send error: %s", self.log_id, err)
             return False
 
-    async def _send_transaction(self, operations: list[dict[str, Any]]) -> bool:
+    async def _refresh_state_locked(self) -> bool:
+        """Request a fresh receiver snapshot while holding the transaction lock."""
+        if not self._ws or not self.is_connected:
+            return False
+
+        generation = self._connection_generation
+        self._state_ready.clear()
+        if not await self.send_message("getmso"):
+            return False
+        try:
+            await asyncio.wait_for(
+                self._state_ready.wait(), timeout=STATE_REFRESH_TIMEOUT
+            )
+        except asyncio.TimeoutError:
+            _LOG.warning("[%s] Timed out waiting for fresh HTP-1 state", self.log_id)
+            return False
+
+        return (
+            self.is_connected
+            and self._connection_generation == generation
+            and isinstance(self._state, dict)
+        )
+
+    _MISSING = object()
+
+    @staticmethod
+    def _json_pointer_value(state: Any, path: str) -> Any:
+        """Read a JSON Pointer path, returning a sentinel when it is absent."""
+        missing = HTP1Device._MISSING
+        if not isinstance(path, str) or not path.startswith("/"):
+            return missing
+        current = state
+        for raw_segment in path[1:].split("/"):
+            if re.search(r"~(?![01])", raw_segment):
+                return missing
+            segment = raw_segment.replace("~1", "/").replace("~0", "~")
+            if isinstance(current, dict):
+                if segment not in current:
+                    return missing
+                current = current[segment]
+            elif isinstance(current, list):
+                if not segment.isdecimal():
+                    return missing
+                index = int(segment)
+                if index >= len(current):
+                    return missing
+                current = current[index]
+            else:
+                return missing
+        return current
+
+    def _transaction_matches_state(
+        self, expected_state: dict[str, Any], operations: list[dict[str, Any]]
+    ) -> bool:
+        """Verify every touched path against the receiver's fresh full snapshot."""
+        if not isinstance(self._state, dict):
+            return False
+        for path in dict.fromkeys(operation["path"] for operation in operations):
+            expected = self._json_pointer_value(expected_state, path)
+            actual = self._json_pointer_value(self._state, path)
+            if expected is self._MISSING or actual is self._MISSING:
+                if expected is not actual:
+                    _LOG.error("[%s] Receiver did not apply transaction path %s", self.log_id, path)
+                    return False
+            elif expected != actual:
+                _LOG.error("[%s] Receiver state mismatch after transaction at %s", self.log_id, path)
+                return False
+        return True
+
+    async def _execute_transaction_locked(
+        self, operations: list[dict[str, Any]]
+    ) -> bool:
+        """Write and verify one transaction; caller must hold _transaction_lock."""
+        if not operations:
+            return True
+        if not isinstance(self._state, dict):
+            return False
+
+        expected_state = copy.deepcopy(self._state)
+        try:
+            for operation in operations:
+                apply_json_patch(
+                    expected_state,
+                    operation["op"],
+                    operation["path"],
+                    operation.get("value"),
+                )
+        except (KeyError, IndexError, TypeError, ValueError) as err:
+            _LOG.error("[%s] Cannot prepare transaction readback: %s", self.log_id, err)
+            return False
+
         payload = json.dumps(operations, separators=(",", ":"))
-        return await self.send_message(f"changemso {payload}")
+        if not await self.send_message(f"changemso {payload}"):
+            return False
+        if not await self._refresh_state_locked():
+            return False
+        return self._transaction_matches_state(expected_state, operations)
+
+    async def _send_transaction(self, operations: list[dict[str, Any]]) -> bool:
+        """Serialize, refresh, send, and verify one receiver state transaction."""
+        async with self._transaction_lock:
+            if not await self._refresh_state_locked():
+                return False
+            return await self._execute_transaction_locked(operations)
 
     async def turn_on(self) -> bool:
         _LOG.info("[%s] Turning on", self.log_id)
@@ -432,10 +540,13 @@ class HTP1Device(WebSocketDevice):
     
     async def toggle_power(self) -> bool:
         _LOG.info("[%s] Toggling power", self.log_id)
-        new_state = not self.power
-        return await self._send_transaction([
-            {"op": "replace", "path": "/powerIsOn", "value": new_state}
-        ])  
+        async with self._transaction_lock:
+            if not await self._refresh_state_locked():
+                return False
+            new_state = not self.power
+            return await self._execute_transaction_locked([
+                {"op": "replace", "path": "/powerIsOn", "value": new_state}
+            ])
 
     async def set_volume(self, volume: int) -> bool:
         if (
@@ -454,57 +565,68 @@ class HTP1Device(WebSocketDevice):
         ])
 
     async def set_volume_level(self, level: float) -> bool:
-        if isinstance(level, bool) or not _is_finite_number(level) or not self._state or "cal" not in self._state:
-            return False
+        async with self._transaction_lock:
+            if not await self._refresh_state_locked():
+                return False
+            if isinstance(level, bool) or not _is_finite_number(level) or not self._state or "cal" not in self._state:
+                return False
 
-        span = self.vph - self.vpl
-        if span <= 0:
-            return False
+            span = self.vph - self.vpl
+            if span <= 0:
+                return False
 
-        level = max(0.0, min(1.0, level))
-        target_db = int(round(self.vpl + (level * span)))
-        target_db = max(int(self.vpl), min(int(self.vph), target_db))
+            level = max(0.0, min(1.0, level))
+            target_db = int(round(self.vpl + (level * span)))
+            target_db = max(int(self.vpl), min(int(self.vph), target_db))
 
-        current_volume = self._state.get("volume")
-        if isinstance(current_volume, bool) or not isinstance(current_volume, int):
-            return False
-        volume_delta = abs(target_db - current_volume)
-        max_safe_jump = 5
+            current_volume = self._state.get("volume")
+            if isinstance(current_volume, bool) or not isinstance(current_volume, int):
+                return False
+            volume_delta = abs(target_db - current_volume)
+            max_safe_jump = 5
 
-        if volume_delta > max_safe_jump:
-            if target_db > current_volume:
-                target_db = current_volume + max_safe_jump
-            else:
-                target_db = current_volume - max_safe_jump
-            _LOG.warning("[%s] Volume jump clamped to %d dB", self.log_id, target_db)
+            if volume_delta > max_safe_jump:
+                if target_db > current_volume:
+                    target_db = current_volume + max_safe_jump
+                else:
+                    target_db = current_volume - max_safe_jump
+                _LOG.warning("[%s] Volume jump clamped to %d dB", self.log_id, target_db)
 
-        return await self.set_volume(target_db)
+            return await self._execute_transaction_locked([
+                {"op": "replace", "path": "/volume", "value": target_db}
+            ])
 
     async def volume_up(self) -> bool:
-        if not self._state:
-            return False
-        current = self._state.get("volume")
-        if isinstance(current, bool) or not isinstance(current, int) or not _is_finite_number(self.vph):
-            return False
-        if current >= self.vph:
-            return True
-        return await self.set_volume(current + 1)
+        async with self._transaction_lock:
+            if not await self._refresh_state_locked() or not self._state:
+                return False
+            current = self._state.get("volume")
+            if isinstance(current, bool) or not isinstance(current, int) or not _is_finite_number(self.vph):
+                return False
+            if current >= self.vph:
+                return True
+            return await self._execute_transaction_locked([
+                {"op": "replace", "path": "/volume", "value": current + 1}
+            ])
 
     async def volume_down(self) -> bool:
-        if not self._state:
-            return False
-        current = self._state.get("volume")
-        if (
-            isinstance(current, bool)
-            or not isinstance(current, int)
-            or not _is_finite_number(self.vpl)
-            or not _is_finite_number(self.zp)
-        ):
-            return False
-        limit = self.vpl - self.zp
-        if current - self.zp <= limit:
-            return True
-        return await self.set_volume(current - 1)
+        async with self._transaction_lock:
+            if not await self._refresh_state_locked() or not self._state:
+                return False
+            current = self._state.get("volume")
+            if (
+                isinstance(current, bool)
+                or not isinstance(current, int)
+                or not _is_finite_number(self.vpl)
+                or not _is_finite_number(self.zp)
+            ):
+                return False
+            limit = self.vpl - self.zp
+            if current - self.zp <= limit:
+                return True
+            return await self._execute_transaction_locked([
+                {"op": "replace", "path": "/volume", "value": current - 1}
+            ])
 
     async def mute_toggle(self, muted: bool) -> bool:
         if not isinstance(muted, bool):
@@ -716,13 +838,23 @@ class HTP1Device(WebSocketDevice):
 
     async def clear_beq(self) -> bool:
         """Clear BEQ-tagged bands, including tags left on legacy sub channels."""
-        ops = self._build_clear_beq_ops()
-        if ops is None:
-            return False
-        return await self._send_transaction(ops) if ops else True
+        async with self._transaction_lock:
+            if not await self._refresh_state_locked():
+                return False
+            ops = self._build_clear_beq_ops()
+            if ops is None:
+                return False
+            return await self._execute_transaction_locked(ops)
 
     async def load_beq(self, title: str, filters: list[dict]) -> bool:
-        """Load a BEQ using available PEQ bands without disturbing it on preflight failure."""
+        """Refresh, preflight, apply, and verify one complete BEQ transaction."""
+        async with self._transaction_lock:
+            if not await self._refresh_state_locked():
+                return False
+            return await self._load_beq_locked(title, filters)
+
+    async def _load_beq_locked(self, title: str, filters: list[dict]) -> bool:
+        """Build and apply a BEQ transaction while holding the transaction lock."""
         if not self._state or not isinstance(title, str) or not title.strip():
             return False
         if not isinstance(filters, list) or not 1 <= len(filters) <= BEQ_SLOT_END + 1:
@@ -806,7 +938,7 @@ class HTP1Device(WebSocketDevice):
             {"op": "add", "path": "/peq/beqActive", "value": title.strip()},
             {"op": "replace", "path": "/peq/peqsw", "value": True},
         ]
-        success = await self._send_transaction(ops)
+        success = await self._execute_transaction_locked(ops)
         if success:
             self.beq_active = title.strip()
             _LOG.info("[%s] BEQ loaded: %s (%d filters)", self.log_id, title.strip(), len(filters))
