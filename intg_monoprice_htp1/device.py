@@ -463,7 +463,9 @@ class HTP1Device(WebSocketDevice):
         target_db = int(round(self.vpl + (level * span)))
         target_db = max(int(self.vpl), min(int(self.vph), target_db))
 
-        current_volume = self._state.get("volume", 0)
+        current_volume = self._state.get("volume")
+        if isinstance(current_volume, bool) or not isinstance(current_volume, int):
+            return False
         volume_delta = abs(target_db - current_volume)
         max_safe_jump = 5
 
@@ -479,7 +481,9 @@ class HTP1Device(WebSocketDevice):
     async def volume_up(self) -> bool:
         if not self._state:
             return False
-        current = self._state.get("volume", 0)
+        current = self._state.get("volume")
+        if isinstance(current, bool) or not isinstance(current, int) or not _is_finite_number(self.vph):
+            return False
         if current >= self.vph:
             return True
         return await self.set_volume(current + 1)
@@ -487,7 +491,14 @@ class HTP1Device(WebSocketDevice):
     async def volume_down(self) -> bool:
         if not self._state:
             return False
-        current = self._state.get("volume", 0)
+        current = self._state.get("volume")
+        if (
+            isinstance(current, bool)
+            or not isinstance(current, int)
+            or not _is_finite_number(self.vpl)
+            or not _is_finite_number(self.zp)
+        ):
+            return False
         limit = self.vpl - self.zp
         if current - self.zp <= limit:
             return True
@@ -762,6 +773,9 @@ class HTP1Device(WebSocketDevice):
             return False
         slots = peq.get("slots")
         if not isinstance(slots, list) or not slots:
+            return False
+        if peq.get("location") not in ("pre", "post"):
+            _LOG.warning("[%s] BEQ requires a known PEQ placement", self.log_id)
             return False
 
         # BEQ must run before Dirac so it modifies the LFE channel signal,
