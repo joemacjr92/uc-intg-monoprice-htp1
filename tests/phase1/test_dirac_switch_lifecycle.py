@@ -38,6 +38,18 @@ class DiracReceiver:
 
         self.change_count += 1
         operations = json.loads(message.partition(" ")[2])
+        if not any(operation.get("path") == "/cal/currentdiracslot" for operation in operations):
+            candidate = copy.deepcopy(self.state)
+            for operation in operations:
+                apply_json_patch(
+                    candidate,
+                    operation["op"],
+                    operation["path"],
+                    operation.get("value"),
+                )
+            self.state = candidate
+            await self.device.handle_message(f"msoupdate {json.dumps(operations)}")
+            return
         slot = operations[0]["value"]
         if self.mode == "busy":
             await self.device.handle_message("error Dirac is busy. Wait for it to finish; this change was not applied.")
@@ -165,21 +177,32 @@ def make_device(*, mode="complete", delay=0.25):
     return device, receiver
 
 
-def test_dirac_selection_waits_for_matching_request_complete_before_readback():
+def test_dirac_selection_acknowledges_receiver_acceptance_before_completion():
     async def exercise():
         device, receiver = make_device(delay=0.15)
         try:
+            original_display = device.dirac_slot_name
             started = asyncio.get_running_loop().time()
             result = await device.select_calibration(device.slot_names[1])
             elapsed = asyncio.get_running_loop().time() - started
 
             assert result is True
-            assert elapsed >= 0.25
+            assert elapsed < 0.15
             assert receiver.change_count == 1
-            assert receiver.getmso_count == 2
+            assert receiver.getmso_count == 1
             assert receiver.state["cal"]["diracSwitch"]["id"] == receiver.request_id
+            assert receiver.state["cal"]["diracSwitch"]["state"] == "requested"
+            # currentdiracslot moves early, but the Remote display remains confirmed.
+            assert device.dirac_slot_name == original_display
+
+            task = device._dirac_task
+            assert task is not None
+            await asyncio.wait_for(task, timeout=1.0)
+
+            assert receiver.getmso_count == 2
             assert receiver.state["cal"]["diracSwitch"]["state"] == "complete"
             assert receiver.state["cal"]["currentdiracslot"] == 1
+            assert device.dirac_slot_name == device.slot_names[1]
         finally:
             await receiver.cleanup()
 
@@ -213,6 +236,9 @@ def test_unrelated_busy_reply_does_not_fail_accepted_dirac_request():
             result = await device.select_calibration(device.slot_names[1])
 
             assert result is True
+            task = device._dirac_task
+            assert task is not None
+            await asyncio.wait_for(task, timeout=1.0)
             assert receiver.state["cal"]["diracSwitch"]["id"] == receiver.request_id
             assert receiver.state["cal"]["diracSwitch"]["state"] == "complete"
         finally:
@@ -256,6 +282,40 @@ def test_dirac_busy_lock_preflight_does_not_send_another_slot_change():
     asyncio.run(exercise())
 
 
+
+def test_dirac_does_not_block_volume_and_rejects_second_dirac_request():
+    async def exercise():
+        device, receiver = make_device(delay=0.4)
+        try:
+            original_display = device.dirac_slot_name
+            first = await device.select_calibration(device.slot_names[1])
+            assert first is True
+
+            # A second calibration selection is rejected immediately.
+            second = await device.select_calibration(device.slot_names[0])
+            assert second is False
+            assert receiver.change_count == 1
+
+            # A normal state transaction can run while Dirac is applying.
+            current_volume = device._state["volume"]
+            volume_result = await asyncio.wait_for(
+                device.set_volume(current_volume - 1), timeout=0.2
+            )
+            assert volume_result is True
+            assert receiver.state["volume"] == current_volume - 1
+            assert device.dirac_slot_name == original_display
+
+            task = device._dirac_task
+            assert task is not None
+            await asyncio.wait_for(task, timeout=1.0)
+            assert device.dirac_slot_name == device.slot_names[1]
+            assert receiver.state["cal"]["currentdiracslot"] == 1
+        finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
+
 def test_dirac_switch_timeout_does_not_claim_success():
     async def exercise():
         device, receiver = make_device(mode="never")
@@ -263,9 +323,14 @@ def test_dirac_switch_timeout_does_not_claim_success():
         try:
             result = await device.select_calibration(device.slot_names[1])
 
-            assert result is False
+            assert result is True  # Receiver accepted; lifecycle timeout is asynchronous.
+            task = device._dirac_task
+            assert task is not None
+            await asyncio.wait_for(task, timeout=0.1)
             assert receiver.change_count == 1
             assert receiver.getmso_count == 1
+            assert device.dirac_slot_name == device.slot_names[0]
+            assert not device._dirac_operation_lock.locked()
         finally:
             await receiver.cleanup()
 
