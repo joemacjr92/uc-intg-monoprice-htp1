@@ -56,6 +56,18 @@ jobs:
           ]))
           PY
 
+      - name: Run Phase 0 compatibility tests against implementation branch
+        working-directory: implementation
+        run: |
+          python - <<'PY'
+          import os
+          import sys
+          import pytest
+
+          sys.path.insert(0, os.getcwd())
+          raise SystemExit(pytest.main(["-q", "../tests/phase0"]))
+          PY
+
       - name: Run Phase 1 tests against implementation branch
         working-directory: implementation
         run: |
