@@ -1260,6 +1260,8 @@ class HTP1Device(WebSocketDevice):
                 self._dirac_operation_lock.release()
 
     async def send_command(self, command: str) -> bool:
+        if self._dirac_commands_blocked():
+            return False
         _LOG.info("[%s] Sending menu command: %s", self.log_id, command)
         avcui_commands = {
             "send_avcui: hpe": "send_avcui: hpe",
@@ -1271,6 +1273,8 @@ class HTP1Device(WebSocketDevice):
         return await self.send_message(htp1_command)
 
     async def send_http_command(self, command: str) -> bool:
+        if self._dirac_commands_blocked():
+            return False
         if (
             not isinstance(command, str)
             or len(command) != 4
