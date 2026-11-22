@@ -871,6 +871,8 @@ class HTP1Device(WebSocketDevice):
             try:
                 await asyncio.wait_for(self._state_update_event.wait(), timeout=remaining)
             except asyncio.TimeoutError:
+                if self._transaction_error and request_id is None:
+                    return self._transaction_error
                 return "Timed out waiting for the HTP-1 to complete the Dirac slot change"
 
     async def select_calibration(self, slot_name: str) -> bool:
