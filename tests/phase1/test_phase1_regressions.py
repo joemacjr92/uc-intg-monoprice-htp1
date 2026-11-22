@@ -83,6 +83,7 @@ def test_beq_post_peq_is_rejected_without_writes():
             return True
 
         device._send_transaction = capture
+        captured = _capture_transaction(device)
         filters = [
             {"type": "PeakingEQ", "freq": 25, "gain": 3.5, "q": 1.2},
             {"type": "LowShelf", "freq": 30, "gain": -2.0, "q": 0.8},
@@ -90,6 +91,7 @@ def test_beq_post_peq_is_rejected_without_writes():
 
         assert not await device.load_beq("Phase 1 test BEQ", filters)
         assert sent == []
+        assert captured == []
         assert device.beq_active == ""
 
     asyncio.run(exercise())
@@ -108,6 +110,7 @@ def test_beq_preflight_failure_does_not_send_partial_or_clear_existing_beq():
             return True
 
         device._send_transaction = capture
+        captured = _capture_transaction(device)
         # The fixture has only one available slot after this truncation, so
         # asking for two filters must fail before any transaction is sent.
         assert not await device.load_beq(
@@ -117,6 +120,7 @@ def test_beq_preflight_failure_does_not_send_partial_or_clear_existing_beq():
             ]
         )
         assert sent == []
+        assert captured == []
         assert device._state["peq"]["beqActive"] == state["peq"]["beqActive"]
 
     asyncio.run(exercise())
