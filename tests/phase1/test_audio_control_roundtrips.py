@@ -71,7 +71,15 @@ def test_seat_shaker_preset_selection_round_trips_to_parsed_state():
     async def exercise():
         device = make_device()
         assert await device.select_ss_preset(2)
-        operations = await apply_last_transaction(device)
+        # Selecting a saved preset changes the receiver's current trim too;
+        # model that accompanying state echo separately from the command patch.
+        selected_trim = device._state["shaker"]["presets"]["2"]["trim"]
+        operations = await apply_last_transaction(
+            device,
+            extra_echo_operations=[
+                {"op": "replace", "path": "/shaker/trim", "value": selected_trim}
+            ],
+        )
 
         assert operations == [
             {"op": "replace", "path": "/shaker/activePreset", "value": 2}
