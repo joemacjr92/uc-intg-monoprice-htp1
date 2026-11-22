@@ -53,11 +53,6 @@ jobs:
               "../tests",
               "--ignore=../tests/phase0/test_configurable_port.py",
               "--ignore=../tests/phase1",
-              "-k",
-              "not test_input_mode_and_dirac_selection_send_expected_native_values and "
-              "not test_source_selection_handles_malformed_input_state and "
-              "not test_beq_non_pre_targets_all_present_subwoofers and "
-              "not test_beq_capacity_failure_preserves_current_filter_without_sending",
           ]))
           PY
 
