@@ -5,7 +5,6 @@ import copy
 import json
 from pathlib import Path
 
-from intg_monoprice_htp1 import device as device_module
 from intg_monoprice_htp1.config import HTP1Config
 from intg_monoprice_htp1.device import HTP1Device, apply_json_patch
 
@@ -259,8 +258,8 @@ def test_dirac_busy_lock_preflight_does_not_send_another_slot_change():
 
 def test_dirac_switch_timeout_does_not_claim_success(monkeypatch):
     async def exercise():
-        monkeypatch.setattr(device_module, "DIRAC_SWITCH_TIMEOUT", 0.05)
         device, receiver = make_device(mode="never")
+        device._dirac_switch_timeout = 0.05
         try:
             result = await device.select_calibration(device.slot_names[1])
 
