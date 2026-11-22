@@ -336,3 +336,49 @@ def test_dirac_switch_timeout_does_not_claim_success():
             await receiver.cleanup()
 
     asyncio.run(exercise())
+
+
+def test_dirac_acceptance_and_concurrent_volume_stress():
+    """Repeat the asynchronous handoff to expose timing-sensitive early failures."""
+    async def exercise():
+        for attempt in range(20):
+            device, receiver = make_device(delay=0.5)
+            try:
+                original_display = device.dirac_slot_name
+                started = asyncio.get_running_loop().time()
+                result = await device.select_calibration(device.slot_names[1])
+                elapsed = asyncio.get_running_loop().time() - started
+
+                assert result is True, (
+                    f"attempt={attempt + 1}/20 elapsed={elapsed:.3f}s "
+                    f"dirac_error={device._dirac_error!r} "
+                    f"transaction_error={device._transaction_error!r} "
+                    f"request_id={device._dirac_request_id!r} "
+                    f"request_slot={device._dirac_request_slot!r} "
+                    f"getmso_count={receiver.getmso_count} "
+                    f"change_count={receiver.change_count} "
+                    f"switch={receiver.state['cal'].get('diracSwitch')!r} "
+                    f"reply={receiver.state['cal'].get('diracSwitchReply')!r} "
+                    f"messages={receiver.messages!r}"
+                )
+                assert elapsed < 0.5
+                assert receiver.change_count == 1
+
+                second = await device.select_calibration(device.slot_names[0])
+                assert second is False
+                current_volume = device._state["volume"]
+                volume_result = await asyncio.wait_for(
+                    device.set_volume(current_volume - 1), timeout=0.2
+                )
+                assert volume_result is True
+                assert receiver.state["volume"] == current_volume - 1
+                assert device.dirac_slot_name == original_display
+
+                task = device._dirac_task
+                assert task is not None
+                await asyncio.wait_for(task, timeout=2.0)
+                assert device.dirac_slot_name == device.slot_names[1]
+            finally:
+                await receiver.cleanup()
+
+    asyncio.run(exercise())
