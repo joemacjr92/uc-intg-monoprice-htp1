@@ -9,7 +9,7 @@
 1. Read this document before continuing project work.
 2. Verify the live GitHub state (branches, commits, open PRs, checks, and working changes) before assuming a task is complete or starting new work. This document records decisions and intended scope; live repository state is authoritative for implementation status.
 3. Preserve the agreed branch strategy below. Do not develop production code directly on `main` or `tests-and-docs`.
-4. Keep the approved development phases in order unless the user explicitly changes the plan. Phase 0 is complete; Phase 1.5 automated implementation and validation are complete but real HTP-1 hardware acceptance is pending. Phase 2 is the next planned development phase. Preserve the complete approved Phase 2–6 roadmap in PROJECT_HANDOFF.md.
+4. Keep the approved development phases in order unless the user explicitly changes the plan. Phase 0 is complete; Phase 1.5 automated implementation and validation are complete. Limited physical HTP-1 testing has now verified deferred volume handling during Dirac application, but full Remote/HTP-1 hardware acceptance remains pending. Phase 2 is the next planned development phase. Preserve the complete approved Phase 2–6 roadmap in PROJECT_HANDOFF.md.
 5. Do not silently add, remove, or reinterpret requirements. Ask before expanding scope.
 6. Preserve existing behavior unless a specific correction is required by the phase. Add regression coverage for each correction.
 7. Distinguish automated tests, CI results, remote connectivity checks, and actual HTP-1 hardware acceptance. Never claim one proves another.
@@ -290,7 +290,7 @@ The approved Remote-timeout/concurrency follow-up is implemented on `feature-val
 - A further QA-only regression now models the observed hardware timing where the receiver first publishes `requested`, the Remote is acknowledged, and a matching standby refusal arrives later. It verifies the background monitor catches the refusal, preserves the last confirmed slot, skips success readback, and releases the Dirac operation lock. Added in `e4a25188815649f00e63c69f66601e4ad5bfe43a`; CI validation is in progress.
 - Production commits: `c69ac2fd22e628fa0a09cade87731c86740f7da1` (asynchronous lifecycle) and `a0ea1813b584868e0b3c97dbf8f23f99c0264cd4` (confirmed-display preservation fix); current production head is `a0ea1813b584868e0b3c97dbf8f23f99c0264cd4`. QA test commits include `524493f6f99fbbd74022d29f2f3f18236ba75379`, `23d7fdb5f7bc41502e00d2f555ebbfe8213562b3`, and `0ccf100503f6613a4942eeb2866fe5973da983f6`.
 - Automated validation passed against production head `a0ea1813b584868e0b3c97dbf8f23f99c0264cd4` and QA head `0ccf100503f6613a4942eeb2866fe5973da983f6`: Phase 1 WebSocket Safety QA [run 45058395723](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45058395723) passed (112 Phase 1 tests, 95 general regressions with 1 skipped, 33 Phase 0 compatibility tests, 21 regression-gap tests, 2 TLS tests; focused Ruff checks passed; 79% measured coverage); Phase 0 and Full QA [run 45058395750](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45058395750) passed; standard Tests [run 45058395760](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45058395760) passed; ARM64 Test Build [run 45058383533](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45058383533) passed.
-- The earlier real-hardware investigation used the integration simulator/debug session connected to a physical HTP-1; no actual Unfolded Circle Remote was involved. The deferred-volume implementation has not yet been tested on the physical HTP-1 or an actual Remote. Hardware acceptance remains required. No deployment, merge, release, or upstream PR has been performed.
+- The earlier real-hardware investigation used the integration simulator/debug session connected to a physical HTP-1; no actual Unfolded Circle Remote was involved. At that point, deferred-volume behavior had not yet been tested on the physical HTP-1. The subsequent limited physical HTP-1 tests are recorded in the latest verification addendum below. Full Remote/HTP-1 acceptance remains required. No deployment, merge, release, or upstream PR has been performed.
 
 ### Dirac apply-window volume protection — 2026-11-22
 
@@ -323,3 +323,42 @@ The intermittent HTP-1 responsiveness observed during a real hardware Dirac appl
 - Required acknowledgements include Developer: Meir Miyara, the Monoprice HTP-1, Unfolded Circle Remote 2/3 framework, HTP-1 WebSocket API, UC community, the original support links, the community thank-you, and the final `Thank You: Meir Miyara` line.
 - Do not replace these sections with abbreviated credits, generic support text, or a consolidated attribution sentence. Before any upstream push or README rewrite, explicitly diff these sections against the approved wording and verify they remain present.
 - Restored verbatim on `tests-and-docs` in commit `ce11002cfced917a609b7ecfd5a913987bd35da2` after the minor documentation cleanup.
+
+
+### Latest verification update — 2026-11-22
+
+**Verified branch state**
+
+- Production implementation commit: 282bf486d4ac6ddc5068b57168177b75e5ccf1b3 on feature-validation. The only later branch change observed during this review is an update to dumps/integration.log, not production source.
+- QA/documentation head: 7c5ed4c66e7126ddfed106a6cbde89b598c613c0 on tests-and-docs.
+- The test/QA branch remains separate from production. QA tests and QA-only workflow changes are not present in the production branch.
+
+**Latest automated validation**
+
+- Phase 1 WebSocket Safety QA: [run 45070175008](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45070175008) passed: 132 Phase 1 tests, all Phase 0/general/TLS checks, and five isolated Dirac stress repetitions of 20 attempts each (100 total). Focused Ruff checks passed.
+- Phase 0 and Full QA: [run 45070175100](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45070175100) passed.
+- Standard Tests: [run 45070175088](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45070175088) passed.
+- ARM64 Test Build: [run 45070154233](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45070154233) passed against production commit 282bf486d4ac6ddc5068b57168177b75e5ccf1b3.
+- The Phase 1 QA workflow measures device.py and browser.py with pytest-cov and emits terminal and XML coverage reports. The latest explicitly recorded percentage in the handoff history is 79% combined coverage (run 45058395723). The later 45070175008 run passed its coverage-enabled suite, but its exact percentage was not captured in the handoff record; do not label 79% as a newly measured result for that later run. Coverage is strong, but the workflow currently reports rather than enforces a minimum threshold.
+- The Phase 1 QA workflow includes the added power/Dirac slow-response, power-toggle, HTTP IR, Remote command-sequence, WebSocket-probe, transaction-safety, and Dirac lifecycle regression tests. The new regression-gap suite explicitly runs power-toggle, HTTP IR, Remote command-sequence, and WebSocket-probe tests. These are automated unit/fake-receiver tests; on-device testing for those cases remains part of the broader hardware effort.
+- The broader Ruff rule-family scan remains diagnostic. The required focused Pyflakes (ruff check --select F) check passes. Do not describe the diagnostic Ruff scan as clean or imply every advisory rule has been fixed.
+
+**Limited physical HTP-1 verification of deferred Dirac volume**
+
+Two tests were performed using the integration debug/simulator session connected to the real HTP-1. The actual Unfolded Circle Remote was not involved.
+
+1. Starting at displayed volume -20 dB, repeated volume-up requests during Dirac application were captured and aggregated. The requested accumulated increase was +13 dB. After Dirac completed, one consolidated volume write was issued and the receiver's displayed volume moved to -15 dB, exactly the existing +5 dB maximum-change limit.
+2. Starting at displayed volume -15 dB, 30 volume-down requests were captured and aggregated. After Dirac completed, one consolidated write was issued and the receiver's displayed volume moved to -20 dB, again exactly the -5 dB maximum-change limit.
+
+These observations support that the apply-window capture, aggregation, calibration bounds/zero-point translation, and shared 5 dB limiter work on the physical HTP-1 for these two cases. They do not establish complete hardware acceptance or cover all command types.
+
+**Outstanding receiver readback warning**
+
+Both tests also logged "Receiver state mismatch after transaction at /volume" immediately after the consolidated write. A later receiver state event reported the expected displayed volume in each case. This is consistent with a possible immediate readback/convergence timing race, but the cause has not yet been proven. Do not dismiss the warning as harmless, and do not add automatic retries without further investigation because a duplicate write could cause an additional volume change. Investigate the transaction verifier and event ordering before changing behavior.
+
+**Remaining acceptance boundary**
+
+- Unit tests and CI do not replace testing with the actual Unfolded Circle Remote.
+- Power/Dirac slow-response and regression-gap cases were approved for automated tests; the user explicitly deferred the corresponding on-device testing to a larger testing effort.
+- The two physical HTP-1 Dirac-volume tests are limited evidence, not full Phase 1.5 acceptance.
+- No deployment, release, merge, or upstream PR has been performed.
