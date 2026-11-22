@@ -549,20 +549,27 @@ class HTP1Device(WebSocketDevice):
             ])
 
     async def set_volume(self, volume: int) -> bool:
-        if (
-            isinstance(volume, bool)
-            or not isinstance(volume, int)
-            or not _is_finite_number(self.vpl)
-            or not _is_finite_number(self.vph)
-            or self.vpl > self.vph
-            or not self.vpl <= volume <= self.vph
-        ):
+        if isinstance(volume, bool) or not isinstance(volume, int):
             _LOG.warning("[%s] Rejecting invalid volume value: %r", self.log_id, volume)
             return False
-        _LOG.info("[%s] Setting volume to %d", self.log_id, volume)
-        return await self._send_transaction([
-            {"op": "replace", "path": "/volume", "value": volume}
-        ])
+        async with self._transaction_lock:
+            if not await self._refresh_state_locked():
+                return False
+            cal = _as_dict(self._state.get("cal"))
+            vpl = cal.get("vpl")
+            vph = cal.get("vph")
+            if (
+                not _is_finite_number(vpl)
+                or not _is_finite_number(vph)
+                or vpl > vph
+                or not vpl <= volume <= vph
+            ):
+                _LOG.warning("[%s] Rejecting out-of-range volume value: %r", self.log_id, volume)
+                return False
+            _LOG.info("[%s] Setting volume to %d", self.log_id, volume)
+            return await self._execute_transaction_locked([
+                {"op": "replace", "path": "/volume", "value": volume}
+            ])
 
     async def set_volume_level(self, level: float) -> bool:
         async with self._transaction_lock:
