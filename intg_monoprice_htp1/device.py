@@ -294,7 +294,9 @@ class HTP1Device(WebSocketDevice):
         self.ss_preset = active_index + 1 if 0 <= active_index <= 5 else 0
         presets = _as_dict(shaker.get("presets"))
         preset = _as_dict(presets.get(str(active_index)))
-        self.ss_trim = _number(preset.get("trim"), 0)
+        # The top-level shaker trim is the currently applied value. Preset
+        # trim is only the saved value for that preset and may lag until saved.
+        self.ss_trim = _number(shaker.get("trim"), _number(preset.get("trim"), 0))
 
     @staticmethod
     def _is_eligible_input(info: Any) -> bool:
