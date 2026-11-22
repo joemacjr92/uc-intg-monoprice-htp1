@@ -101,6 +101,62 @@ def test_media_player_volume_command_round_trips_through_receiver_state():
     asyncio.run(exercise())
 
 
+
+def test_volume_up_down_respect_fixture_zero_point_and_native_limits():
+    async def exercise():
+        device = make_device()
+
+        # Use the captured receiver calibration values: zeroPoint=-7,
+        # vpl=-80 and vph=-14. Volume limits apply to the raw MSO value;
+        # the displayed dB value is raw volume minus zeroPoint.
+        assert device.zp == -7
+        assert device.vpl == -80
+        assert device.vph == -14
+
+        device._state["volume"] = -79
+        device._parse_state()
+        assert device.volume_db == -72
+        assert await device.volume_down()
+        operations = await apply_recorded_transaction(device)
+        assert operations == [
+            {"op": "replace", "path": "/volume", "value": -80}
+        ]
+        assert device._state["volume"] == -80
+        assert device.volume_db == -73
+
+        writes_before_limit = len([
+            message for message in device._ws.messages
+            if message.startswith("changemso ")
+        ])
+        assert await device.volume_down()
+        writes_after_limit = len([
+            message for message in device._ws.messages
+            if message.startswith("changemso ")
+        ])
+        assert writes_after_limit == writes_before_limit
+
+        device._state["volume"] = -15
+        device._parse_state()
+        assert await device.volume_up()
+        operations = await apply_recorded_transaction(device)
+        assert operations == [
+            {"op": "replace", "path": "/volume", "value": -14}
+        ]
+        assert device._state["volume"] == -14
+
+        writes_before_limit = len([
+            message for message in device._ws.messages
+            if message.startswith("changemso ")
+        ])
+        assert await device.volume_up()
+        writes_after_limit = len([
+            message for message in device._ws.messages
+            if message.startswith("changemso ")
+        ])
+        assert writes_after_limit == writes_before_limit
+
+    asyncio.run(exercise())
+
 def test_media_player_mute_command_round_trips_through_receiver_state():
     async def exercise():
         device = make_device()
