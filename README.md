@@ -82,7 +82,7 @@ The integration provides live status for:
 
 The Remote and HTP-1 do not have to be on the same subnet if your network routes traffic between them and the firewall allows the connection. A DHCP reservation for the HTP-1 is recommended so its address does not change.
 
-**BEQ catalogue security note:** The catalogue is downloaded over HTTPS. The integration currently does not verify the catalogue server's certificate. This workaround was retained for compatibility with Remote devices; use the catalogue feature on a trusted network.
+**BEQ catalogue security:** The catalogue is downloaded over HTTPS with certificate-chain and hostname verification enabled. The integration uses the CA bundle provided by `certifi`, which is included in the packaged driver. If certificate verification cannot be completed, the catalogue request fails; TLS verification is not disabled.
 
 ## Installation
 
