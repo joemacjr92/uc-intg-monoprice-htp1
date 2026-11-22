@@ -40,10 +40,10 @@ jobs:
         run: python -m pip install -r implementation/requirements.txt pytest
 
       - name: Run complete existing regression suite
-        run: python -m pytest -q --ignore=implementation/tests --ignore=tests/phase0/test_configurable_port.py --ignore=tests/phase1/test_websocket_write_serialization.py
+        run: python -m pytest -q --ignore=implementation/tests --ignore=tests/phase0/test_configurable_port.py --ignore=tests/phase1
 
       - name: Run Phase 1 concurrency tests against implementation branch
         working-directory: implementation
         env:
           PYTHONPATH: .
-        run: python -m pytest -q ../tests/phase1/test_websocket_write_serialization.py
+        run: python -m pytest -q ../tests/phase1
