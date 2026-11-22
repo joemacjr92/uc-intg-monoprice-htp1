@@ -3,7 +3,7 @@ name: ARM64 Test Build
 on:
   push:
     branches:
-      - build-test/configurable-htp1-port
+      - feature-validation
 
 permissions:
   contents: read
