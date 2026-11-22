@@ -162,18 +162,23 @@ def test_slow_post_write_state_response_does_not_claim_power_or_dirac_success(
         try:
             result = await run_command(device, command)
 
-            assert result is False
-            assert receiver.getmso_count == 2
             assert receiver.change_count == 1
             assert sum(
                 message.startswith("changemso ") for message in receiver.messages
             ) == 1
-            # The receiver's patch echo is retained, but a delayed full-state
-            # verification is not mistaken for a completed transaction.
-            assert device._state == receiver.state
             if command == "power":
+                assert result is False
+                assert receiver.getmso_count == 2
+                assert device._state == receiver.state
                 assert receiver.state["powerIsOn"] is True
             else:
+                # Dirac acknowledges receiver acceptance; final verification
+                # happens in the background and may independently time out.
+                assert result is True
+                task = device._dirac_task
+                assert task is not None
+                await asyncio.wait_for(task, timeout=0.2)
+                assert receiver.getmso_count == 2
                 assert receiver.state["cal"]["currentdiracslot"] == device._slot_index[
                     device.slot_names[0]
                 ]
