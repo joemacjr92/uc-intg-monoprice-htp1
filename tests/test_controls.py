@@ -1,7 +1,8 @@
 import asyncio
+import json
 
 from intg_monoprice_htp1.config import HTP1Config
-from intg_monoprice_htp1.device import HTP1Device
+from intg_monoprice_htp1.device import HTP1Device, apply_json_patch
 
 
 def make_device():
