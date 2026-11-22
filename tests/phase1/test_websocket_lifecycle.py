@@ -132,17 +132,12 @@ def test_websocket_disconnect_reconnect_restores_initial_state():
                 assert device._state == initial_state
 
                 # The first server connection is closed unexpectedly. The
-                # framework should mark the device disconnected, clear stale
-                # state, and establish a fresh connection automatically.
-                async def wait_for_disconnect():
-                    while device._state is not None:
-                        await asyncio.sleep(0.01)
-
-                await asyncio.wait_for(wait_for_disconnect(), timeout=3)
-                assert await asyncio.wait_for(second_connection_ready.wait(), timeout=4)
+                # framework should reconnect, clear stale state during the
+                # transition, and fetch the initial state again.
+                await asyncio.wait_for(second_connection_ready.wait(), timeout=4)
 
                 async def wait_for_recovered_state():
-                    while device._state is None:
+                    while device._state != initial_state or None not in updates:
                         await asyncio.sleep(0.01)
 
                 await asyncio.wait_for(wait_for_recovered_state(), timeout=3)
@@ -150,7 +145,7 @@ def test_websocket_disconnect_reconnect_restores_initial_state():
                 assert device._state == initial_state
                 assert device.power is True
                 assert device.get_sensor_value("volume") == str(device.volume_db)
-                assert updates.count(None) >= 1
+                assert None in updates
             finally:
                 await device.disconnect()
 
