@@ -101,6 +101,8 @@ class HTP1Device(WebSocketDevice):
         self._state_update_event = asyncio.Event()
         self._state_update_paths: set[str] = set()
         self._transaction_error: str | None = None
+        self._dirac_request_id: str | None = None
+        self._dirac_request_slot: int | None = None
         self._ws: Any | None = None
         self._send_lock = asyncio.Lock()
         self._transaction_lock = asyncio.Lock()
@@ -272,6 +274,23 @@ class HTP1Device(WebSocketDevice):
                 _LOG.error("[%s] Rejecting incomplete msoupdate; requesting fresh state: %s", self.log_id, err)
                 await self.send_message("getmso")
                 return
+
+            # Preserve the receiver-generated request ID even if a later
+            # update in the same receive burst restores the previous switch
+            # snapshot (as happens for a standby refusal).
+            for piece in data:
+                if not isinstance(piece, dict) or piece.get("path") != "/cal/diracSwitch":
+                    continue
+                switch = piece.get("value")
+                if (
+                    isinstance(switch, dict)
+                    and switch.get("state") == "requested"
+                    and isinstance(switch.get("id"), str)
+                    and isinstance(switch.get("slot"), int)
+                    and not isinstance(switch.get("slot"), bool)
+                ):
+                    self._dirac_request_id = switch["id"]
+                    self._dirac_request_slot = switch["slot"]
 
             self._state = candidate_state
             self._state_update_paths.update(
@@ -812,7 +831,11 @@ class HTP1Device(WebSocketDevice):
         loop = asyncio.get_running_loop()
         deadline = loop.time() + DIRAC_SWITCH_TIMEOUT
         error_deadline: float | None = None
-        request_id: str | None = None
+        request_id: str | None = (
+            self._dirac_request_id
+            if self._dirac_request_slot == slot_idx and self._dirac_request_id != previous_id
+            else None
+        )
 
         while True:
             cal = _as_dict(_as_dict(self._state).get("cal"))
@@ -900,6 +923,8 @@ class HTP1Device(WebSocketDevice):
             self._state_update_event.clear()
             self._state_update_paths.clear()
             self._transaction_error = None
+            self._dirac_request_id = None
+            self._dirac_request_slot = None
             operation = {
                 "op": "replace",
                 "path": "/cal/currentdiracslot",
