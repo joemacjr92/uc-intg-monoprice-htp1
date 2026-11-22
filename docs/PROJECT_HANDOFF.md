@@ -126,15 +126,82 @@ The phases below are the approved plan. Phase 0 is added as the prerequisite for
 
 ## Existing remote HTP-1 access topology
 
-This is the user's existing private route. Use it as the default remote test path; do not enable public port forwarding or replace it without explicit approval.
+There are now two private routes from the remote test environment to the HTP-1. Keep both available: the original Synology DSM reverse-proxy route remains the fallback, while the separately deployed Synology Caddy route is the validated IP-based route for the HTP-1 integration. Do not enable public port forwarding or remove either route without explicit approval.
+
+### Preferred integration test route — Synology Caddy
 
 ```text
-Couch device — remote test client (10.0.0.25)
+Unfolded Circle Remote / integration
+    |
+    |  10.0.0.56:18082
+    v
+Synology Caddy — Docker, host networking
+    |
+    |  Synology host's Tailscale route
+    v
+UGREEN host — Caddy
+    |  100.125.151.26:18080
+    v
+Monoprice HTP-1
+       10.0.0.141:80
+```
+
+Synology Caddy deployment details:
+
+- Docker Compose project directory: `/volume1/docker/caddy` (the user's deployed directory).
+- Compose file: `docker-compose.yml`.
+- Caddyfile: `Caddyfile`.
+- Container name: `caddy-htp1`.
+- Image: `caddy:2`.
+- Network mode: `host` so the container can use the Synology host's Tailscale route.
+- Persistent mounts: `./Caddyfile:/etc/caddy/Caddyfile:ro`, `./data:/data`, and `./config:/config`.
+- Restart policy: `unless-stopped`.
+- Caddy listens on port `18082` and proxies requests to `100.125.151.26:18080`.
+- Caddy automatically handles WebSocket upgrades for reverse-proxied WebSocket connections.
+
+Caddyfile used:
+
+```caddyfile
+:18082 {
+    reverse_proxy 100.125.151.26:18080
+}
+```
+
+Compose service used:
+
+```yaml
+services:
+  caddy:
+    image: caddy:2
+    container_name: caddy-htp1
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./data:/data
+      - ./config:/config
+```
+
+Known connection details:
+
+| Purpose | Address |
+|---|---|
+| Preferred integration host | `10.0.0.56` |
+| Preferred integration port | `18082` |
+| Synology Caddy URL | `http://10.0.0.56:18082/#/` |
+| Synology Caddy upstream | `100.125.151.26:18080` |
+| UGREEN host's Tailscale address | `100.125.151.26` |
+| HTP-1 local endpoint | `10.0.0.141:80` |
+
+### Original fallback route — Synology DSM reverse proxy
+
+```text
+Remote test client
     |
     |  htp1-remote:18081
     v
-Synology reverse proxy — 10.0.0.56
-    |  WebSocket forwarding enabled
+Synology DSM reverse proxy — 10.0.0.56
+    |  WebSocket forwarding headers enabled
     |
     |  Tailscale private route
     v
@@ -145,29 +212,27 @@ Monoprice HTP-1
        10.0.0.141:80
 ```
 
-Known connection details:
-
 | Purpose | Address |
 |---|---|
 | Proxy hostname | `htp1-remote` |
 | Synology reverse-proxy host | `10.0.0.56` |
-| Proxy port | `18081` |
+| Existing proxy port | `18081` |
 | Controller WebSocket | `ws://htp1-remote:18081/ws/controller` |
 | HTP-1 web interface | `http://htp1-remote:18081/#/` |
 | IR command path | `/ircmd` |
-| UGREEN host's Tailscale address | `100.125.151.26` |
 | UGREEN Caddy listener | `100.125.151.26:18080` |
-| HTP-1 local endpoint | `10.0.0.141:80` |
 
-Operational notes:
+### Verified behavior and operational notes
 
-- The Synology reverse proxy has WebSocket support/headers enabled.
-- The route passes through Tailscale to Caddy on the UGREEN host, which forwards to the HTP-1.
-- The Couch device / remote test client (`10.0.0.25`) must resolve `htp1-remote` to `10.0.0.56`. A hosts-file entry was used previously; verify it exists in the current test environment rather than assuming it does.
-- The remote test client being the Couch device does not change the integration platform (Unfolded Circle) or the controlled device (Monoprice HTP-1). Keep those identities separate in commands, diagnostics, documentation, and discussion.
-- The topology and addresses are operational context for private development. Do not copy them into public upstream documentation or expose credentials.
-- If the connection fails, verify hostname resolution, Tailscale reachability, Caddy forwarding, and WebSocket upgrade handling in that order. Do not change multiple network layers at once.
-- The previously successful SSH/Tailscale connectivity test confirmed the private route was working at that time; always re-check current connectivity when troubleshooting.
+- The original Synology DSM reverse-proxy route works by hostname, including its HTP-1 web interface and WebSocket. Directly entering the Synology IP in DSM's source Hostname field was rejected by DSM validation, so an IP-based DSM rule was not used.
+- The new Synology Caddy instance was deployed separately on port `18082`; the existing DSM reverse-proxy rule on port `18081` was left intact.
+- Tailscale is installed as a Synology application on the NAS, not inside a Tailscale Docker container. Synology Caddy uses host networking to access the Synology host's Tailscale route to the UGREEN.
+- The user confirmed that `http://10.0.0.56:18082` loads and allows navigation through to the HTP-1 interface. The user then confirmed the Unfolded Circle Remote integration connects successfully using host `10.0.0.56` and port `18082`, and that configurable-port behavior is working.
+- Treat the new route as hardware-tested connectivity for this setup, but do not infer that all Phase 0 acceptance checks or later-phase hardware tests are complete.
+- The Couch device / remote test client (`10.0.0.25`) is separate from the Unfolded Circle Remote and the HTP-1. Keep each system's identity and role distinct.
+- These addresses and configuration details are private operational context. Do not copy them into public upstream documentation or expose credentials.
+- If the new route fails, check the Synology Caddy container/logs, host-network access to Tailscale, the UGREEN Caddy listener, and then the HTP-1 backend. Test one network layer at a time.
+- Keep the original `htp1-remote:18081` route available as a fallback.
 
 ## Separate workstreams — do not conflate
 
@@ -184,7 +249,7 @@ Update this section as work progresses. Record verified facts only.
 | Item | Status |
 |---|---|
 | Branch strategy | Agreed: `main` mirrors upstream; `tests-and-docs` holds QA/docs; `feature/*` holds production development. |
-| Phase 0 | Added to the approved roadmap; verify/document the existing proxy path and its prerequisites. |
+| Phase 0 | Synology Caddy IP-based route deployed and confirmed working from the Unfolded Circle Remote at `10.0.0.56:18082`; original DSM hostname route on `htp1-remote:18081` retained as fallback. Remaining Phase 0 documentation/verification should be checked before marking the phase complete. |
 | Phases 1–6 | Approved scope; implementation status must be verified against current commits, PRs, tests, and hardware checks before being marked complete. |
 | Handoff location | `docs/PROJECT_HANDOFF.md` on `tests-and-docs` only. |
 
