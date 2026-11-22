@@ -28,7 +28,7 @@ jobs:
       - name: Checkout Phase 1 implementation under test
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ inputs.source_ref || 'feature/phase-1-websocket-safety' }}
+          ref: ${{ inputs.source_ref || 'feature/seat-shaker-trim-readback' }}
           path: implementation
 
       - name: Set up Python
