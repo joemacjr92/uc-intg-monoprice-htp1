@@ -142,6 +142,6 @@ The documentation audit was completed on tests-and-docs only:
 
 - README Dirac behavior note: 4a0544c3452f160e343642957e2f7c42c16958e8
 - Handoff hardware/QA status update: b9005bac467642b17603d6634ca041abfa30b34d
-- This validation-record update: 3178d4ad3cbf96be362f868e5eceafa6827f8729
+- This validation record was reconciled again after its initial update; the current file on tests-and-docs is authoritative.
 
 The README Credits, License, and Support & Community block was checked against the approved wording and preserved verbatim.
