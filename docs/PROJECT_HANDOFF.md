@@ -272,3 +272,20 @@ No production source files, tests, or test fixtures were changed by this audit. 
 - Remaining largest groups: TRY003 (86), I001 (47), E501 (46), TRY004 (21), UP041 (12), and TRY301 (10).
 - Focused Pyflakes check passed. The aligned broader diagnostic completed with findings as expected; full Phase 1 QA and regular Tests workflows passed on commit `04aa707605024cda2f71605a40c5694138e38699`.
 - This was configuration alignment only. No automatic fixes or production/test source edits were made. Do not bulk-fix remaining rules; review categories against behavior and project conventions before adopting them.
+
+
+
+**Asynchronous Dirac lifecycle and command concurrency (2026-11-22):**
+
+The approved Remote-timeout/concurrency follow-up is implemented on `feature-validation`:
+
+- Dirac selection now holds the normal transaction lock only for preflight, sending the receiver request, and waiting briefly for a receiver-generated request ID / acceptance state. It returns success to the Remote after the HTP-1 announces the matching request in `requested`, `running`, or `complete`; immediate refusal, plain-text busy error, invalid selection, unavailable receiver, or acceptance timeout still returns failure.
+- The accepted Dirac lifecycle is monitored by a background task with the existing 15-second completion timeout. The background task does not hold the normal transaction lock while the DSP applies the correction.
+- Volume, mute, input, sound-mode, BEQ, power, and other ordinary transactions can run while Dirac is applying. Ordinary transactions remain serialized with each other.
+- A separate Dirac operation lock prevents a second calibration selection while the first is pending. The second request is rejected promptly without sending another HTP-1 write.
+- The calibration select keeps displaying the last confirmed slot while the receiver's early `currentdiracslot` value changes. The new slot is published only after the matching request reaches `complete` and a confirming `getmso` reports the expected request ID, slot, and current slot.
+- Dirac lifecycle events use a dedicated event and error channel, separate from the ordinary write-convergence event/error channel. Disconnect wakes the background monitor; connection-generation checks prevent a stale task from confirming against a replacement connection.
+- The Remote Integration API's `entity_command` result acknowledges command execution/initial failures; stateful entity values are subsequently communicated with `entity_change`. This implementation uses that distinction rather than holding the Remote command open for the full DSP lifecycle. See the official [Unfolded Circle entity command documentation](https://unfoldedcircle.github.io/core-api/entities/) and [integration driver message flow](https://unfoldedcircle.github.io/core-api/integration-driver/write-integration-driver.html).
+- QA regressions were updated/added on `tests-and-docs`: prompt acknowledgement before completion, no premature displayed slot, nonblocking volume write during Dirac, immediate rejection of a second Dirac request, refusal/busy handling, asynchronous lifecycle timeout, and delayed final-readback behavior.
+- Production commit: `c69ac2fd22e628fa0a09cade87731c86740f7da1`. QA test commits: `524493f6f99fbbd74022d29f2f3f18236ba75379` and `23d7fdb5f7bc41502e00d2f555ebbfe8213562b3`.
+- CI validation is pending. Real Remote/HTP-1 validation remains required, particularly confirming the Remote receives prompt select acknowledgement and that volume remains responsive during an actual Dirac apply. No deployment, merge, release, or upstream PR has been performed.
