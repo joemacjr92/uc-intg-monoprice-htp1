@@ -100,6 +100,7 @@ class HTP1Device(WebSocketDevice):
         self._state_update_event = asyncio.Event()
         self._state_update_paths: set[str] = set()
         self._transaction_error: str | None = None
+        self._write_convergence_timeout = WRITE_CONVERGENCE_TIMEOUT
         self._dirac_switch_timeout = DIRAC_SWITCH_TIMEOUT
         self._dirac_request_id: str | None = None
         self._dirac_request_slot: int | None = None
@@ -556,7 +557,7 @@ class HTP1Device(WebSocketDevice):
             # An idempotent write still receives a confirming getmso below.
             return
 
-        deadline = asyncio.get_running_loop().time() + WRITE_CONVERGENCE_TIMEOUT
+        deadline = asyncio.get_running_loop().time() + self._write_convergence_timeout
         while True:
             if self._transaction_error:
                 return
