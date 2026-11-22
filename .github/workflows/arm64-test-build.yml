@@ -1,0 +1,90 @@
+name: ARM64 Test Build
+
+on:
+  push:
+    branches:
+      - build-test/configurable-htp1-port
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arm64-test-build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  INTG_NAME: monoprice_htp1
+  PYTHON_VER: 3.11.12-0.3.0
+
+jobs:
+  build-arm64:
+    name: Build ARM64 integration asset
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Get version and driver ID
+        id: metadata
+        shell: bash
+        run: |
+          VERSION=$(jq -r .version driver.json)
+          DRIVER_ID=$(jq -r .driver_id driver.json)
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "DRIVER_ID=$DRIVER_ID" >> "$GITHUB_ENV"
+          echo "ARTIFACT_NAME=uc-intg-$DRIVER_ID-$VERSION-aarch64" >> "$GITHUB_ENV"
+
+      - name: Build ARM64 executable
+        shell: bash
+        run: |
+          docker run --rm --name builder \
+            --platform=linux/arm64 \
+            --user="$(id -u):$(id -g)" \
+            -v "${GITHUB_WORKSPACE}:/workspace" \
+            "docker.io/unfoldedcircle/r2-pyinstaller:${PYTHON_VER}" \
+            bash -c "
+              cd /workspace &&
+              python -m pip install -r requirements.txt &&
+              pyinstaller --clean --onedir --name driver
+                --add-data driver.json:.
+                --collect-all zeroconf
+                --collect-all ucapi
+                --collect-all ucapi_framework
+                --hidden-import intg_${INTG_NAME}.driver
+                --hidden-import intg_${INTG_NAME}.device
+                --hidden-import intg_${INTG_NAME}.config
+                --hidden-import intg_${INTG_NAME}.media_player
+                --hidden-import intg_${INTG_NAME}.remote
+                --hidden-import intg_${INTG_NAME}.sensor
+                --hidden-import intg_${INTG_NAME}.selector
+                --hidden-import intg_${INTG_NAME}.browser
+                --hidden-import intg_${INTG_NAME}.displayvalues
+                --hidden-import intg_${INTG_NAME}.setup_flow
+                --paths .
+                intg_${INTG_NAME}/__init__.py
+            "
+
+      - name: Package integration asset
+        shell: bash
+        run: |
+          mkdir -p artifacts/bin
+          cp -a dist/driver/. artifacts/bin/
+          cp driver.json artifacts/
+          if [[ -f assets/monoprice-logo.png ]]; then
+            cp assets/monoprice-logo.png artifacts/
+          fi
+          tar czvf "${ARTIFACT_NAME}.tar.gz" -C artifacts .
+          echo "=== Packaged asset ==="
+          tar tzvf "${ARTIFACT_NAME}.tar.gz"
+          ls -lh "${ARTIFACT_NAME}.tar.gz"
+
+      - name: Upload ARM64 integration asset
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ env.ARTIFACT_NAME }}.tar.gz
+          if-no-files-found: error
+          retention-days: 7
