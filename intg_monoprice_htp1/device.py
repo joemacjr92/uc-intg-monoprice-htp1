@@ -865,7 +865,8 @@ class HTP1Device(WebSocketDevice):
                 and (
                     (request_id is not None and reply_id == request_id)
                     or (
-                        isinstance(reply_id, str)
+                        request_id is None
+                        and isinstance(reply_id, str)
                         and reply_id
                         and reply_id != previous_reply_id
                         and not reply_id.startswith("nr-")
