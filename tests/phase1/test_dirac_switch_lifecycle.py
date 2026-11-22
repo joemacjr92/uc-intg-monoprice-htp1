@@ -817,3 +817,23 @@ def test_dirac_high_frequency_volume_burst_still_produces_one_limited_write():
 
     asyncio.run(exercise())
 
+def test_dirac_command_gate_releases_after_confirmed_completion():
+    async def exercise():
+        device, receiver = make_device(delay=0.1)
+        try:
+            assert await device.select_calibration(device.slot_names[1]) is True
+            assert await device.mute_toggle(True) is False
+
+            task = device._dirac_task
+            assert task is not None
+            await asyncio.wait_for(task, timeout=1.0)
+
+            assert device._dirac_commands_blocked() is False
+            assert await device.mute_toggle(True) is True
+            assert receiver.state["muted"] is True
+            assert receiver.change_count == 2
+        finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
