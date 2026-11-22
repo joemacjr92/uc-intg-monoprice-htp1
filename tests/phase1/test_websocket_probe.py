@@ -43,22 +43,22 @@ def test_probe_ignores_non_state_messages_until_valid_state_marker():
 
 
 def test_probe_times_out_when_server_never_returns_state(monkeypatch):
-    class SilentWebSocket:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *_args):
-            return False
-
-        async def send(self, message):
-            sent.append(message)
-
-        async def recv(self):
-            await asyncio.Event().wait()
-
     async def exercise():
-        global sent
         sent = []
+
+        class SilentWebSocket:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_args):
+                return False
+
+            async def send(self, message):
+                sent.append(message)
+
+            async def recv(self):
+                await asyncio.Event().wait()
+
         websocket = SilentWebSocket()
         monkeypatch.setattr(websockets, "connect", lambda *_args, **_kwargs: websocket)
 
