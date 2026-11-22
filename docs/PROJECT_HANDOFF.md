@@ -2,14 +2,14 @@
 
 > **Purpose:** This is the continuity document for future development chats. Read it before proposing or making changes. This repository contains the **Unfolded Circle integration for the Monoprice HTP-1**. Keep that integration/platform context distinct from the user's separate Couch device and Couch-related project context, as well as from the Fire TV and hosted BEQ catalogue workstreams.
 >
-> **Critical device distinction:** The remote test client at `10.0.0.25` is the **Couch device**. It is used as a client/test host in the remote access setup; it is **not** the Unfolded Circle Remote and it is **not** the Monoprice HTP-1. Do not call it an Unfolded Circle device or confuse its identity/operating environment with the integration target. The integration target is the HTP-1; the integration platform is Unfolded Circle. Refer to each system by its actual role. If any device identity or role is unclear, verify it or ask rather than importing assumptions from another project or chat.
+> **Device distinction:** The integration target is the Monoprice HTP-1 and the integration platform is Unfolded Circle. Keep those roles distinct from the user's separate Couch device and other project contexts. Do not conflate device identities or operating environments; verify or ask if a role is unclear.
 
 ## New-chat instructions
 
 1. Read this document before continuing project work.
 2. Verify the live GitHub state (branches, commits, open PRs, checks, and working changes) before assuming a task is complete or starting new work. This document records decisions and intended scope; live repository state is authoritative for implementation status.
 3. Preserve the agreed branch strategy below. Do not develop production code directly on `main` or `tests-and-docs`.
-4. Keep the six development phases in order unless the user explicitly changes the plan. Phase 0 is the remote reverse-proxy access prerequisite.
+4. Keep the six development phases in order unless the user explicitly changes the plan. Phase 0 is the configurable-port prerequisite for private remote connectivity.
 5. Do not silently add, remove, or reinterpret requirements. Ask before expanding scope.
 6. Preserve existing behavior unless a specific correction is required by the phase. Add regression coverage for each correction.
 7. Distinguish automated tests, CI results, remote connectivity checks, and actual HTP-1 hardware acceptance. Never claim one proves another.
@@ -52,11 +52,11 @@ Upstream: [mase1981/uc-intg-monoprice-htp1](https://github.com/mase1981/uc-intg-
 
 ## Development roadmap
 
-The phases below are the approved plan. Phase 0 is added as the prerequisite for remote testing through the user's existing reverse-proxy setup. Phases 1–6 retain the user's specified scope.
+The phases below are the approved plan. Phase 0 adds configurable-port support required for remote testing through the user's existing private reverse-proxy setup. Phases 1–6 retain the user's specified scope.
 
 ### Phase 0 — Configurable HTP-1 port and private reverse-proxy access
 
-**Goal:** Support a configurable HTP-1 HTTP/WebSocket port so the integration can use the user's private IP-based Synology Caddy route, while preserving the default local connection.
+**Goal:** Support a configurable HTP-1 HTTP/WebSocket port so the integration can use the user's existing private reverse-proxy connection, while preserving the default local connection.
 
 - Add a port field to setup; default to `80`.
 - Validate ports as integers in the range 1–65535.
@@ -64,7 +64,7 @@ The phases below are the approved plan. Phase 0 is added as the prerequisite for
 - Use the configured port for controller WebSocket connections, setup probing, and HTTP IR commands.
 - Preserve compatibility with existing configuration and backup data that do not contain a port; these entries default to `80`.
 - Preserve configured ports through backup and restore.
-- Use the preferred Synology Caddy route at `10.0.0.56:18082` for remote integration testing; retain the existing DSM hostname route at `htp1-remote:18081` as a fallback.
+- Validate remote connectivity through the user's established private reverse-proxy path. Keep network addresses, hostnames, topology, and tunnel details out of repository documentation.
 - Keep credentials and private access details out of logs and public documentation.
 
 **Acceptance:** Setup supports the default and custom ports; all connection paths use the selected port; legacy configuration and backup data default to port 80; backup/restore preserves configured ports; and the Remote successfully operates the HTP-1 through the private proxy route. Automated tests, backup inspection, and actual Remote/HTP-1 behavior are recorded separately in the Phase 0 QA record.
@@ -125,115 +125,13 @@ The phases below are the approved plan. Phase 0 is added as the prerequisite for
 - Real HTP-1 testing.
 - Final review for unintended behavior changes.
 
-## Existing remote HTP-1 access topology
+## Private remote HTP-1 access
 
-There are now two private routes from the remote test environment to the HTP-1. Keep both available: the original Synology DSM reverse-proxy route remains the fallback, while the separately deployed Synology Caddy route is the validated IP-based route for the HTP-1 integration. Do not enable public port forwarding or remove either route without explicit approval.
+A private reverse-proxy path is available for remote HTP-1 testing. Phase 0 validated the integration's configurable-port support using that path, and the user confirmed that the Remote connected and sensors operated successfully.
 
-### Preferred integration test route — Synology Caddy
+Operational network details are intentionally excluded from this repository's documentation. Do not record or reproduce private IP addresses, hostnames, ports tied to private infrastructure, Tailscale addresses or configuration, proxy topology, internal service names, or deployment paths. If troubleshooting requires those details, obtain them directly from the user in the relevant private working context; do not copy them into handoff documents, issue reports, logs, or public materials.
 
-```text
-Unfolded Circle Remote / integration
-    |
-    |  10.0.0.56:18082
-    v
-Synology Caddy — Docker, host networking
-    |
-    |  Synology host's Tailscale route
-    v
-UGREEN host — Caddy
-    |  100.125.151.26:18080
-    v
-Monoprice HTP-1
-       10.0.0.141:80
-```
-
-Synology Caddy deployment details:
-
-- Docker Compose project directory: `/volume1/docker/caddy` (the user's deployed directory).
-- Compose file: `docker-compose.yml`.
-- Caddyfile: `Caddyfile`.
-- Container name: `caddy-htp1`.
-- Image: `caddy:2`.
-- Network mode: `host` so the container can use the Synology host's Tailscale route.
-- Persistent mounts: `./Caddyfile:/etc/caddy/Caddyfile:ro`, `./data:/data`, and `./config:/config`.
-- Restart policy: `unless-stopped`.
-- Caddy listens on port `18082` and proxies requests to `100.125.151.26:18080`.
-- Caddy automatically handles WebSocket upgrades for reverse-proxied WebSocket connections.
-
-Caddyfile used:
-
-```caddyfile
-:18082 {
-    reverse_proxy 100.125.151.26:18080
-}
-```
-
-Compose service used:
-
-```yaml
-services:
-  caddy:
-    image: caddy:2
-    container_name: caddy-htp1
-    restart: unless-stopped
-    network_mode: host
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./data:/data
-      - ./config:/config
-```
-
-Known connection details:
-
-| Purpose | Address |
-|---|---|
-| Preferred integration host | `10.0.0.56` |
-| Preferred integration port | `18082` |
-| Synology Caddy URL | `http://10.0.0.56:18082/#/` |
-| Synology Caddy upstream | `100.125.151.26:18080` |
-| UGREEN host's Tailscale address | `100.125.151.26` |
-| HTP-1 local endpoint | `10.0.0.141:80` |
-
-### Original fallback route — Synology DSM reverse proxy
-
-```text
-Remote test client
-    |
-    |  htp1-remote:18081
-    v
-Synology DSM reverse proxy — 10.0.0.56
-    |  WebSocket forwarding headers enabled
-    |
-    |  Tailscale private route
-    v
-UGREEN host — Caddy
-    |  100.125.151.26:18080
-    v
-Monoprice HTP-1
-       10.0.0.141:80
-```
-
-| Purpose | Address |
-|---|---|
-| Proxy hostname | `htp1-remote` |
-| Synology reverse-proxy host | `10.0.0.56` |
-| Existing proxy port | `18081` |
-| Controller WebSocket | `ws://htp1-remote:18081/ws/controller` |
-| HTP-1 web interface | `http://htp1-remote:18081/#/` |
-| IR command path | `/ircmd` |
-| UGREEN Caddy listener | `100.125.151.26:18080` |
-
-### Verified behavior and operational notes
-
-- The original Synology DSM reverse-proxy route works by hostname, including its HTP-1 web interface and WebSocket. Directly entering the Synology IP in DSM's source Hostname field was rejected by DSM validation, so an IP-based DSM rule was not used.
-- The new Synology Caddy instance was deployed separately on port `18082`; the existing DSM reverse-proxy rule on port `18081` was left intact.
-- Tailscale is installed as a Synology application on the NAS, not inside a Tailscale Docker container. Synology Caddy uses host networking to access the Synology host's Tailscale route to the UGREEN.
-- The user confirmed that `http://10.0.0.56:18082` loads and allows navigation through to the HTP-1 interface. The user then confirmed the Unfolded Circle Remote integration connects successfully using host `10.0.0.56` and port `18082`, and that configurable-port behavior is working.
-- Treat the new route as hardware-tested connectivity for this setup, but do not infer that all Phase 0 acceptance checks or later-phase hardware tests are complete.
-- The Couch device / remote test client (`10.0.0.25`) is separate from the Unfolded Circle Remote and the HTP-1. Keep each system's identity and role distinct.
-- These addresses and configuration details are private operational context. Do not copy them into public upstream documentation or expose credentials.
-- If the new route fails, check the Synology Caddy container/logs, host-network access to Tailscale, the UGREEN Caddy listener, and then the HTP-1 backend. Test one network layer at a time.
-- Keep the original `htp1-remote:18081` route available as a fallback.
+Do not enable public port forwarding, change the established private access setup, or remove fallback connectivity without explicit approval. When documenting validation, state only that the private reverse-proxy path was used and describe the observed result without exposing its endpoints or implementation details.
 
 ## Separate workstreams — do not conflate
 
@@ -241,7 +139,7 @@ The following are not phases in the roadmap above:
 
 1. **Hosted BEQ catalogue work:** catalogue publishing/compatibility, its own hardening tasks, and related CI. Keep it distinct from the HTP-1 feature roadmap.
 2. **Generic performance/hardening investigations:** treat these as separately scoped tasks unless the user explicitly maps an item into one of the phases above.
-3. **Couch device / separate Couch-related context:** not the Unfolded Circle integration platform and not the HTP-1. The Couch device at `10.0.0.25` is only the remote test client in the topology above. Keep any separate Couch project or operating-environment details out of HTP-1 implementation assumptions unless the user explicitly asks to work on them.
+3. **Couch device / separate Couch-related context:** not the Unfolded Circle integration platform and not the HTP-1. Keep any separate Couch project or operating-environment details out of HTP-1 implementation assumptions unless the user explicitly asks to work on them.
 
 ## Current status tracking
 
@@ -250,7 +148,7 @@ Update this section as work progresses. Record verified facts only.
 | Item | Status |
 |---|---|
 | Branch strategy | Agreed: `main` mirrors upstream; `tests-and-docs` holds QA/docs; `feature/*` holds production development. |
-| Phase 0 | **Complete.** Configurable port setup and connection paths implemented; legacy config/backup defaults to port 80; backup preserves per-entry ports. Remote sensors confirmed working through Synology Caddy at `10.0.0.56:18082`; user inspected backup and confirmed local port `80` and proxy port `18082`. Original DSM hostname route at `htp1-remote:18081` remains fallback. See `docs/phase-0-validation.md`. |
+| Phase 0 | **Complete.** Configurable port setup and connection paths implemented; legacy config/backup defaults to port 80; backup preserves per-entry ports. Remote sensors confirmed working through the user's private reverse-proxy path. Endpoint and topology details are intentionally not recorded. See `docs/phase-0-validation.md`. |
 | Phases 1–6 | Approved scope; implementation status must be verified against current commits, PRs, tests, and hardware checks before being marked complete. |
 | Handoff location | `docs/PROJECT_HANDOFF.md` on `tests-and-docs` only. |
 
