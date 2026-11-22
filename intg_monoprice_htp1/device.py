@@ -829,7 +829,6 @@ class HTP1Device(WebSocketDevice):
         """Wait for this slot request to reach a correlated terminal state."""
         loop = asyncio.get_running_loop()
         deadline = loop.time() + DIRAC_SWITCH_TIMEOUT
-        error_deadline: float | None = None
         request_id: str | None = (
             self._dirac_request_id
             if self._dirac_request_slot == slot_idx and self._dirac_request_id != previous_id
