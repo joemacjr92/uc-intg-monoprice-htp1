@@ -41,6 +41,7 @@ class DelayedStateReceiver:
             self.change_count += 1
             operations = json.loads(message.partition(" ")[2])
             candidate = copy.deepcopy(self.state)
+            update_operations = list(operations)
             for operation in operations:
                 apply_json_patch(
                     candidate,
@@ -48,14 +49,39 @@ class DelayedStateReceiver:
                     operation["path"],
                     operation.get("value"),
                 )
+            if any(operation.get("path") == "/cal/currentdiracslot" for operation in operations):
+                slot = next(
+                    operation["value"]
+                    for operation in operations
+                    if operation.get("path") == "/cal/currentdiracslot"
+                )
+                lifecycle_patch = {
+                    "op": "replace",
+                    "path": "/cal/diracSwitch",
+                    "value": {
+                        "version": 1,
+                        "id": f"fake-dirac-{self.change_count}",
+                        "state": "complete",
+                        "locked": False,
+                        "slot": slot,
+                        "message": "Slot change verified.",
+                    },
+                }
+                apply_json_patch(
+                    candidate,
+                    lifecycle_patch["op"],
+                    lifecycle_patch["path"],
+                    lifecycle_patch["value"],
+                )
+                update_operations.append(lifecycle_patch)
             if self.apply_delay:
                 task = asyncio.create_task(
-                    self._apply_change(candidate, operations, self.apply_delay)
+                    self._apply_change(candidate, update_operations, self.apply_delay)
                 )
                 self.reply_tasks.append(task)
                 return
             self.state = candidate
-            await self.device.handle_message(f"msoupdate {json.dumps(operations)}")
+            await self.device.handle_message(f"msoupdate {json.dumps(update_operations)}")
 
     async def _apply_change(self, candidate, operations, delay):
         await asyncio.sleep(delay)
