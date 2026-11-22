@@ -224,9 +224,6 @@ def test_setup_parses_port_and_passes_it_to_probe(monkeypatch):
     assert seen == [("192.0.2.10", 8088)]
 
 
-@pytest.mark.parametrize("port", ["0", "65536", "-1", "80.5", "abc", ""])
-
-
 def test_setup_update_preserves_identifier_and_applies_new_port(monkeypatch):
     from intg_monoprice_htp1 import setup_flow
 
@@ -257,6 +254,7 @@ def test_setup_update_preserves_identifier_and_applies_new_port(monkeypatch):
     assert seen == [("192.0.2.11", 8088)]
 
 
+@pytest.mark.parametrize("port", ["0", "65536", "-1", "80.5", "abc", ""])
 def test_setup_rejects_invalid_port_without_probing(monkeypatch, port):
     from intg_monoprice_htp1 import setup_flow
 
