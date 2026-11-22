@@ -37,7 +37,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install test dependencies
-        run: python -m pip install -r implementation/requirements.txt pytest
+        run: python -m pip install -r implementation/requirements.txt pytest pytest-cov
 
       - name: Run complete existing regression suite against implementation
         working-directory: implementation
@@ -81,5 +81,9 @@ jobs:
               "-q",
               "--import-mode=importlib",
               "../tests/phase1",
+              "--cov=intg_monoprice_htp1.device",
+              "--cov=intg_monoprice_htp1.browser",
+              "--cov-report=term-missing",
+              "--cov-report=xml:coverage.xml",
           ]))
           PY
