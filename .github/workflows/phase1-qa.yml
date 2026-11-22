@@ -12,7 +12,7 @@ on:
       source_ref:
         description: "Production branch or commit containing the Phase 1 implementation"
         required: true
-        default: "feature/seat-shaker-trim-readback"
+        default: "feature-validation"
 
 permissions:
   contents: read
@@ -28,7 +28,7 @@ jobs:
       - name: Checkout Phase 1 implementation under test
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ inputs.source_ref || 'feature/seat-shaker-trim-readback' }}
+          ref: ${{ inputs.source_ref || 'feature-validation' }}
           path: implementation
 
       - name: Set up Python
