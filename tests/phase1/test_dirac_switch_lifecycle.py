@@ -595,8 +595,8 @@ def test_dirac_absolute_raw_volume_request_becomes_base_for_later_steps():
             assert task is not None
             await asyncio.wait_for(task, timeout=1.0)
 
-            # Desired displayed target is -31 dB; current volume is -27 dB,
-            # so the existing 5 dB limiter does not need to clamp it.
+            # The desired raw target is -38 dB; the shared limiter clamps
+            # the 11 dB downward jump to 5 dB from the current -27 dB.
             assert _volume_writes(receiver) == [-32]
         finally:
             await receiver.cleanup()
@@ -625,8 +625,8 @@ def test_dirac_absolute_level_request_uses_captured_bounds_and_last_absolute_win
             assert task is not None
             await asyncio.wait_for(task, timeout=1.0)
 
-            # A 0.75 level maps to the raw midpoint calculation, then the
-            # existing 5 dB jump limiter is applied by the shared helper.
+            # A 0.75 level maps to raw -30 dB, a 3 dB change from -27 dB.
+            # The shared helper therefore does not need to clamp this target.
             assert _volume_writes(receiver) == [-30]
         finally:
             await receiver.cleanup()
@@ -669,6 +669,8 @@ def test_dirac_blocks_non_volume_mutations_without_refreshing_receiver():
             assert await device.select_ss_preset(1) is False
             assert await device.clear_beq() is False
             assert await device.load_beq("test", []) is False
+            assert await device.send_command("send_avcui: hpe") is False
+            assert await device.send_http_command("0001") is False
 
             assert receiver.messages == messages_before
             assert receiver.getmso_count == getmso_before
@@ -783,6 +785,33 @@ def test_dirac_completion_without_volume_requests_does_not_send_volume_write():
             assert receiver.change_count == 1
             assert _volume_writes(receiver) == []
             assert device._dirac_volume_capture_active is False
+        finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
+def test_dirac_high_frequency_volume_burst_still_produces_one_limited_write():
+    async def exercise():
+        device, receiver = make_device(delay=0.1)
+        try:
+            starting_volume = receiver.state["volume"]
+            assert await device.select_calibration(device.slot_names[1]) is True
+
+            for _ in range(40):
+                assert await device.volume_up() is True
+
+            assert device._dirac_volume_delta == 13  # Clamped at the captured VPH.
+            assert _volume_writes(receiver) == []
+            assert receiver.change_count == 1
+
+            task = device._dirac_task
+            assert task is not None
+            await asyncio.wait_for(task, timeout=1.0)
+
+            # The user requested a large increase, but only one 5 dB write
+            # is sent after Dirac; the existing limiter remains authoritative.
+            assert _volume_writes(receiver) == [starting_volume + 5]
+            assert receiver.change_count == 2
         finally:
             await receiver.cleanup()
 
