@@ -11,12 +11,14 @@ import hashlib
 import json
 import logging
 import math
+import ssl
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import aiohttp
+import certifi
 
 from ucapi import StatusCodes
 from ucapi.api_definitions import Pagination
@@ -57,8 +59,9 @@ _entry_locks: dict[tuple[str, str], _EntryLock] = {}
 
 
 def _new_session() -> aiohttp.ClientSession:
-    """Create an HTTP session using the original Remote-compatible TLS setting."""
-    connector = aiohttp.TCPConnector(ssl=False)
+    """Create an HTTP session with verified TLS using the certifi CA bundle."""
+    ssl_context = ssl.create_default_context(cafile=certifi.where())
+    connector = aiohttp.TCPConnector(ssl=ssl_context)
     return aiohttp.ClientSession(connector=connector, timeout=REQUEST_TIMEOUT)
 
 
