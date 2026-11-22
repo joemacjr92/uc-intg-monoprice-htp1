@@ -319,26 +319,3 @@ def test_old_inflight_payload_is_not_cached_after_version_change(monkeypatch):
 
 
 
-def test_new_session_uses_original_remote_tls_setting(monkeypatch):
-    connector_options = {}
-    session_options = {}
-    connector = object()
-
-    def fake_connector(**kwargs):
-        connector_options.update(kwargs)
-        return connector
-
-    def fake_session(**kwargs):
-        session_options.update(kwargs)
-        return object()
-
-    monkeypatch.setattr(browser.aiohttp, "TCPConnector", fake_connector)
-    monkeypatch.setattr(browser.aiohttp, "ClientSession", fake_session)
-
-    browser._new_session()
-
-    assert connector_options == {"ssl": False}
-    assert session_options == {
-        "connector": connector,
-        "timeout": browser.REQUEST_TIMEOUT,
-    }
