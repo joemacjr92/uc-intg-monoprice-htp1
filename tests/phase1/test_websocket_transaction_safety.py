@@ -201,7 +201,10 @@ def test_disconnect_after_beq_write_does_not_claim_success_or_replay():
         assert result is False
         assert receiver.change_count == 1
         assert sum(message.startswith("changemso ") for message in receiver.messages) == 1
-        assert device.beq_active != "Disconnected BEQ"
+        # The receiver echoed the complete patch before the socket dropped.
+        # The command still returns failure because readback could not complete;
+        # retain the last state actually reported by the receiver.
+        assert device.beq_active == "Disconnected BEQ"
 
     asyncio.run(exercise())
 
