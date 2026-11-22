@@ -566,7 +566,7 @@ def test_beq_pre_uses_sub1_even_when_peq_channels_have_no_lfe_key():
     asyncio.run(exercise())
 
 
-def test_beq_non_pre_targets_all_present_subwoofers():
+def test_beq_forces_pre_and_uses_only_lfe_path_even_when_peq_was_post():
     import asyncio
     from intg_monoprice_htp1.config import HTP1Config
     from intg_monoprice_htp1.device import HTP1Device
@@ -583,22 +583,31 @@ def test_beq_non_pre_targets_all_present_subwoofers():
             return True
 
         device._send_transaction = capture
-        assert await device.load_beq("Post PEQ", [
+        assert await device.load_beq("Pre PEQ", [
             {"type": "PeakingEQ", "freq": 30, "gain": 4, "q": 1},
         ])
         operations = sent[0]
-        for channel in ("sub1", "sub2"):
-            assert {
-                "op": "replace",
-                "path": f"/peq/slots/0/channels/{channel}/Fc",
-                "value": 30,
-            } in operations
-            assert {
-                "op": "add",
-                "path": f"/peq/slots/0/channels/{channel}/beq",
-                "value": True,
-            } in operations
-        assert not any("/channels/LFE/" in op["path"] for op in operations)
+        assert {
+            "op": "replace",
+            "path": "/peq/location",
+            "value": "pre",
+        } in operations
+        assert {
+            "op": "replace",
+            "path": "/peq/slots/0/channels/sub1/Fc",
+            "value": 30,
+        } in operations
+        assert {
+            "op": "add",
+            "path": "/peq/slots/0/channels/sub1/beq",
+            "value": True,
+        } in operations
+        assert not any(
+            "/channels/sub2/" in op["path"]
+            for op in operations
+            if op["op"] in ("add", "replace")
+        )
+        assert device._get_sub_channels() == ["sub1"]
 
     asyncio.run(exercise())
 
@@ -610,7 +619,7 @@ def test_beq_capacity_failure_preserves_current_filter_without_sending():
 
     async def exercise():
         device = HTP1Device(HTP1Config("test", "Test HTP-1", "127.0.0.1"))
-        device._state = _make_peq_test_state(sub1_beq=(0,), sub2_beq=(0,))
+        device._state = _make_peq_test_state(sub1_beq=range(16), sub2_beq=(0,))
         sent = []
 
         async def capture(operations):
