@@ -259,7 +259,7 @@ def test_dirac_busy_error_without_accepted_request_is_reported():
             assert elapsed < 1.5
             assert receiver.change_count == 1
             assert receiver.getmso_count == 1
-            assert device._transaction_error.startswith("Dirac is busy")
+            assert device._dirac_error.startswith("Dirac is busy")
         finally:
             await receiver.cleanup()
 
@@ -285,7 +285,7 @@ def test_dirac_busy_lock_preflight_does_not_send_another_slot_change():
 
 def test_dirac_does_not_block_volume_and_rejects_second_dirac_request():
     async def exercise():
-        device, receiver = make_device(delay=0.4)
+        device, receiver = make_device(delay=1.0)
         try:
             original_display = device.dirac_slot_name
             first = await device.select_calibration(device.slot_names[1])
@@ -307,7 +307,7 @@ def test_dirac_does_not_block_volume_and_rejects_second_dirac_request():
 
             task = device._dirac_task
             assert task is not None
-            await asyncio.wait_for(task, timeout=1.0)
+            await asyncio.wait_for(task, timeout=2.0)
             assert device.dirac_slot_name == device.slot_names[1]
             assert receiver.state["cal"]["currentdiracslot"] == 1
         finally:
@@ -321,6 +321,7 @@ def test_dirac_switch_timeout_does_not_claim_success():
         device, receiver = make_device(mode="never")
         device._dirac_switch_timeout = 0.0
         try:
+            original_display = device.dirac_slot_name
             result = await device.select_calibration(device.slot_names[1])
 
             assert result is True  # Receiver accepted; lifecycle timeout is asynchronous.
@@ -329,7 +330,7 @@ def test_dirac_switch_timeout_does_not_claim_success():
             await asyncio.wait_for(task, timeout=0.1)
             assert receiver.change_count == 1
             assert receiver.getmso_count == 1
-            assert device.dirac_slot_name == device.slot_names[0]
+            assert device.dirac_slot_name == original_display
             assert not device._dirac_operation_lock.locked()
         finally:
             await receiver.cleanup()
