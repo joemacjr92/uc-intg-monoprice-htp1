@@ -184,3 +184,61 @@ def test_unavailable_beq_browser_keeps_existing_clear_action_available(monkeypat
         assert result.media.can_search is False
 
     asyncio.run(exercise())
+
+
+def test_beq_root_browse_keeps_clear_action_available_when_peq_is_pre():
+    async def exercise():
+        result = await browser.browse(
+            _browser_device("pre", active="Currently loaded BEQ"),
+            _browse_options(),
+        )
+        assert [item.title for item in result.media.items] == [
+            "BEQ Catalogue",
+            "Clear BEQ: Currently loaded BEQ",
+        ]
+        assert result.media.items[0].can_browse is True
+        assert result.media.items[1].can_play is True
+
+    asyncio.run(exercise())
+
+
+@pytest.mark.parametrize("location", ["post", None, "unknown", ""])
+def test_beq_search_with_non_pre_placement_returns_no_results(monkeypatch, location):
+    async def exercise():
+        async def index_must_not_load():
+            raise AssertionError("BEQ search must not load unless PEQ is Pre")
+
+        monkeypatch.setattr(browser, "_load_index", index_must_not_load)
+        result = await browser.search(
+            _browser_device(location),
+            SimpleNamespace(query="film", paging=None),
+        )
+        assert result.media == []
+        assert result.pagination.count == 0
+
+    asyncio.run(exercise())
+
+
+def test_beq_search_is_available_when_peq_is_pre(monkeypatch):
+    async def exercise():
+        browser._index = {
+            "entries": [{
+                "id": "0123456789abcdef",
+                "title": "Example Film",
+                "author": "Example Author",
+                "year": "2026",
+                "audioTypes": [],
+            }],
+            "categories": {"film": [0]},
+        }
+        browser._manifest = {"version": "0123456789abcdef"}
+        browser._index_loaded_at = __import__("time").monotonic()
+
+        result = await browser.search(
+            _browser_device("pre"),
+            SimpleNamespace(query="example", paging=None),
+        )
+        assert [item.title for item in result.media] == ["Example Film Example Author"]
+        assert result.pagination.count == 1
+
+    asyncio.run(exercise())
