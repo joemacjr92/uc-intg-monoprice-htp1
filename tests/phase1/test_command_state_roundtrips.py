@@ -114,6 +114,7 @@ def test_volume_up_down_respect_fixture_zero_point_and_native_limits():
         assert device.vph == -14
 
         device._state["volume"] = -79
+        device._ws.state["volume"] = -79
         device._parse_state()
         assert device.volume_db == -72
         assert await device.volume_down()
@@ -136,6 +137,7 @@ def test_volume_up_down_respect_fixture_zero_point_and_native_limits():
         assert writes_after_limit == writes_before_limit
 
         device._state["volume"] = -15
+        device._ws.state["volume"] = -15
         device._parse_state()
         assert await device.volume_up()
         operations = await apply_recorded_transaction(device)
