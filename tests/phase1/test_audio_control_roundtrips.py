@@ -14,11 +14,43 @@ BEQ_FIXTURE = Path(__file__).parents[1] / "fixtures" / "mso_beq_pre_active.json"
 
 
 class RecordingWebSocket:
-    def __init__(self):
+    def __init__(self, device):
+        self.device = device
+        self.state = copy.deepcopy(device._state)
         self.messages = []
 
     async def send(self, message):
         self.messages.append(message)
+        if message == "getmso":
+            await self.device.handle_message(f"mso {json.dumps(self.state)}")
+        elif message.startswith("changemso "):
+            operations = json.loads(message.partition(" ")[2])
+            candidate = copy.deepcopy(self.state)
+            for operation in operations:
+                apply_json_patch(
+                    candidate,
+                    operation["op"],
+                    operation["path"],
+                    operation.get("value"),
+                )
+            side_effects = []
+            for operation in operations:
+                if operation.get("path") == "/shaker/activePreset":
+                    preset = str(operation["value"])
+                    trim = candidate["shaker"]["presets"][preset]["trim"]
+                    side_effect = {
+                        "op": "replace", "path": "/shaker/trim", "value": trim
+                    }
+                    apply_json_patch(candidate, **{
+                        "op": side_effect["op"],
+                        "path_str": side_effect["path"],
+                        "value": side_effect["value"],
+                    })
+                    side_effects.append(side_effect)
+            self.state = candidate
+            await self.device.handle_message(
+                f"msoupdate {json.dumps(operations + side_effects)}"
+            )
 
 
 def make_device(fixture=FULL_FIXTURE):
@@ -29,25 +61,31 @@ def make_device(fixture=FULL_FIXTURE):
     device._is_connected = True
     device._state = json.loads(fixture.read_text(encoding="utf-8"))
     device._parse_state()
-    device._ws = RecordingWebSocket()
+    device._ws = RecordingWebSocket(device)
     return device
 
 
 async def apply_last_transaction(device, extra_echo_operations=None):
-    message = device._ws.messages[-1]
-    assert message.startswith("changemso ")
-    operations = json.loads(message.partition(" ")[2])
-    echoed = operations + (extra_echo_operations or [])
-    candidate = copy.deepcopy(device._state)
-    for operation in echoed:
-        apply_json_patch(
-            candidate,
-            operation["op"],
-            operation["path"],
-            operation.get("value"),
+    messages = [
+        message for message in device._ws.messages
+        if message.startswith("changemso ")
+    ]
+    assert messages
+    operations = json.loads(messages[-1].partition(" ")[2])
+    if extra_echo_operations:
+        candidate = copy.deepcopy(device._ws.state)
+        for operation in extra_echo_operations:
+            apply_json_patch(
+                candidate,
+                operation["op"],
+                operation["path"],
+                operation.get("value"),
+            )
+        device._ws.state = candidate
+        await device.handle_message(
+            f"msoupdate {json.dumps(extra_echo_operations)}"
         )
-    await device.handle_message(f"msoupdate {json.dumps(echoed)}")
-    assert device._state == candidate
+    assert device._state == device._ws.state
     return operations
 
 
