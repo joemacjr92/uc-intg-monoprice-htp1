@@ -323,3 +323,15 @@ def test_absolute_volume_uses_fresh_receiver_calibration_bounds():
         assert receiver.state["volume"] == cached["volume"]
 
     asyncio.run(exercise())
+
+def test_connection_loss_wakes_state_refresh_waiters():
+    async def exercise():
+        device, _ = _make_device()
+        device._state_ready.clear()
+
+        device._on_connection_lost()
+
+        assert device._state is None
+        assert device._state_ready.is_set()
+
+    asyncio.run(exercise())
