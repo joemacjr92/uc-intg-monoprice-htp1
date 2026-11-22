@@ -5,6 +5,11 @@ from types import SimpleNamespace
 from intg_monoprice_htp1 import browser
 
 
+
+def _search_device():
+    return SimpleNamespace(_state={"peq": {"location": "pre"}})
+
+
 def _seed_index(monkeypatch):
     entries = [
         {"id": f"{index:016x}", "title": title, "author": "", "year": "2024",
@@ -25,7 +30,7 @@ def test_search_respects_requested_page_and_limit(monkeypatch):
         query="al",
         paging=SimpleNamespace(page=2, limit=2),
     )
-    result = asyncio.run(browser.search(None, options))
+    result = asyncio.run(browser.search(_search_device(), options))
     assert [item.title for item in result.media] == ["Alto"]
     assert result.pagination.page == 2
     assert result.pagination.limit == 2
@@ -45,7 +50,7 @@ def test_search_matches_author(monkeypatch):
     _seed_index(monkeypatch)
     browser._index["entries"][0]["author"] = "Preferred Author"
     options = SimpleNamespace(query="preferred", paging=SimpleNamespace(page=1, limit=10))
-    result = asyncio.run(browser.search(None, options))
+    result = asyncio.run(browser.search(_search_device(), options))
     assert [item.title for item in result.media] == ["Alpha Preferred Author"]
 
 
@@ -53,7 +58,7 @@ def test_search_returns_author_in_display_title(monkeypatch):
     _seed_index(monkeypatch)
     browser._index["entries"][0]["author"] = "Preferred Author"
     options = SimpleNamespace(query="alpha", paging=SimpleNamespace(page=1, limit=10))
-    result = asyncio.run(browser.search(None, options))
+    result = asyncio.run(browser.search(_search_device(), options))
     assert [item.title for item in result.media] == ["Alpha Preferred Author"]
 
 import pytest
