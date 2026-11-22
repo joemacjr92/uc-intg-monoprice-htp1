@@ -300,3 +300,10 @@ The approved Remote-timeout/concurrency follow-up is implemented on `feature-val
 - The MD5 `usedforsecurity=False` argument in the catalogue ID generator is intentional: the digest preserves legacy BEQ media IDs and is not used for security. Keeping the flag also permits the compatibility hash in FIPS-restricted Python environments.
 - Reviewed the `nonlocal` declarations across the current QA tests. The declarations are used to update enclosing-scope counters/state in their nested async test helpers; no unused declaration was found to remove.
 - ARM64 Test Build passed after production commit `94f69bf043b5eb3a160a76b454bc8539fa152714`: [run 45059203941](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45059203941). Both the Docker TLS smoke check and ARM64 executable/package build passed. This confirms the existing no-push test packaging path. The modified release workflow itself was not dispatched because it also pushes a Docker image and creates a draft release; its build step is guarded with the same explicit certifi collection and bundle-presence check. No deployment, release, merge, or upstream PR has been performed.
+
+### README attribution preservation requirement
+
+- The complete `## Credits`, `## License`, and `## Support & Community` sections are protected project attribution and must be preserved verbatim in all README edits and upstream updates.
+- Required acknowledgements include Developer: Meir Miyara, the Monoprice HTP-1, Unfolded Circle Remote 2/3 framework, HTP-1 WebSocket API, UC community, the original support links, the community thank-you, and the final `Thank You: Meir Miyara` line.
+- Do not replace these sections with abbreviated credits, generic support text, or a consolidated attribution sentence. Before any upstream push or README rewrite, explicitly diff these sections against the approved wording and verify they remain present.
+- Restored verbatim on `tests-and-docs` in commit `ce11002cfced917a609b7ecfd5a913987bd35da2` after the minor documentation cleanup.
