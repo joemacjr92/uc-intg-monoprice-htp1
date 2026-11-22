@@ -6,7 +6,7 @@ on:
       - tests-and-docs
     paths:
       - ".github/workflows/phase1-qa.yml"
-      - "tests/phase1/**"
+      - "tests/**"
   workflow_dispatch:
     inputs:
       source_ref:
