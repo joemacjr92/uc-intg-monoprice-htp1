@@ -614,11 +614,17 @@ class HTP1Device(WebSocketDevice):
                 return
 
     async def _execute_transaction_locked(
-        self, operations: list[dict[str, Any]]
+        self,
+        operations: list[dict[str, Any]],
+        *,
+        allow_during_dirac: bool = False,
     ) -> bool:
         """Write, await live convergence, then confirm one receiver snapshot."""
         if not operations:
             return True
+        if self._dirac_commands_blocked() and not allow_during_dirac:
+            _LOG.warning("[%s] Rejecting state write while Dirac is applying", self.log_id)
+            return False
         if not isinstance(self._state, dict):
             return False
 
@@ -721,6 +727,26 @@ class HTP1Device(WebSocketDevice):
         )
         return True
 
+    def _capture_dirac_volume_raw(self, volume: int) -> bool | None:
+        """Capture an absolute receiver-coordinate volume request during Dirac."""
+        if not self._dirac_volume_capture_active:
+            return None
+        snapshot = self._dirac_volume_snapshot
+        if snapshot is None or not snapshot["vpl"] <= volume <= snapshot["vph"]:
+            return False
+        return self._capture_dirac_volume_absolute(volume - snapshot["zp"])
+
+    def _capture_dirac_volume_level(self, level: float) -> bool | None:
+        """Capture a normalized absolute volume request during Dirac."""
+        if not self._dirac_volume_capture_active:
+            return None
+        snapshot = self._dirac_volume_snapshot
+        if snapshot is None:
+            return False
+        normalized = max(0.0, min(1.0, level))
+        target_raw = int(round(snapshot["vpl"] + normalized * (snapshot["vph"] - snapshot["vpl"])))
+        return self._capture_dirac_volume_absolute(target_raw - snapshot["zp"])
+
     def _capture_dirac_volume_absolute(self, target_db: float) -> bool | None:
         """Capture an absolute displayed-dB target during Dirac."""
         if not self._dirac_volume_capture_active:
@@ -737,7 +763,9 @@ class HTP1Device(WebSocketDevice):
         _LOG.debug("[%s] Captured absolute volume target %.1f dB during Dirac", self.log_id, target_db)
         return True
 
-    async def _set_volume_level_locked(self, level: float) -> bool:
+    async def _set_volume_level_locked(
+        self, level: float, *, allow_during_dirac: bool = False
+    ) -> bool:
         """Apply a normalized volume target while the transaction lock is held."""
         if isinstance(level, bool) or not _is_finite_number(level) or not self._state or "cal" not in self._state:
             return False
@@ -755,7 +783,10 @@ class HTP1Device(WebSocketDevice):
         if volume_delta > max_safe_jump:
             target_db = current_volume + max_safe_jump if target_db > current_volume else current_volume - max_safe_jump
             _LOG.warning("[%s] Volume jump clamped to %d dB", self.log_id, target_db)
-        return await self._execute_transaction_locked([{"op": "replace", "path": "/volume", "value": target_db}])
+        return await self._execute_transaction_locked(
+            [{"op": "replace", "path": "/volume", "value": target_db}],
+            allow_during_dirac=allow_during_dirac,
+        )
 
     async def _apply_deferred_dirac_volume_locked(self) -> bool:
         """Apply aggregated volume intent after Dirac confirmation, under the transaction lock."""
@@ -784,7 +815,7 @@ class HTP1Device(WebSocketDevice):
             if target_raw == current_volume:
                 return True
             level = (target_raw - self.vpl) / (self.vph - self.vpl)
-            return await self._set_volume_level_locked(level)
+            return await self._set_volume_level_locked(level, allow_during_dirac=True)
         finally:
             self._discard_dirac_volume_capture()
 
@@ -794,6 +825,8 @@ class HTP1Device(WebSocketDevice):
             _LOG.warning("[%s] Rejecting state change while Dirac is applying", self.log_id)
             return False
         async with self._transaction_lock:
+            if self._dirac_commands_blocked():
+                return False
             if not await self._refresh_state_locked():
                 return False
             return await self._execute_transaction_locked(operations)
@@ -815,6 +848,8 @@ class HTP1Device(WebSocketDevice):
             return False
         _LOG.info("[%s] Toggling power", self.log_id)
         async with self._transaction_lock:
+            if self._dirac_commands_blocked():
+                return False
             if not await self._refresh_state_locked():
                 return False
             new_state = not self.power
@@ -826,12 +861,15 @@ class HTP1Device(WebSocketDevice):
         if isinstance(volume, bool) or not isinstance(volume, int):
             _LOG.warning("[%s] Rejecting invalid volume value: %r", self.log_id, volume)
             return False
-        if self._dirac_volume_capture_active:
-            snapshot = self._dirac_volume_snapshot
-            if snapshot is None or not snapshot["vpl"] <= volume <= snapshot["vph"]:
-                return False
-            return bool(self._capture_dirac_volume_absolute(volume - snapshot["zp"]))
+        captured = self._capture_dirac_volume_raw(volume)
+        if captured is not None:
+            return captured
         async with self._transaction_lock:
+            captured = self._capture_dirac_volume_raw(volume)
+            if captured is not None:
+                return captured
+            if self._dirac_commands_blocked():
+                return False
             if not await self._refresh_state_locked() or not isinstance(self._state, dict):
                 return False
             cal = _as_dict(self._state.get("cal"))
@@ -846,14 +884,15 @@ class HTP1Device(WebSocketDevice):
     async def set_volume_level(self, level: float) -> bool:
         if isinstance(level, bool) or not _is_finite_number(level):
             return False
-        if self._dirac_volume_capture_active:
-            snapshot = self._dirac_volume_snapshot
-            if snapshot is None:
-                return False
-            normalized = max(0.0, min(1.0, level))
-            target_raw = int(round(snapshot["vpl"] + normalized * (snapshot["vph"] - snapshot["vpl"])))
-            return bool(self._capture_dirac_volume_absolute(target_raw - snapshot["zp"]))
+        captured = self._capture_dirac_volume_level(level)
+        if captured is not None:
+            return captured
         async with self._transaction_lock:
+            captured = self._capture_dirac_volume_level(level)
+            if captured is not None:
+                return captured
+            if self._dirac_commands_blocked():
+                return False
             if not await self._refresh_state_locked():
                 return False
             return await self._set_volume_level_locked(level)
@@ -863,6 +902,11 @@ class HTP1Device(WebSocketDevice):
         if captured is not None:
             return captured
         async with self._transaction_lock:
+            captured = self._capture_dirac_volume_step(1)
+            if captured is not None:
+                return captured
+            if self._dirac_commands_blocked():
+                return False
             if not await self._refresh_state_locked() or not self._state:
                 return False
             current = self._state.get("volume")
@@ -877,6 +921,11 @@ class HTP1Device(WebSocketDevice):
         if captured is not None:
             return captured
         async with self._transaction_lock:
+            captured = self._capture_dirac_volume_step(-1)
+            if captured is not None:
+                return captured
+            if self._dirac_commands_blocked():
+                return False
             if not await self._refresh_state_locked() or not self._state:
                 return False
             current = self._state.get("volume")
@@ -925,6 +974,8 @@ class HTP1Device(WebSocketDevice):
             return False
         _LOG.info("[%s] Selecting source: %s", self.log_id, source)
         async with self._transaction_lock:
+            if self._dirac_commands_blocked():
+                return False
             if not await self._refresh_state_locked():
                 return False
             inputs = _as_dict(self._state.get("inputs"))
@@ -956,6 +1007,8 @@ class HTP1Device(WebSocketDevice):
             return False
         _LOG.info("[%s] Selecting seat shaker preset: %d", self.log_id, preset_index)
         async with self._transaction_lock:
+            if self._dirac_commands_blocked():
+                return False
             if not await self._refresh_state_locked():
                 return False
             if not isinstance(self._state.get("shaker"), dict):
@@ -1404,6 +1457,8 @@ class HTP1Device(WebSocketDevice):
         if self._dirac_commands_blocked():
             return False
         async with self._transaction_lock:
+            if self._dirac_commands_blocked():
+                return False
             if not await self._refresh_state_locked():
                 return False
             ops = self._build_clear_beq_ops()
@@ -1416,6 +1471,8 @@ class HTP1Device(WebSocketDevice):
         if self._dirac_commands_blocked():
             return False
         async with self._transaction_lock:
+            if self._dirac_commands_blocked():
+                return False
             if not await self._refresh_state_locked():
                 return False
             return await self._load_beq_locked(title, filters)
