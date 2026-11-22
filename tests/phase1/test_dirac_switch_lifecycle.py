@@ -241,6 +241,22 @@ def test_dirac_busy_error_without_accepted_request_is_reported():
     asyncio.run(exercise())
 
 
+def test_dirac_busy_lock_preflight_does_not_send_another_slot_change():
+    async def exercise():
+        device, receiver = make_device()
+        try:
+            receiver.state["cal"]["diracSwitch"]["locked"] = True
+            result = await device.select_calibration(device.slot_names[1])
+
+            assert result is False
+            assert receiver.getmso_count == 1
+            assert receiver.change_count == 0
+        finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
+
 def test_dirac_switch_timeout_does_not_claim_success(monkeypatch):
     async def exercise():
         monkeypatch.setattr(device_module, "DIRAC_SWITCH_TIMEOUT", 0.05)
