@@ -12,7 +12,6 @@ venv.bak/
 
 # Configuration files (contain sensitive data)
 config.json
-*.log
 /config
 
 # Byte-compiled / optimized / DLL files

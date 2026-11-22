@@ -1,0 +1,554 @@
+2026-11-22 14:43:30,139 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 14:43:30,146 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: changemso [{"op":"replace","path":"/volume","value":-20}]
+2026-11-22 14:43:30,146 | ERROR    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Receiver state mismatch after transaction at /volume
+2026-11-22 14:43:30,386 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 14:43:30,387 | DEBUG    | ucapi.entities            | [configured]: entity 'media_player.htp1_10_0_0_56' attributes updated
+2026-11-22 14:43:30,388 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.volume' attributes updated
+2026-11-22 14:43:30,389 | DEBUG    | ucapi.api                 | [('IP', 54623)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "attributes": {"volume": -13}}, "cat": "ENTITY"}
+2026-11-22 14:43:30,389 | DEBUG    | ucapi.api                 | [('IP', 54623)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.volume", "entity_type": "sensor", "attributes": {"value": "-13"}}, "cat": "ENTITY"}
+2026-11-22 14:43:30,461 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 14:43:30,463 | DEBUG    | ucapi.api                 | [('IP', 54623)] <-: {"kind": "resp", "req_id": 19, "code": 200, "msg": "result", "msg_data": {}}
+2026-11-22 14:43:30,631 | DEBUG    | ucapi.api                 | [('IP', 54623)] ->: {"msg": "entity_command", "msg_data": {"cmd_id": "volume_down", "entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "params": {}}, "id": 20, "kind": "req"}
+2026-11-22 14:43:30,632 | INFO     | intg_monoprice_htp1.media_player | [media_player.htp1_10_0_0_56] Command: volume_down 
+2026-11-22 14:43:30,632 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 14:43:30,934 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 14:43:30,941 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: changemso [{"op":"replace","path":"/volume","value":-21}]
+2026-11-22 14:43:30,941 | ERROR    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Receiver state mismatch after transaction at /volume
+2026-11-22 14:43:31,186 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 14:43:31,187 | DEBUG    | ucapi.entities            | [configured]: entity 'media_player.htp1_10_0_0_56' attributes updated
+2026-11-22 14:43:31,187 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.volume' attributes updated
+2026-11-22 14:43:31,188 | DEBUG    | ucapi.api                 | [('IP', 54623)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "attributes": {"volume": -14}}, "cat": "ENTITY"}
+2026-11-22 14:43:31,188 | DEBUG    | ucapi.api                 | [('IP', 54623)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.volume", "entity_type": "sensor", "attributes": {"value": "-14"}}, "cat": "ENTITY"}
+2026-11-22 14:43:31,308 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 14:43:31,310 | DEBUG    | ucapi.api                 | [('IP', 54623)] <-: {"kind": "resp", "req_id": 20, "code": 200, "msg": "result", "msg_data": {}}
+2026-11-22 14:43:31,310 | DEBUG    | ucapi.api                 | [('IP', 54623)] ->: {"msg": "entity_command", "msg_data": {"cmd_id": "volume_down", "entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "params": {}}, "id": 21, "kind": "req"}
+2026-11-22 14:43:31,310 | INFO     | intg_monoprice_htp1.media_player | [media_player.htp1_10_0_0_56] Command: volume_down 
+2026-11-22 14:43:31,311 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 14:43:31,371 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 14:43:31,378 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: changemso [{"op":"replace","path":"/volume","value":-22}]
+2026-11-22 14:43:31,378 | ERROR    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Receiver state mismatch after transaction at /volume
+2026-11-22 14:43:31,580 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 14:43:31,581 | DEBUG    | ucapi.entities            | [configured]: entity 'media_player.htp1_10_0_0_56' attributes updated
+2026-11-22 14:43:31,582 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.volume' attributes updated
+2026-11-22 14:43:31,582 | DEBUG    | ucapi.api                 | [('IP', 54623)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "attributes": {"volume": -15}}, "cat": "ENTITY"}
+2026-11-22 14:43:31,583 | DEBUG    | ucapi.api                 | [('IP', 54623)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.volume", "entity_type": "sensor", "attributes": {"value": "-15"}}, "cat": "ENTITY"}
+2026-11-22 14:43:31,648 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 14:43:31,649 | DEBUG    | ucapi.api                 | [('IP', 54623)] <-: {"kind": "resp", "req_id": 21, "code": 200, "msg": "result", "msg_data": {}}
+2026-11-22 14:43:31,650 | DEBUG    | ucapi.api                 | [('IP', 54623)] ->: {"msg": "entity_command", "msg_data": {"cmd_id": "volume_down", "entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "params": {}}, "id": 22, "kind": "req"}
+2026-11-22 14:43:31,650 | INFO     | intg_monoprice_htp1.media_player | [media_player.htp1_10_0_0_56] Command: volume_down 
+2026-11-22 14:43:31,650 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 14:43:31,727 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 14:43:31,733 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: changemso [{"op":"replace","path":"/volume","value":-23}]
+2026-11-22 14:43:31,734 | ERROR    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Receiver state mismatch after transaction at /volume
+2026-11-22 14:43:31,950 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 14:43:31,951 | DEBUG    | ucapi.entities            | [configured]: entity 'media_player.htp1_10_0_0_56' attributes updated
+2026-11-22 14:43:31,951 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.volume' attributes updated
+2026-11-22 14:43:31,951 | DEBUG    | ucapi.api                 | [('IP', 54623)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "attributes": {"volume": -16}}, "cat": "ENTITY"}
+2026-11-22 14:43:31,951 | DEBUG    | ucapi.api                 | [('IP', 54623)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.volume", "entity_type": "sensor", "attributes": {"value": "-16"}}, "cat": "ENTITY"}
+2026-11-22 14:43:32,030 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 14:43:32,031 | DEBUG    | ucapi.api                 | [('IP', 54623)] <-: {"kind": "resp", "req_id": 22, "code": 200, "msg": "result", "msg_data": {}}
+2026-11-22 14:43:32,032 | DEBUG    | ucapi.api                 | [('IP', 54623)] ->: {"msg": "entity_command", "msg_data": {"cmd_id": "volume_down", "entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "params": {}}, "id": 23, "kind": "req"}
+2026-11-22 14:43:32,032 | INFO     | intg_monoprice_htp1.media_player | [media_player.htp1_10_0_0_56] Command: volume_down 
+2026-11-22 14:43:32,032 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 14:43:32,096 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 14:43:32,103 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: changemso [{"op":"replace","path":"/volume","value":-24}]
+2026-11-22 14:43:32,103 | ERROR    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Receiver state mismatch after transaction at /volume
+2026-11-22 14:43:32,332 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 14:43:32,332 | DEBUG    | ucapi.entities            | [configured]: entity 'media_player.htp1_10_0_0_56' attributes updated
+2026-11-22 14:43:32,333 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.volume' attributes updated
+2026-11-22 14:43:32,334 | DEBUG    | ucapi.api                 | [('IP', 54623)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "attributes": {"volume": -17}}, "cat": "ENTITY"}
+2026-11-22 14:43:32,334 | DEBUG    | ucapi.api                 | [('IP', 54623)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.volume", "entity_type": "sensor", "attributes": {"value": "-17"}}, "cat": "ENTITY"}
+2026-11-22 14:43:32,404 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 14:43:32,405 | DEBUG    | ucapi.api                 | [('IP', 54623)] <-: {"kind": "resp", "req_id": 23, "code": 200, "msg": "result", "msg_data": {}}
+2026-11-22 14:43:32,406 | DEBUG    | ucapi.api                 | [('IP', 54623)] ->: {"msg": "entity_command", "msg_data": {"cmd_id": "volume_down", "entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "params": {}}, "id": 24, "kind": "req"}
+2026-11-22 14:43:32,406 | INFO     | intg_monoprice_htp1.media_player | [media_player.htp1_10_0_0_56] Command: volume_down 
+2026-11-22 14:43:32,407 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 14:43:32,465 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 14:43:32,472 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: changemso [{"op":"replace","path":"/volume","value":-25}]
+2026-11-22 14:43:32,472 | ERROR    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Receiver state mismatch after transaction at /volume
+2026-11-22 14:43:32,638 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 14:43:32,639 | DEBUG    | ucapi.entities            | [configured]: entity 'media_player.htp1_10_0_0_56' attributes updated
+2026-11-22 14:43:32,640 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.volume' attributes updated
+2026-11-22 14:43:32,642 | DEBUG    | ucapi.api                 | [('IP', 54623)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "attributes": {"volume": -18}}, "cat": "ENTITY"}
+2026-11-22 14:43:32,643 | DEBUG    | ucapi.api                 | [('IP', 54623)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.volume", "entity_type": "sensor", "attributes": {"value": "-18"}}, "cat": "ENTITY"}
+2026-11-22 14:43:32,722 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 14:43:32,723 | DEBUG    | ucapi.api                 | [('IP', 54623)] <-: {"kind": "resp", "req_id": 24, "code": 200, "msg": "result", "msg_data": {}}
+2026-11-22 14:43:32,724 | DEBUG    | ucapi.api                 | [('IP', 54623)] ->: {"msg": "entity_command", "msg_data": {"cmd_id": "volume_down", "entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "params": {}}, "id": 25, "kind": "req"}
+2026-11-22 14:43:32,725 | INFO     | intg_monoprice_htp1.media_player | [media_player.htp1_10_0_0_56] Command: volume_down 
+2026-11-22 14:43:32,725 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 14:43:32,796 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 14:43:32,803 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: changemso [{"op":"replace","path":"/volume","value":-26}]
+2026-11-22 14:43:32,803 | ERROR    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Receiver state mismatch after transaction at /volume
+2026-11-22 14:43:33,102 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 14:43:33,103 | DEBUG    | ucapi.entities            | [configured]: entity 'media_player.htp1_10_0_0_56' attributes updated
+2026-11-22 14:43:33,104 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.volume' attributes updated
+2026-11-22 14:43:33,105 | DEBUG    | ucapi.api                 | [('IP', 54623)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "attributes": {"volume": -19}}, "cat": "ENTITY"}
+2026-11-22 14:43:33,105 | DEBUG    | ucapi.api                 | [('IP', 54623)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.volume", "entity_type": "sensor", "attributes": {"value": "-19"}}, "cat": "ENTITY"}
+2026-11-22 14:43:33,175 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 14:43:33,176 | DEBUG    | ucapi.api                 | [('IP', 54623)] <-: {"kind": "resp", "req_id": 25, "code": 200, "msg": "result", "msg_data": {}}
+2026-11-22 14:43:33,176 | DEBUG    | ucapi.api                 | [('IP', 54623)] ->: {"msg": "entity_command", "msg_data": {"cmd_id": "volume_down", "entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "params": {}}, "id": 26, "kind": "req"}
+2026-11-22 14:43:33,176 | INFO     | intg_monoprice_htp1.media_player | [media_player.htp1_10_0_0_56] Command: volume_down 
+2026-11-22 14:43:33,177 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 14:43:33,241 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 14:43:33,248 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: changemso [{"op":"replace","path":"/volume","value":-27}]
+2026-11-22 14:43:33,249 | ERROR    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Receiver state mismatch after transaction at /volume
+2026-11-22 14:43:33,726 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 14:43:33,726 | DEBUG    | ucapi.entities            | [configured]: entity 'media_player.htp1_10_0_0_56' attributes updated
+2026-11-22 14:43:33,727 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.volume' attributes updated
+2026-11-22 14:43:33,727 | DEBUG    | ucapi.api                 | [('IP', 54623)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "attributes": {"volume": -20}}, "cat": "ENTITY"}
+2026-11-22 14:43:33,728 | DEBUG    | ucapi.api                 | [('IP', 54623)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.volume", "entity_type": "sensor", "attributes": {"value": "-20"}}, "cat": "ENTITY"}
+2026-11-22 14:43:33,979 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 14:43:33,980 | DEBUG    | ucapi.api                 | [('IP', 54623)] <-: {"kind": "resp", "req_id": 26, "code": 200, "msg": "result", "msg_data": {}}
+2026-11-22 14:43:33,981 | DEBUG    | ucapi.api                 | [('IP', 54623)] ->: {"msg": "entity_command", "msg_data": {"cmd_id": "volume_down", "entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "params": {}}, "id": 27, "kind": "req"}
+2026-11-22 14:43:33,981 | INFO     | intg_monoprice_htp1.media_player | [media_player.htp1_10_0_0_56] Command: volume_down 
+2026-11-22 14:43:33,981 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 14:43:34,060 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 14:43:34,067 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: changemso [{"op":"replace","path":"/volume","value":-28}]
+2026-11-22 14:43:34,067 | ERROR    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Receiver state mismatch after transaction at /volume
+2026-11-22 14:43:34,251 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 14:43:34,252 | DEBUG    | ucapi.entities            | [configured]: entity 'media_player.htp1_10_0_0_56' attributes updated
+2026-11-22 14:43:34,252 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.volume' attributes updated
+2026-11-22 14:43:34,253 | DEBUG    | ucapi.api                 | [('IP', 54623)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "attributes": {"volume": -21}}, "cat": "ENTITY"}
+2026-11-22 14:43:34,253 | DEBUG    | ucapi.api                 | [('IP', 54623)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.volume", "entity_type": "sensor", "attributes": {"value": "-21"}}, "cat": "ENTITY"}
+2026-11-22 14:43:34,319 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 14:43:34,321 | DEBUG    | ucapi.api                 | [('IP', 54623)] <-: {"kind": "resp", "req_id": 27, "code": 200, "msg": "result", "msg_data": {}}
+2026-11-22 14:48:55,091 | ERROR    | ucapi.api                 | [('IP', 54623)] WS: Exception in task
+Traceback (most recent call last):
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\Lib\asyncio\windows_events.py", line 463, in finish_socket_func
+    return ov.getresult()
+           ~~~~~~~~~~~~^^
+OSError: [WinError 64] The specified network name is no longer available
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\Lib\asyncio\proactor_events.py", line 286, in _loop_reading
+    length = fut.result()
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\Lib\asyncio\windows_events.py", line 807, in _poll
+    value = callback(transferred, key, ov)
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\Lib\asyncio\windows_events.py", line 467, in finish_socket_func
+    raise ConnectionResetError(*exc.args)
+ConnectionResetError: [WinError 64] The specified network name is no longer available
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "c:\Users\josep\Projects\uc-intg-monoprice-htp1\.venv\Lib\site-packages\ucapi\api.py", line 319, in _ws_consumer
+    async for raw_message in websocket:
+    ...<29 lines>...
+            )
+  File "c:\Users\josep\Projects\uc-intg-monoprice-htp1\.venv\Lib\site-packages\websockets\asyncio\connection.py", line 242, in __aiter__
+    yield await self.recv()
+          ^^^^^^^^^^^^^^^^^
+  File "c:\Users\josep\Projects\uc-intg-monoprice-htp1\.venv\Lib\site-packages\websockets\asyncio\connection.py", line 322, in recv
+    raise self.protocol.close_exc from self.recv_exc
+websockets.exceptions.ConnectionClosedError: no close frame received or sent
+2026-11-22 14:48:55,096 | INFO     | ucapi.api                 | [('IP', 54623)] WS: Client removed
+(.venv) PS C:\Users\josep\Projects\uc-intg-monoprice-htp1> git pull                                                                   
+Already up to date.                                                                                                                   
+(.venv) PS C:\Users\josep\Projects\uc-intg-monoprice-htp1>  C:; cd 'C:\Users\josep\Projects\uc-intg-monoprice-htp1'; & 'c:\Users\josep\Projects\uc-intg-monoprice-htp1\.venv\Scripts\python.exe' 'c:\Users\josep\.vscode\extensions\ms-python.debugpy-2026.6.0-win32-x64\bundled\libs\debugpy\launcher' '53453' '--' '-m' 'intg_monoprice_htp1' 
+2026-11-22 15:12:24,452 | INFO     | intg_monoprice_htp1       | Starting Monoprice HTP-1 Integration v2.4.2
+2026-11-22 15:12:24,453 | DEBUG    | ucapi_framework.config    | Local development detected, using config path: C:\Users\josep\Projects\uc-intg-monoprice-htp1\config
+2026-11-22 15:12:24,454 | INFO     | ucapi_framework.config    | Loaded 1 device(s) from configuration
+2026-11-22 15:12:24,455 | DEBUG    | ucapi.api                 | Publishing driver: name=monoprice_htp1._uc-integration._tcp.local., host=SurfacePro9.local.:9090
+2026-11-22 15:12:25,654 | INFO     | ucapi.api                 | Driver is up: monoprice_htp1, version: 2.4.2, api: 0.7.0, listening on: 0.0.0.0:9090
+2026-11-22 15:12:25,655 | INFO     | ucapi_framework.driver    | Adding device instance: htp1_10_0_0_56 (Remote HTP-1)
+2026-11-22 15:12:25,655 | DEBUG    | ucapi_framework.driver    | Connecting to device htp1_10_0_0_56
+2026-11-22 15:12:25,655 | DEBUG    | ucapi_framework.device    | [Remote HTP-1 (IP)] Starting WebSocket connection to IP
+2026-11-22 15:12:25,655 | INFO     | ucapi_framework.driver    | Registering available entities for htp1_10_0_0_56
+2026-11-22 15:12:25,656 | DEBUG    | ucapi.entity              | Created media_player entity: media_player.htp1_10_0_0_56
+2026-11-22 15:12:25,656 | DEBUG    | ucapi.entity              | Created remote entity: remote.htp1_10_0_0_56
+2026-11-22 15:12:25,656 | DEBUG    | ucapi.entity              | Created sensor entity: sensor.htp1_10_0_0_56.input
+2026-11-22 15:12:25,656 | DEBUG    | ucapi.entity              | Created sensor entity: sensor.htp1_10_0_0_56.volume
+2026-11-22 15:12:25,656 | DEBUG    | ucapi.entity              | Created sensor entity: sensor.htp1_10_0_0_56.mute
+2026-11-22 15:12:25,656 | DEBUG    | ucapi.entity              | Created sensor entity: sensor.htp1_10_0_0_56.ss_trim
+2026-11-22 15:12:25,656 | DEBUG    | ucapi.entity              | Created sensor entity: sensor.htp1_10_0_0_56.ss_mute
+2026-11-22 15:12:25,656 | DEBUG    | ucapi.entity              | Created sensor entity: sensor.htp1_10_0_0_56.ss_preset
+2026-11-22 15:12:25,657 | DEBUG    | ucapi.entity              | Created sensor entity: sensor.htp1_10_0_0_56.loudness
+2026-11-22 15:12:25,657 | DEBUG    | ucapi.entity              | Created sensor entity: sensor.htp1_10_0_0_56.night_mode
+2026-11-22 15:12:25,657 | DEBUG    | ucapi.entity              | Created sensor entity: sensor.htp1_10_0_0_56.peq
+2026-11-22 15:12:25,657 | DEBUG    | ucapi.entity              | Created sensor entity: sensor.htp1_10_0_0_56.sound_mode
+2026-11-22 15:12:25,657 | DEBUG    | ucapi.entity              | Created sensor entity: sensor.htp1_10_0_0_56.audio_format
+2026-11-22 15:12:25,657 | DEBUG    | ucapi.entity              | Created sensor entity: sensor.htp1_10_0_0_56.output_audio_format
+2026-11-22 15:12:25,657 | DEBUG    | ucapi.entity              | Created sensor entity: sensor.htp1_10_0_0_56.dirac_slot
+2026-11-22 15:12:25,657 | DEBUG    | ucapi.entity              | Created sensor entity: sensor.htp1_10_0_0_56.video_mode
+2026-11-22 15:12:25,658 | DEBUG    | ucapi.entity              | Created sensor entity: sensor.htp1_10_0_0_56.connection
+2026-11-22 15:12:25,658 | DEBUG    | ucapi.entity              | Created sensor entity: sensor.htp1_10_0_0_56.beq_active
+2026-11-22 15:12:25,658 | INFO     | intg_monoprice_htp1.sensor | Created 16 sensor entities for Remote HTP-1
+2026-11-22 15:12:25,658 | DEBUG    | ucapi.entity              | Created select entity: select.htp1_10_0_0_56.input
+2026-11-22 15:12:25,658 | DEBUG    | ucapi.entity              | Created select entity: select.htp1_10_0_0_56.calibration
+2026-11-22 15:12:25,658 | DEBUG    | ucapi.entity              | Created select entity: select.htp1_10_0_0_56.surround_mode
+2026-11-22 15:12:25,658 | DEBUG    | ucapi.entity              | Created select entity: select.htp1_10_0_0_56.ss_preset
+2026-11-22 15:12:25,658 | INFO     | intg_monoprice_htp1.selector | Created 4 select entities for Remote HTP-1
+2026-11-22 15:12:25,658 | DEBUG    | ucapi.entities            | [available] entity added: 'media_player.htp1_10_0_0_56'
+2026-11-22 15:12:25,658 | DEBUG    | ucapi.entities            | [available] entity added: 'remote.htp1_10_0_0_56'
+2026-11-22 15:12:25,659 | DEBUG    | ucapi.entities            | [available] entity added: 'sensor.htp1_10_0_0_56.input'
+2026-11-22 15:12:25,659 | DEBUG    | ucapi.entities            | [available] entity added: 'sensor.htp1_10_0_0_56.volume'
+2026-11-22 15:12:25,659 | DEBUG    | ucapi.entities            | [available] entity added: 'sensor.htp1_10_0_0_56.mute'
+2026-11-22 15:12:25,659 | DEBUG    | ucapi.entities            | [available] entity added: 'sensor.htp1_10_0_0_56.ss_trim'
+2026-11-22 15:12:25,659 | DEBUG    | ucapi.entities            | [available] entity added: 'sensor.htp1_10_0_0_56.ss_mute'
+2026-11-22 15:12:25,659 | DEBUG    | ucapi.entities            | [available] entity added: 'sensor.htp1_10_0_0_56.ss_preset'
+2026-11-22 15:12:25,659 | DEBUG    | ucapi.entities            | [available] entity added: 'sensor.htp1_10_0_0_56.loudness'
+2026-11-22 15:12:25,659 | DEBUG    | ucapi.entities            | [available] entity added: 'sensor.htp1_10_0_0_56.night_mode'
+2026-11-22 15:12:25,659 | DEBUG    | ucapi.entities            | [available] entity added: 'sensor.htp1_10_0_0_56.peq'
+2026-11-22 15:12:25,659 | DEBUG    | ucapi.entities            | [available] entity added: 'sensor.htp1_10_0_0_56.sound_mode'
+2026-11-22 15:12:25,660 | DEBUG    | ucapi.entities            | [available] entity added: 'sensor.htp1_10_0_0_56.audio_format'
+2026-11-22 15:12:25,660 | DEBUG    | ucapi.entities            | [available] entity added: 'sensor.htp1_10_0_0_56.output_audio_format'
+2026-11-22 15:12:25,660 | DEBUG    | ucapi.entities            | [available] entity added: 'sensor.htp1_10_0_0_56.dirac_slot'
+2026-11-22 15:12:25,660 | DEBUG    | ucapi.entities            | [available] entity added: 'sensor.htp1_10_0_0_56.video_mode'
+2026-11-22 15:12:25,660 | DEBUG    | ucapi.entities            | [available] entity added: 'sensor.htp1_10_0_0_56.connection'
+2026-11-22 15:12:25,660 | DEBUG    | ucapi.entities            | [available] entity added: 'sensor.htp1_10_0_0_56.beq_active'
+2026-11-22 15:12:25,660 | DEBUG    | ucapi.entities            | [available] entity added: 'select.htp1_10_0_0_56.input'
+2026-11-22 15:12:25,660 | DEBUG    | ucapi.entities            | [available] entity added: 'select.htp1_10_0_0_56.calibration'
+2026-11-22 15:12:25,660 | DEBUG    | ucapi.entities            | [available] entity added: 'select.htp1_10_0_0_56.surround_mode'
+2026-11-22 15:12:25,660 | DEBUG    | ucapi.entities            | [available] entity added: 'select.htp1_10_0_0_56.ss_preset'
+2026-11-22 15:12:25,661 | INFO     | intg_monoprice_htp1       | Monoprice HTP-1 integration started - 1 device(s) configured
+2026-11-22 15:12:25,663 | DEBUG    | ucapi_framework.device    | [Remote HTP-1 (IP)] Establishing WebSocket connection
+2026-11-22 15:12:25,664 | INFO     | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Creating WebSocket connection to ws://IP:18082/ws/controller
+2026-11-22 15:12:25,674 | INFO     | websockets.server         | server listening on 0.0.0.0:9090
+2026-11-22 15:12:25,955 | INFO     | ucapi_framework.device    | [Remote HTP-1 (IP)] WebSocket connected
+2026-11-22 15:12:25,955 | DEBUG    | ucapi_framework.device    | [Remote HTP-1 (IP)] WebSocket message loop started
+2026-11-22 15:12:25,955 | INFO     | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] WebSocket connected
+2026-11-22 15:12:25,955 | DEBUG    | ucapi_framework.driver    | Device connected: htp1_10_0_0_56
+2026-11-22 15:12:25,956 | DEBUG    | ucapi_framework.driver    | Entity sensor.htp1_10_0_0_56.connection is not configured, ignoring
+2026-11-22 15:12:25,956 | DEBUG    | ucapi_framework.driver    | Entity sensor.htp1_10_0_0_56.ss_trim is not configured, ignoring
+2026-11-22 15:12:25,956 | DEBUG    | ucapi_framework.driver    | Entity sensor.htp1_10_0_0_56.video_mode is not configured, ignoring
+2026-11-22 15:12:25,956 | DEBUG    | ucapi_framework.driver    | Entity select.htp1_10_0_0_56.ss_preset is not configured, ignoring
+2026-11-22 15:12:25,956 | DEBUG    | ucapi_framework.driver    | Entity sensor.htp1_10_0_0_56.ss_preset is not configured, ignoring
+2026-11-22 15:12:25,956 | DEBUG    | ucapi_framework.driver    | Entity remote.htp1_10_0_0_56 is not configured, ignoring
+2026-11-22 15:12:25,956 | DEBUG    | ucapi_framework.driver    | Entity sensor.htp1_10_0_0_56.loudness is not configured, ignoring
+2026-11-22 15:12:25,956 | DEBUG    | ucapi_framework.driver    | Entity select.htp1_10_0_0_56.surround_mode is not configured, ignoring
+2026-11-22 15:12:25,956 | DEBUG    | ucapi_framework.driver    | Entity sensor.htp1_10_0_0_56.input is not configured, ignoring
+2026-11-22 15:12:25,956 | DEBUG    | ucapi_framework.driver    | Entity sensor.htp1_10_0_0_56.sound_mode is not configured, ignoring
+2026-11-22 15:12:25,956 | DEBUG    | ucapi_framework.driver    | Entity sensor.htp1_10_0_0_56.output_audio_format is not configured, ignoring
+2026-11-22 15:12:25,956 | DEBUG    | ucapi_framework.driver    | Entity select.htp1_10_0_0_56.input is not configured, ignoring
+2026-11-22 15:12:25,956 | DEBUG    | ucapi_framework.driver    | Entity sensor.htp1_10_0_0_56.dirac_slot is not configured, ignoring
+2026-11-22 15:12:25,957 | DEBUG    | ucapi_framework.driver    | Entity sensor.htp1_10_0_0_56.mute is not configured, ignoring
+2026-11-22 15:12:25,957 | DEBUG    | ucapi_framework.driver    | Entity sensor.htp1_10_0_0_56.peq is not configured, ignoring
+2026-11-22 15:12:25,957 | DEBUG    | ucapi_framework.driver    | Entity sensor.htp1_10_0_0_56.beq_active is not configured, ignoring
+2026-11-22 15:12:25,957 | DEBUG    | ucapi_framework.driver    | Entity sensor.htp1_10_0_0_56.ss_mute is not configured, ignoring
+2026-11-22 15:12:25,957 | DEBUG    | ucapi_framework.driver    | Entity media_player.htp1_10_0_0_56 is not configured, ignoring
+2026-11-22 15:12:25,957 | DEBUG    | ucapi_framework.driver    | Entity sensor.htp1_10_0_0_56.volume is not configured, ignoring
+2026-11-22 15:12:25,957 | DEBUG    | ucapi_framework.driver    | Entity select.htp1_10_0_0_56.calibration is not configured, ignoring
+2026-11-22 15:12:25,957 | DEBUG    | ucapi_framework.driver    | Entity sensor.htp1_10_0_0_56.audio_format is not configured, ignoring
+2026-11-22 15:12:25,957 | DEBUG    | ucapi_framework.driver    | Entity sensor.htp1_10_0_0_56.night_mode is not configured, ignoring
+2026-11-22 15:12:26,057 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:26,183 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:26,184 | INFO     | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Initial state received
+2026-11-22 15:12:34,992 | INFO     | websockets.server         | connection open
+2026-11-22 15:12:34,993 | INFO     | ucapi.api                 | WS: Client added: ('IP', 50154)
+2026-11-22 15:12:34,993 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "resp", "req_id": 0, "code": 200, "msg": "authentication", "msg_data": {}}
+2026-11-22 15:12:35,999 | DEBUG    | ucapi.api                 | [('IP', 50154)] ->: {"msg": "get_driver_version", "id": 2, "kind": "req"}
+2026-11-22 15:12:35,999 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "resp", "req_id": 2, "code": 200, "msg": "driver_version", "msg_data": {"name": "Monoprice HTP-1", "version": {"api": "0.22.0", "driver": "2.4.2"}}}
+2026-11-22 15:12:36,002 | DEBUG    | ucapi.api                 | [('IP', 50154)] ->: {"msg": "get_available_entities", "id": 3, "kind": "req"}
+2026-11-22 15:12:36,002 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "req", "id": 1, "msg": "get_supported_entity_types"}
+2026-11-22 15:12:36,003 | DEBUG    | ucapi.api                 | [('IP', 50154)] Supported entity types ['cover', 'button', 'climate', 'light', 'media_player', 'remote', 'select', 'sensor', 'switch', 'ir_emitter', 'voice_assistant']
+2026-11-22 15:12:36,006 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "resp", "req_id": 3, "code": 200, "msg": "available_entities", "msg_data": {"available_entities": [{"entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "device_id": null, "features": ["on_off", "volume", "volume_up_down", "mute_toggle", "mute", "unmute", "select_source", "select_sound_mode", "play_media", "browse_media", "search_media"], "name": {"en": "Remote HTP-1"}, "device_class": "receiver"}, {"entity_id": "remote.htp1_10_0_0_56", "entity_type": "remote", "device_id": null, "features": ["toggle", "send_cmd"], "name": {"en": "Remote HTP-1 Remote"}, "options": {"simple_commands": ["POWER", "VOLUME_UP", "VOLUME_DOWN", "Mute Toggle", "Mode None", "Mode Dolby Sur", "Mode Neural-X", "Mode Native", "Mode Auro", "Night Toggle", "Dialog Up", "Dialog Down", "Dirac Toggle", "Loudness Toggle", "User Input 1", "User Input 2", "User Input 3", "User Input 4", "User Input 5", "User Input 6", "User Input 7", "User Input 8", "User Input 9", "Last Input", "BT Pair", "HDMI+", "SPDIF+", "Analog+", "Stream+", "Red", "Green", "Yellow", "Blue", "A", "B", "C", "D", "Preset 1", "Preset 2", "Preset 3", "Preset 4", "Info", "Dim", "Loud On", "Loud Off", "Night On", "Night Off", "Dirac On", "Dirac Off", "In USB", "In AES", "TV Input", "In HDMI 1", "In HDMI 2", "In HDMI 3", "In HDMI 4", "In HDMI 5", "In HDMI 6", "In HDMI 7", "In HDMI 8", "In Bluetooth", "In Analog 1", "In Analog 2", "In Optical 1", "In Optical 2", "In Optical 3", "In Coaxial 1", "In Coaxial 2", "In Coaxial 3", "In Roon", "Tone control Toggle", "PEQ Toggle", "Tone control Bass +1", "Tone control Bass -1", "Tone control Treble +1", "Tone control Treble -1", "Lipsync +1", "Lipsync -1", "Dirac Live filter 1", "Dirac Live filter 2", "Dirac Live filter 3", "Dirac Live filter 4", "Dirac Live filter 5", "Dirac Live filter 6", "Loudness level +1", "Loudness level -1", "Seat Shaker Mute Toggle", "Seat Shaker Preset 1", "Seat Shaker Preset 2", "Seat Shaker Preset 3", "Seat Shaker Preset 4", "Seat Shaker Preset 5", "Seat Shaker Preset 6", "Seat Shaker Trim +1", "Seat Shaker Trim -1"], "button_mapping": [{"button": "VOLUME_UP", "short_press": {"cmd_id": "VOLUME_UP"}}, {"button": "VOLUME_DOWN", "short_press": {"cmd_id": "VOLUME_DOWN"}}, {"button": "CHANNEL_UP", "short_press": {"cmd_id": "Dialog Up"}}, {"button": "CHANNEL_DOWN", "short_press": {"cmd_id": "Dialog Down"}}, {"button": "MUTE", "short_press": {"cmd_id": "Mute Toggle"}}], "user_interface": {"pages": [{"page_id": "main", "name": "Main", "grid": {"width": 9, "height": 5}, "items": [{"type": "text", "text": "1", "command": {"cmd_id": "User Input 1"}, "location": {"x": 0, "y": 0}, "size": {"width": 3, "height": 1}}, {"type": "text", "text": "2", "command": {"cmd_id": "User Input 2"}, "location": {"x": 3, "y": 0}, "size": {"width": 3, "height": 1}}, {"type": "text", "text": "3", "command": {"cmd_id": "User Input 3"}, "location": {"x": 6, "y": 0}, "size": {"width": 3, "height": 1}}, {"type": "text", "text": "4", "command": {"cmd_id": "User Input 4"}, "location": {"x": 0, "y": 1}, "size": {"width": 3, "height": 1}}, {"type": "text", "text": "5", "command": {"cmd_id": "User Input 5"}, "location": {"x": 3, "y": 1}, "size": {"width": 3, "height": 1}}, {"type": "text", "text": "6", "command": {"cmd_id": "User Input 6"}, "location": {"x": 6, "y": 1}, "size": {"width": 3, "height": 1}}, {"type": "text", "text": "7", "command": {"cmd_id": "User Input 7"}, "location": {"x": 0, "y": 2}, "size": {"width": 3, "height": 1}}, {"type": "text", "text": "8", "command": {"cmd_id": "User Input 8"}, "location": {"x": 3, "y": 2}, "size": {"width": 3, "height": 1}}, {"type": "text", "text": "9", "command": {"cmd_id": "User Input 9"}, "location": {"x": 6, "y": 2}, "size": {"width": 3, "height": 1}}, {"type": "text", "text": "INFO", "command": {"cmd_id": "Info"}, "location": {"x": 0, "y": 3}, "size": {"width": 3, "height": 1}}, {"type": "text", "text": "LAST", "command": {"cmd_id": "Last Input"}, "location": {"x": 3, "y": 3}, "size": {"width": 3, "height": 1}}, {"type": "text", "text": "DIM", "command": {"cmd_id": "Dim"}, "location": {"x": 6, "y": 3}, "size": {"width": 3, "height": 1}}, {"type": "text", "text": "RED", "command": {"cmd_id": "Red"}, "location": {"x": 0, "y": 4}, "size": {"width": 2, "height": 1}}, {"type": "text", "text": "GREEN", "command": {"cmd_id": "Green"}, "location": {"x": 2, "y": 4}, "size": {"width": 2, "height": 1}}, {"type": "text", "text": "YELLOW", "command": {"cmd_id": "Yellow"}, "location": {"x": 5, "y": 4}, "size": {"width": 2, "height": 1}}, {"type": "text", "text": "BLUE", "command": {"cmd_id": "Blue"}, "location": {"x": 7, "y": 4}, "size": {"width": 2, "height": 1}}]}, {"page_id": "pad", "name": "Pad", "grid": {"width": 3, "height": 3}, "items": [{"type": "text", "text": "HDMI+", "command": {"cmd_id": "HDMI+"}, "location": {"x": 0, "y": 0}, "size": {"width": 1, "height": 1}}, {"type": "text", "text": "NATIVE", "command": {"cmd_id": "Mode Native"}, "location": {"x": 1, "y": 0}, "size": {"width": 1, "height": 1}}, {"type": "text", "text": "STRM+", "command": {"cmd_id": "Stream+"}, "location": {"x": 2, "y": 0}, "size": {"width": 1, "height": 1}}, {"type": "text", "text": "DTS", "command": {"cmd_id": "Mode Neural-X"}, "location": {"x": 0, "y": 1}, "size": {"width": 1, "height": 1}}, {"type": "text", "text": "DIRECT", "command": {"cmd_id": "Mode None"}, "location": {"x": 1, "y": 1}, "size": {"width": 1, "height": 1}}, {"type": "text", "text": "DOLBY", "command": {"cmd_id": "Mode Dolby Sur"}, "location": {"x": 2, "y": 1}, "size": {"width": 1, "height": 1}}, {"type": "text", "text": "SPDIF+", "command": {"cmd_id": "SPDIF+"}, "location": {"x": 0, "y": 2}, "size": {"width": 1, "height": 1}}, {"type": "text", "text": "AURO 3D", "command": {"cmd_id": "Mode Auro"}, "location": {"x": 1, "y": 2}, "size": {"width": 1, "height": 1}}, {"type": "text", "text": "ANA+", "command": {"cmd_id": "Analog+"}, "location": {"x": 2, "y": 2}, "size": {"width": 1, "height": 1}}]}, {"page_id": "toggles", "name": "Toggles", "grid": {"width": 3, "height": 4}, "items": [{"type": "text", "text": "DIRAC", "command": {"cmd_id": "Dirac Toggle"}, "location": {"x": 0, "y": 0}, "size": {"width": 1, "height": 1}}, {"type": "text", "text": "A", "command": {"cmd_id": "A"}, "location": {"x": 1, "y": 0}, "size": {"width": 1, "height": 1}}, {"type": "text", "text": "PRESET 1", "command": {"cmd_id": "Preset 1"}, "location": {"x": 2, "y": 0}, "size": {"width": 1, "height": 1}}, {"type": "text", "text": "NIGHT", "command": {"cmd_id": "Night Toggle"}, "location": {"x": 0, "y": 1}, "size": {"width": 1, "height": 1}}, {"type": "text", "text": "B", "command": {"cmd_id": "B"}, "location": {"x": 1, "y": 1}, "size": {"width": 1, "height": 1}}, {"type": "text", "text": "PRESET 2", "command": {"cmd_id": "Preset 2"}, "location": {"x": 2, "y": 1}, "size": {"width": 1, "height": 1}}, {"type": "text", "text": "LOUD", "command": {"cmd_id": "Loudness Toggle"}, "location": {"x": 0, "y": 2}, "size": {"width": 1, "height": 1}}, {"type": "text", "text": "C", "command": {"cmd_id": "C"}, "location": {"x": 1, "y": 2}, "size": {"width": 1, "height": 1}}, {"type": "text", "text": "PRESET 3", "command": {"cmd_id": "Preset 3"}, "location": {"x": 2, "y": 2}, "size": {"width": 1, "height": 1}}, {"type": "text", "text": "BT PAIR", "command": {"cmd_id": "BT Pair"}, "location": {"x": 0, "y": 3}, "size": {"width": 1, "height": 1}}, {"type": "text", "text": "D", "command": {"cmd_id": "D"}, "location": {"x": 1, "y": 3}, "size": {"width": 1, "height": 1}}, {"type": "text", "text": "PRESET 4", "command": {"cmd_id": "Preset 4"}, "location": {"x": 2, "y": 3}, "size": {"width": 1, "height": 1}}]}]}}}, {"entity_id": "sensor.htp1_10_0_0_56.input", "entity_type": "sensor", "device_id": null, "features": [], "name": {"en": "Remote HTP-1 Input"}, "device_class": "custom", "options": {"custom_unit": ""}}, {"entity_id": "sensor.htp1_10_0_0_56.volume", "entity_type": "sensor", "device_id": null, "features": [], "name": {"en": "Remote HTP-1 Volume"}, "device_class": "custom", "options": {"custom_unit": "dB"}}, {"entity_id": "sensor.htp1_10_0_0_56.mute", "entity_type": "sensor", "device_id": null, "features": [], "name": {"en": "Remote HTP-1 Mute"}, "device_class": "custom", "options": {"custom_unit": ""}}, {"entity_id": "sensor.htp1_10_0_0_56.ss_trim", "entity_type": "sensor", "device_id": null, "features": [], "name": {"en": "Remote HTP-1 Seat Shaker Trim"}, "device_class": "custom", "options": {"custom_unit": ""}}, {"entity_id": "sensor.htp1_10_0_0_56.ss_mute", "entity_type": "sensor", "device_id": null, "features": [], "name": {"en": "Remote HTP-1 Seat Shaker Mute"}, "device_class": "custom", "options": {"custom_unit": ""}}, {"entity_id": "sensor.htp1_10_0_0_56.ss_preset", "entity_type": "sensor", "device_id": null, "features": [], "name": {"en": "Remote HTP-1 Seat Shaker Preset"}, "device_class": "custom", "options": {"custom_unit": ""}}, {"entity_id": "sensor.htp1_10_0_0_56.loudness", "entity_type": "sensor", "device_id": null, "features": [], "name": {"en": "Remote HTP-1 Loudness"}, "device_class": "custom", "options": {"custom_unit": ""}}, {"entity_id": "sensor.htp1_10_0_0_56.night_mode", "entity_type": "sensor", "device_id": null, "features": [], "name": {"en": "Remote HTP-1 Night Mode"}, "device_class": "custom", "options": {"custom_unit": ""}}, {"entity_id": "sensor.htp1_10_0_0_56.peq", "entity_type": "sensor", "device_id": null, "features": [], "name": {"en": "Remote HTP-1 PEQ"}, "device_class": "custom", "options": {"custom_unit": ""}}, {"entity_id": "sensor.htp1_10_0_0_56.sound_mode", "entity_type": "sensor", "device_id": null, "features": [], "name": {"en": "Remote HTP-1 Sound Mode"}, "device_class": "custom", "options": {"custom_unit": ""}}, {"entity_id": "sensor.htp1_10_0_0_56.audio_format", "entity_type": "sensor", "device_id": null, "features": [], "name": {"en": "Remote HTP-1 Audio Format"}, "device_class": "custom", "options": {"custom_unit": ""}}, {"entity_id": "sensor.htp1_10_0_0_56.output_audio_format", "entity_type": "sensor", "device_id": null, "features": [], "name": {"en": "Remote HTP-1 Output Audio Format"}, "device_class": "custom", "options": {"custom_unit": ""}}, {"entity_id": "sensor.htp1_10_0_0_56.dirac_slot", "entity_type": "sensor", "device_id": null, "features": [], "name": {"en": "Remote HTP-1 Dirac Slot"}, "device_class": "custom", "options": {"custom_unit": ""}}, {"entity_id": "sensor.htp1_10_0_0_56.video_mode", "entity_type": "sensor", "device_id": null, "features": [], "name": {"en": "Remote HTP-1 Video Mode"}, "device_class": "custom", "options": {"custom_unit": ""}}, {"entity_id": "sensor.htp1_10_0_0_56.connection", "entity_type": "sensor", "device_id": null, "features": [], "name": {"en": "Remote HTP-1 Connection"}, "device_class": "custom", "options": {"custom_unit": ""}}, {"entity_id": "sensor.htp1_10_0_0_56.beq_active", "entity_type": "sensor", "device_id": null, "features": [], "name": {"en": "Remote HTP-1 BEQ Filter"}, "device_class": "custom", "options": {"custom_unit": ""}}, {"entity_id": "select.htp1_10_0_0_56.input", "entity_type": "select", "device_id": null, "features": [], "name": {"en": "Remote HTP-1 Input"}}, {"entity_id": "select.htp1_10_0_0_56.calibration", "entity_type": "select", "device_id": null, "features": [], "name": {"en": "Remote HTP-1 Calibration"}}, {"entity_id": "select.htp1_10_0_0_56.surround_mode", "entity_type": "select", "device_id": null, "features": [], "name": {"en": "Remote HTP-1 Surround Mode"}}, {"entity_id": "select.htp1_10_0_0_56.ss_preset", "entity_type": "select", "device_id": null, "features": [], "name": {"en": "Remote HTP-1 Seat Shaker Preset"}}]}}
+2026-11-22 15:12:36,102 | DEBUG    | ucapi.api                 | [('IP', 50154)] ->: {"msg": "subscribe_events", "msg_data": {"entity_ids": ["media_player.htp1_10_0_0_56", "remote.htp1_10_0_0_56", "sensor.htp1_10_0_0_56.input", "sensor.htp1_10_0_0_56.volume", "sensor.htp1_10_0_0_56.mute", "sensor.htp1_10_0_0_56.ss_trim", "sensor.htp1_10_0_0_56.ss_mute", "sensor.htp1_10_0_0_56.ss_preset", "sensor.htp1_10_0_0_56.loudness", "sensor.htp1_10_0_0_56.night_mode", "sensor.htp1_10_0_0_56.peq", "sensor.htp1_10_0_0_56.sound_mode", "sensor.htp1_10_0_0_56.audio_format", "sensor.htp1_10_0_0_56.output_audio_format", "sensor.htp1_10_0_0_56.dirac_slot", "sensor.htp1_10_0_0_56.video_mode", "sensor.htp1_10_0_0_56.connection", "sensor.htp1_10_0_0_56.beq_active", "select.htp1_10_0_0_56.input", "select.htp1_10_0_0_56.calibration", "select.htp1_10_0_0_56.surround_mode", "select.htp1_10_0_0_56.ss_preset"]}, "id": 4, "kind": "req"}
+2026-11-22 15:12:36,103 | DEBUG    | ucapi.entities            | [configured] entity added: 'media_player.htp1_10_0_0_56'
+2026-11-22 15:12:36,104 | DEBUG    | ucapi.entities            | [configured] entity added: 'remote.htp1_10_0_0_56'
+2026-11-22 15:12:36,104 | DEBUG    | ucapi.entities            | [configured] entity added: 'sensor.htp1_10_0_0_56.input'
+2026-11-22 15:12:36,104 | DEBUG    | ucapi.entities            | [configured] entity added: 'sensor.htp1_10_0_0_56.volume'
+2026-11-22 15:12:36,105 | DEBUG    | ucapi.entities            | [configured] entity added: 'sensor.htp1_10_0_0_56.mute'
+2026-11-22 15:12:36,105 | DEBUG    | ucapi.entities            | [configured] entity added: 'sensor.htp1_10_0_0_56.ss_trim'
+2026-11-22 15:12:36,105 | DEBUG    | ucapi.entities            | [configured] entity added: 'sensor.htp1_10_0_0_56.ss_mute'
+2026-11-22 15:12:36,106 | DEBUG    | ucapi.entities            | [configured] entity added: 'sensor.htp1_10_0_0_56.ss_preset'
+2026-11-22 15:12:36,107 | DEBUG    | ucapi.entities            | [configured] entity added: 'sensor.htp1_10_0_0_56.loudness'
+2026-11-22 15:12:36,107 | DEBUG    | ucapi.entities            | [configured] entity added: 'sensor.htp1_10_0_0_56.night_mode'
+2026-11-22 15:12:36,108 | DEBUG    | ucapi.entities            | [configured] entity added: 'sensor.htp1_10_0_0_56.peq'
+2026-11-22 15:12:36,108 | DEBUG    | ucapi.entities            | [configured] entity added: 'sensor.htp1_10_0_0_56.sound_mode'
+2026-11-22 15:12:36,108 | DEBUG    | ucapi.entities            | [configured] entity added: 'sensor.htp1_10_0_0_56.audio_format'
+2026-11-22 15:12:36,108 | DEBUG    | ucapi.entities            | [configured] entity added: 'sensor.htp1_10_0_0_56.output_audio_format'
+2026-11-22 15:12:36,108 | DEBUG    | ucapi.entities            | [configured] entity added: 'sensor.htp1_10_0_0_56.dirac_slot'
+2026-11-22 15:12:36,109 | DEBUG    | ucapi.entities            | [configured] entity added: 'sensor.htp1_10_0_0_56.video_mode'
+2026-11-22 15:12:36,109 | DEBUG    | ucapi.entities            | [configured] entity added: 'sensor.htp1_10_0_0_56.connection'
+2026-11-22 15:12:36,109 | DEBUG    | ucapi.entities            | [configured] entity added: 'sensor.htp1_10_0_0_56.beq_active'
+2026-11-22 15:12:36,109 | DEBUG    | ucapi.entities            | [configured] entity added: 'select.htp1_10_0_0_56.input'
+2026-11-22 15:12:36,109 | DEBUG    | ucapi.entities            | [configured] entity added: 'select.htp1_10_0_0_56.calibration'
+2026-11-22 15:12:36,109 | DEBUG    | ucapi.entities            | [configured] entity added: 'select.htp1_10_0_0_56.surround_mode'
+2026-11-22 15:12:36,110 | DEBUG    | ucapi.entities            | [configured] entity added: 'select.htp1_10_0_0_56.ss_preset'
+2026-11-22 15:12:36,110 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "resp", "req_id": 4, "code": 200, "msg": "result", "msg_data": {}}
+2026-11-22 15:12:36,111 | DEBUG    | ucapi_framework.driver    | Subscribe entities event: ['media_player.htp1_10_0_0_56', 'remote.htp1_10_0_0_56', 'sensor.htp1_10_0_0_56.input', 'sensor.htp1_10_0_0_56.volume', 'sensor.htp1_10_0_0_56.mute', 'sensor.htp1_10_0_0_56.ss_trim', 'sensor.htp1_10_0_0_56.ss_mute', 'sensor.htp1_10_0_0_56.ss_preset', 'sensor.htp1_10_0_0_56.loudness', 'sensor.htp1_10_0_0_56.night_mode', 'sensor.htp1_10_0_0_56.peq', 'sensor.htp1_10_0_0_56.sound_mode', 'sensor.htp1_10_0_0_56.audio_format', 'sensor.htp1_10_0_0_56.output_audio_format', 'sensor.htp1_10_0_0_56.dirac_slot', 'sensor.htp1_10_0_0_56.video_mode', 'sensor.htp1_10_0_0_56.connection', 'sensor.htp1_10_0_0_56.beq_active', 'select.htp1_10_0_0_56.input', 'select.htp1_10_0_0_56.calibration', 'select.htp1_10_0_0_56.surround_mode', 'select.htp1_10_0_0_56.ss_preset']
+2026-11-22 15:12:36,112 | DEBUG    | ucapi.entities            | [configured]: entity 'media_player.htp1_10_0_0_56' attributes updated
+2026-11-22 15:12:36,113 | DEBUG    | ucapi.entities            | [configured]: entity 'remote.htp1_10_0_0_56' attributes updated
+2026-11-22 15:12:36,113 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.input' attributes updated
+2026-11-22 15:12:36,114 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.volume' attributes updated
+2026-11-22 15:12:36,115 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.mute' attributes updated
+2026-11-22 15:12:36,116 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.ss_trim' attributes updated
+2026-11-22 15:12:36,116 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.ss_mute' attributes updated
+2026-11-22 15:12:36,117 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.ss_preset' attributes updated
+2026-11-22 15:12:36,118 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.loudness' attributes updated
+2026-11-22 15:12:36,119 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.night_mode' attributes updated
+2026-11-22 15:12:36,120 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.peq' attributes updated
+2026-11-22 15:12:36,121 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.sound_mode' attributes updated
+2026-11-22 15:12:36,121 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.audio_format' attributes updated
+2026-11-22 15:12:36,121 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.output_audio_format' attributes updated
+2026-11-22 15:12:36,122 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.dirac_slot' attributes updated
+2026-11-22 15:12:36,123 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.video_mode' attributes updated
+2026-11-22 15:12:36,123 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.connection' attributes updated
+2026-11-22 15:12:36,124 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.beq_active' attributes updated
+2026-11-22 15:12:36,125 | DEBUG    | ucapi.entities            | [configured]: entity 'select.htp1_10_0_0_56.input' attributes updated
+2026-11-22 15:12:36,126 | DEBUG    | ucapi.entities            | [configured]: entity 'select.htp1_10_0_0_56.calibration' attributes updated
+2026-11-22 15:12:36,126 | DEBUG    | ucapi.entities            | [configured]: entity 'select.htp1_10_0_0_56.surround_mode' attributes updated
+2026-11-22 15:12:36,126 | DEBUG    | ucapi.entities            | [configured]: entity 'select.htp1_10_0_0_56.ss_preset' attributes updated
+2026-11-22 15:12:36,128 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "attributes": {"state": "ON", "volume": -20, "source": "Movies", "source_list": ["Movies", "Streaming", "Disc", "HTPC"], "sound_mode": "NATIVE", "sound_mode_list": ["AURO-3D", "DIRECT", "DOLBY SURROUND", "DTS NEURAL:X", "NATIVE", "STEREO"]}}, "cat": "ENTITY"}
+2026-11-22 15:12:36,129 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "remote.htp1_10_0_0_56", "entity_type": "remote", "attributes": {"state": "ON"}}, "cat": "ENTITY"}
+2026-11-22 15:12:36,129 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.input", "entity_type": "sensor", "attributes": {"state": "ON", "value": "Movies"}}, "cat": "ENTITY"}
+2026-11-22 15:12:36,130 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.volume", "entity_type": "sensor", "attributes": {"state": "ON", "value": "-20"}}, "cat": "ENTITY"}
+2026-11-22 15:12:36,130 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.mute", "entity_type": "sensor", "attributes": {"state": "ON", "value": "Off"}}, "cat": "ENTITY"}
+2026-11-22 15:12:36,131 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.ss_trim", "entity_type": "sensor", "attributes": {"state": "ON", "value": "-3"}}, "cat": "ENTITY"}
+2026-11-22 15:12:36,131 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.ss_mute", "entity_type": "sensor", "attributes": {"state": "ON", "value": "Off"}}, "cat": "ENTITY"}
+2026-11-22 15:12:36,132 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.ss_preset", "entity_type": "sensor", "attributes": {"state": "ON", "value": 1}}, "cat": "ENTITY"}
+2026-11-22 15:12:36,132 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.loudness", "entity_type": "sensor", "attributes": {"state": "ON", "value": "Off"}}, "cat": "ENTITY"}
+2026-11-22 15:12:36,133 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.night_mode", "entity_type": "sensor", "attributes": {"state": "ON", "value": "Off"}}, "cat": "ENTITY"}
+2026-11-22 15:12:36,134 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.peq", "entity_type": "sensor", "attributes": {"state": "ON", "value": "On"}}, "cat": "ENTITY"}
+2026-11-22 15:12:36,135 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.sound_mode", "entity_type": "sensor", "attributes": {"state": "ON", "value": "NATIVE"}}, "cat": "ENTITY"}
+2026-11-22 15:12:36,135 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.audio_format", "entity_type": "sensor", "attributes": {"state": "ON", "value": "2.0.0 PCM"}}, "cat": "ENTITY"}
+2026-11-22 15:12:36,136 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.output_audio_format", "entity_type": "sensor", "attributes": {"state": "ON", "value": "2.3.0 Direct"}}, "cat": "ENTITY"}
+2026-11-22 15:12:36,137 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.dirac_slot", "entity_type": "sensor", "attributes": {"state": "ON", "value": "6 Point Tweaked"}}, "cat": "ENTITY"}
+2026-11-22 15:12:36,138 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.video_mode", "entity_type": "sensor", "attributes": {"state": "ON", "value": "4k24Hz YCbCr 4:2:2"}}, "cat": "ENTITY"}
+2026-11-22 15:12:36,139 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.connection", "entity_type": "sensor", "attributes": {"state": "ON", "value": "Connected"}}, "cat": "ENTITY"}
+2026-11-22 15:12:36,139 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.beq_active", "entity_type": "sensor", "attributes": {"state": "ON", "value": "None"}}, "cat": "ENTITY"}
+2026-11-22 15:12:36,140 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "select.htp1_10_0_0_56.input", "entity_type": "select", "attributes": {"state": "ON", "options": ["Movies", "Streaming", "Disc", "HTPC"], "current_option": "Movies"}}, "cat": "ENTITY"}
+2026-11-22 15:12:36,141 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "select.htp1_10_0_0_56.calibration", "entity_type": "select", "attributes": {"state": "ON", "options": ["6 Point Tweaked", "10 Point Tweaked", "6 Point Default Support", "10 Point Default Support", "6 Point Directional", "10 Point Defaults"], "current_option": "6 Point Tweaked"}}, "cat": "ENTITY"}
+2026-11-22 15:12:36,141 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "select.htp1_10_0_0_56.surround_mode", "entity_type": "select", "attributes": {"state": "ON", "options": ["AURO-3D", "DIRECT", "DOLBY SURROUND", "DTS NEURAL:X", "NATIVE", "STEREO"], "current_option": "NATIVE"}}, "cat": "ENTITY"}
+2026-11-22 15:12:36,142 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "select.htp1_10_0_0_56.ss_preset", "entity_type": "select", "attributes": {"state": "ON", "options": ["1", "2", "3", "4", "5", "6"], "current_option": "1"}}, "cat": "ENTITY"}
+2026-11-22 15:12:38,135 | DEBUG    | ucapi.api                 | [('IP', 50154)] ->: {"msg": "get_entity_states", "id": 5, "kind": "req"}
+2026-11-22 15:12:38,137 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "resp", "req_id": 5, "code": 200, "msg": "entity_states", "msg_data": [{"entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "device_id": null, "attributes": {"state": "ON", "volume": -20, "muted": false, "source": "Movies", "source_list": ["Movies", "Streaming", "Disc", "HTPC"], "sound_mode": "NATIVE", "sound_mode_list": ["AURO-3D", "DIRECT", "DOLBY SURROUND", "DTS NEURAL:X", "NATIVE", "STEREO"]}}, {"entity_id": "remote.htp1_10_0_0_56", "entity_type": "remote", "device_id": null, "attributes": {"state": "ON"}}, {"entity_id": "sensor.htp1_10_0_0_56.input", "entity_type": "sensor", "device_id": null, "attributes": {"state": "ON", "value": "Movies"}}, {"entity_id": "sensor.htp1_10_0_0_56.volume", "entity_type": "sensor", "device_id": null, "attributes": {"state": "ON", "value": "-20"}}, {"entity_id": "sensor.htp1_10_0_0_56.mute", "entity_type": "sensor", "device_id": null, "attributes": {"state": "ON", "value": "Off"}}, {"entity_id": "sensor.htp1_10_0_0_56.ss_trim", "entity_type": "sensor", "device_id": null, "attributes": {"state": "ON", "value": "-3"}}, {"entity_id": "sensor.htp1_10_0_0_56.ss_mute", "entity_type": "sensor", "device_id": null, "attributes": {"state": "ON", "value": "Off"}}, {"entity_id": "sensor.htp1_10_0_0_56.ss_preset", "entity_type": "sensor", "device_id": null, "attributes": {"state": "ON", "value": 1}}, {"entity_id": "sensor.htp1_10_0_0_56.loudness", "entity_type": "sensor", "device_id": null, "attributes": {"state": "ON", "value": "Off"}}, {"entity_id": "sensor.htp1_10_0_0_56.night_mode", "entity_type": "sensor", "device_id": null, "attributes": {"state": "ON", "value": "Off"}}, {"entity_id": "sensor.htp1_10_0_0_56.peq", "entity_type": "sensor", "device_id": null, "attributes": {"state": "ON", "value": "On"}}, {"entity_id": "sensor.htp1_10_0_0_56.sound_mode", "entity_type": "sensor", "device_id": null, "attributes": {"state": "ON", "value": "NATIVE"}}, {"entity_id": "sensor.htp1_10_0_0_56.audio_format", "entity_type": "sensor", "device_id": null, "attributes": {"state": "ON", "value": "2.0.0 PCM"}}, {"entity_id": "sensor.htp1_10_0_0_56.output_audio_format", "entity_type": "sensor", "device_id": null, "attributes": {"state": "ON", "value": "2.3.0 Direct"}}, {"entity_id": "sensor.htp1_10_0_0_56.dirac_slot", "entity_type": "sensor", "device_id": null, "attributes": {"state": "ON", "value": "6 Point Tweaked"}}, {"entity_id": "sensor.htp1_10_0_0_56.video_mode", "entity_type": "sensor", "device_id": null, "attributes": {"state": "ON", "value": "4k24Hz YCbCr 4:2:2"}}, {"entity_id": "sensor.htp1_10_0_0_56.connection", "entity_type": "sensor", "device_id": null, "attributes": {"state": "ON", "value": "Connected"}}, {"entity_id": "sensor.htp1_10_0_0_56.beq_active", "entity_type": "sensor", "device_id": null, "attributes": {"state": "ON", "value": "None"}}, {"entity_id": "select.htp1_10_0_0_56.input", "entity_type": "select", "device_id": null, "attributes": {"state": "ON", "options": ["Movies", "Streaming", "Disc", "HTPC"], "current_option": "Movies"}}, {"entity_id": "select.htp1_10_0_0_56.calibration", "entity_type": "select", "device_id": null, "attributes": {"state": "ON", "options": ["6 Point Tweaked", "10 Point Tweaked", "6 Point Default Support", "10 Point Default Support", "6 Point Directional", "10 Point Defaults"], "current_option": "6 Point Tweaked"}}, {"entity_id": "select.htp1_10_0_0_56.surround_mode", "entity_type": "select", "device_id": null, "attributes": {"state": "ON", "options": ["AURO-3D", "DIRECT", "DOLBY SURROUND", "DTS NEURAL:X", "NATIVE", "STEREO"], "current_option": "NATIVE"}}, {"entity_id": "select.htp1_10_0_0_56.ss_preset", "entity_type": "select", "device_id": null, "attributes": {"state": "ON", "options": ["1", "2", "3", "4", "5", "6"], "current_option": "1"}}]}
+2026-11-22 15:12:42,500 | DEBUG    | ucapi.api                 | [('IP', 50154)] ->: {"msg": "entity_command", "msg_data": {"cmd_id": "select_option", "entity_id": "select.htp1_10_0_0_56.calibration", "entity_type": "select", "params": {"option": "6 Point Default Support"}}, "id": 6, "kind": "req"}
+2026-11-22 15:12:42,501 | INFO     | intg_monoprice_htp1.selector | [Remote HTP-1 (IP)] Setting {'en': 'Remote HTP-1 Calibration'} to: 6 Point Default Support
+2026-11-22 15:12:42,502 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:42,628 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:42,632 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: changemso [{"op":"replace","path":"/cal/currentdiracslot","value":2}]
+2026-11-22 15:12:42,825 | INFO     | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Dirac slot request mws9x7yf-nhfq29asux accepted; monitoring completion in background
+2026-11-22 15:12:42,826 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "resp", "req_id": 6, "code": 200, "msg": "result", "msg_data": {}}
+2026-11-22 15:12:43,662 | DEBUG    | ucapi.api                 | [('IP', 50154)] ->: {"msg": "entity_command", "msg_data": {"cmd_id": "volume_down", "entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "params": {}}, "id": 7, "kind": "req"}
+2026-11-22 15:12:43,663 | INFO     | intg_monoprice_htp1.media_player | [media_player.htp1_10_0_0_56] Command: volume_down 
+2026-11-22 15:12:43,664 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:45,754 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:45,764 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: changemso [{"op":"replace","path":"/volume","value":-28}]
+2026-11-22 15:12:45,764 | ERROR    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Receiver state mismatch after transaction at /volume
+2026-11-22 15:12:47,767 | WARNING  | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Timed out waiting for live state convergence; confirming with getmso
+2026-11-22 15:12:47,770 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:50,215 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:50,216 | DEBUG    | ucapi.entities            | [configured]: entity 'media_player.htp1_10_0_0_56' attributes updated
+2026-11-22 15:12:50,217 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.volume' attributes updated
+2026-11-22 15:12:50,217 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "attributes": {"volume": -21}}, "cat": "ENTITY"}
+2026-11-22 15:12:50,218 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.volume", "entity_type": "sensor", "attributes": {"value": "-21"}}, "cat": "ENTITY"}
+2026-11-22 15:12:50,218 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "resp", "req_id": 7, "code": 200, "msg": "result", "msg_data": {}}
+2026-11-22 15:12:50,219 | DEBUG    | ucapi.api                 | [('IP', 50154)] ->: {"msg": "entity_command", "msg_data": {"cmd_id": "volume_down", "entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "params": {}}, "id": 8, "kind": "req"}
+2026-11-22 15:12:50,219 | INFO     | intg_monoprice_htp1.media_player | [media_player.htp1_10_0_0_56] Command: volume_down 
+2026-11-22 15:12:50,220 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:50,683 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:50,699 | INFO     | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Dirac slot change to index 2 completed and confirmed
+2026-11-22 15:12:50,701 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.dirac_slot' attributes updated
+2026-11-22 15:12:50,702 | DEBUG    | ucapi.entities            | [configured]: entity 'select.htp1_10_0_0_56.calibration' attributes updated
+2026-11-22 15:12:50,703 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:50,704 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.dirac_slot", "entity_type": "sensor", "attributes": {"value": "6 Point Default Support"}}, "cat": "ENTITY"}
+2026-11-22 15:12:50,705 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "select.htp1_10_0_0_56.calibration", "entity_type": "select", "attributes": {"current_option": "6 Point Default Support"}}, "cat": "ENTITY"}
+2026-11-22 15:12:50,785 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:50,796 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: changemso [{"op":"replace","path":"/volume","value":-29}]
+2026-11-22 15:12:50,797 | ERROR    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Receiver state mismatch after transaction at /volume
+2026-11-22 15:12:51,087 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:51,088 | DEBUG    | ucapi.entities            | [configured]: entity 'media_player.htp1_10_0_0_56' attributes updated
+2026-11-22 15:12:51,089 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.volume' attributes updated
+2026-11-22 15:12:51,091 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "attributes": {"volume": -22}}, "cat": "ENTITY"}
+2026-11-22 15:12:51,091 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.volume", "entity_type": "sensor", "attributes": {"value": "-22"}}, "cat": "ENTITY"}
+2026-11-22 15:12:51,174 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:51,176 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "resp", "req_id": 8, "code": 200, "msg": "result", "msg_data": {}}
+2026-11-22 15:12:51,177 | DEBUG    | ucapi.api                 | [('IP', 50154)] ->: {"msg": "entity_command", "msg_data": {"cmd_id": "volume_down", "entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "params": {}}, "id": 9, "kind": "req"}
+2026-11-22 15:12:51,178 | INFO     | intg_monoprice_htp1.media_player | [media_player.htp1_10_0_0_56] Command: volume_down 
+2026-11-22 15:12:51,179 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:51,247 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:51,256 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: changemso [{"op":"replace","path":"/volume","value":-30}]
+2026-11-22 15:12:51,257 | ERROR    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Receiver state mismatch after transaction at /volume
+2026-11-22 15:12:51,495 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:51,496 | DEBUG    | ucapi.entities            | [configured]: entity 'media_player.htp1_10_0_0_56' attributes updated
+2026-11-22 15:12:51,496 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.volume' attributes updated
+2026-11-22 15:12:51,497 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "attributes": {"volume": -23}}, "cat": "ENTITY"}
+2026-11-22 15:12:51,497 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.volume", "entity_type": "sensor", "attributes": {"value": "-23"}}, "cat": "ENTITY"}
+2026-11-22 15:12:51,601 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:51,603 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "resp", "req_id": 9, "code": 200, "msg": "result", "msg_data": {}}
+2026-11-22 15:12:51,603 | DEBUG    | ucapi.api                 | [('IP', 50154)] ->: {"msg": "entity_command", "msg_data": {"cmd_id": "volume_down", "entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "params": {}}, "id": 10, "kind": "req"}
+2026-11-22 15:12:51,604 | INFO     | intg_monoprice_htp1.media_player | [media_player.htp1_10_0_0_56] Command: volume_down 
+2026-11-22 15:12:51,606 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:51,680 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:51,699 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: changemso [{"op":"replace","path":"/volume","value":-31}]
+2026-11-22 15:12:51,700 | ERROR    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Receiver state mismatch after transaction at /volume
+2026-11-22 15:12:51,877 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:51,878 | DEBUG    | ucapi.entities            | [configured]: entity 'media_player.htp1_10_0_0_56' attributes updated
+2026-11-22 15:12:51,879 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.volume' attributes updated
+2026-11-22 15:12:51,879 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "attributes": {"volume": -24}}, "cat": "ENTITY"}
+2026-11-22 15:12:51,879 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.volume", "entity_type": "sensor", "attributes": {"value": "-24"}}, "cat": "ENTITY"}
+2026-11-22 15:12:51,985 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:51,989 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "resp", "req_id": 10, "code": 200, "msg": "result", "msg_data": {}}
+2026-11-22 15:12:51,990 | DEBUG    | ucapi.api                 | [('IP', 50154)] ->: {"msg": "entity_command", "msg_data": {"cmd_id": "volume_down", "entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "params": {}}, "id": 11, "kind": "req"}
+2026-11-22 15:12:51,990 | INFO     | intg_monoprice_htp1.media_player | [media_player.htp1_10_0_0_56] Command: volume_down 
+2026-11-22 15:12:51,991 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:52,064 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:52,078 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: changemso [{"op":"replace","path":"/volume","value":-32}]
+2026-11-22 15:12:52,079 | ERROR    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Receiver state mismatch after transaction at /volume
+2026-11-22 15:12:52,330 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:52,330 | DEBUG    | ucapi.entities            | [configured]: entity 'media_player.htp1_10_0_0_56' attributes updated
+2026-11-22 15:12:52,331 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.volume' attributes updated
+2026-11-22 15:12:52,331 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "attributes": {"volume": -25}}, "cat": "ENTITY"}
+2026-11-22 15:12:52,332 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.volume", "entity_type": "sensor", "attributes": {"value": "-25"}}, "cat": "ENTITY"}
+2026-11-22 15:12:52,400 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:52,403 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "resp", "req_id": 11, "code": 200, "msg": "result", "msg_data": {}}
+2026-11-22 15:12:52,405 | DEBUG    | ucapi.api                 | [('IP', 50154)] ->: {"msg": "entity_command", "msg_data": {"cmd_id": "volume_down", "entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "params": {}}, "id": 12, "kind": "req"}
+2026-11-22 15:12:52,406 | INFO     | intg_monoprice_htp1.media_player | [media_player.htp1_10_0_0_56] Command: volume_down 
+2026-11-22 15:12:52,407 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:52,477 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:52,493 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: changemso [{"op":"replace","path":"/volume","value":-33}]
+2026-11-22 15:12:52,493 | ERROR    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Receiver state mismatch after transaction at /volume
+2026-11-22 15:12:53,061 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:53,062 | DEBUG    | ucapi.entities            | [configured]: entity 'media_player.htp1_10_0_0_56' attributes updated
+2026-11-22 15:12:53,062 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.volume' attributes updated
+2026-11-22 15:12:53,063 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "attributes": {"volume": -26}}, "cat": "ENTITY"}
+2026-11-22 15:12:53,063 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.volume", "entity_type": "sensor", "attributes": {"value": "-26"}}, "cat": "ENTITY"}
+2026-11-22 15:12:53,174 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:53,176 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "resp", "req_id": 12, "code": 200, "msg": "result", "msg_data": {}}
+2026-11-22 15:12:53,176 | DEBUG    | ucapi.api                 | [('IP', 50154)] ->: {"msg": "entity_command", "msg_data": {"cmd_id": "volume_down", "entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "params": {}}, "id": 13, "kind": "req"}
+2026-11-22 15:12:53,177 | INFO     | intg_monoprice_htp1.media_player | [media_player.htp1_10_0_0_56] Command: volume_down 
+2026-11-22 15:12:53,178 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:53,244 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:53,251 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: changemso [{"op":"replace","path":"/volume","value":-34}]
+2026-11-22 15:12:53,251 | ERROR    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Receiver state mismatch after transaction at /volume
+2026-11-22 15:12:53,478 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:53,479 | DEBUG    | ucapi.entities            | [configured]: entity 'media_player.htp1_10_0_0_56' attributes updated
+2026-11-22 15:12:53,479 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.volume' attributes updated
+2026-11-22 15:12:53,481 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "attributes": {"volume": -27}}, "cat": "ENTITY"}
+2026-11-22 15:12:53,482 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.volume", "entity_type": "sensor", "attributes": {"value": "-27"}}, "cat": "ENTITY"}
+2026-11-22 15:12:53,562 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:53,566 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "resp", "req_id": 13, "code": 200, "msg": "result", "msg_data": {}}
+2026-11-22 15:12:53,567 | DEBUG    | ucapi.api                 | [('IP', 50154)] ->: {"msg": "entity_command", "msg_data": {"cmd_id": "volume_down", "entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "params": {}}, "id": 14, "kind": "req"}
+2026-11-22 15:12:53,568 | INFO     | intg_monoprice_htp1.media_player | [media_player.htp1_10_0_0_56] Command: volume_down 
+2026-11-22 15:12:53,569 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:53,632 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:53,652 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: changemso [{"op":"replace","path":"/volume","value":-35}]
+2026-11-22 15:12:53,653 | ERROR    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Receiver state mismatch after transaction at /volume
+2026-11-22 15:12:53,898 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:53,899 | DEBUG    | ucapi.entities            | [configured]: entity 'media_player.htp1_10_0_0_56' attributes updated
+2026-11-22 15:12:53,899 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.volume' attributes updated
+2026-11-22 15:12:53,900 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "attributes": {"volume": -28}}, "cat": "ENTITY"}
+2026-11-22 15:12:53,901 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.volume", "entity_type": "sensor", "attributes": {"value": "-28"}}, "cat": "ENTITY"}
+2026-11-22 15:12:53,964 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:53,967 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "resp", "req_id": 14, "code": 200, "msg": "result", "msg_data": {}}
+2026-11-22 15:12:53,967 | DEBUG    | ucapi.api                 | [('IP', 50154)] ->: {"msg": "entity_command", "msg_data": {"cmd_id": "volume_down", "entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "params": {}}, "id": 15, "kind": "req"}
+2026-11-22 15:12:53,968 | INFO     | intg_monoprice_htp1.media_player | [media_player.htp1_10_0_0_56] Command: volume_down 
+2026-11-22 15:12:53,969 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:54,055 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:54,070 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: changemso [{"op":"replace","path":"/volume","value":-36}]
+2026-11-22 15:12:54,071 | ERROR    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Receiver state mismatch after transaction at /volume
+2026-11-22 15:12:54,313 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:54,314 | DEBUG    | ucapi.entities            | [configured]: entity 'media_player.htp1_10_0_0_56' attributes updated
+2026-11-22 15:12:54,314 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.volume' attributes updated
+2026-11-22 15:12:54,314 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "attributes": {"volume": -29}}, "cat": "ENTITY"}
+2026-11-22 15:12:54,315 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.volume", "entity_type": "sensor", "attributes": {"value": "-29"}}, "cat": "ENTITY"}
+2026-11-22 15:12:54,418 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:54,421 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "resp", "req_id": 15, "code": 200, "msg": "result", "msg_data": {}}
+2026-11-22 15:12:54,422 | DEBUG    | ucapi.api                 | [('IP', 50154)] ->: {"msg": "entity_command", "msg_data": {"cmd_id": "volume_down", "entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "params": {}}, "id": 16, "kind": "req"}
+2026-11-22 15:12:54,423 | INFO     | intg_monoprice_htp1.media_player | [media_player.htp1_10_0_0_56] Command: volume_down 
+2026-11-22 15:12:54,424 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:54,497 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:54,518 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: changemso [{"op":"replace","path":"/volume","value":-37}]
+2026-11-22 15:12:54,519 | ERROR    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Receiver state mismatch after transaction at /volume
+2026-11-22 15:12:54,672 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:54,673 | DEBUG    | ucapi.entities            | [configured]: entity 'media_player.htp1_10_0_0_56' attributes updated
+2026-11-22 15:12:54,674 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.volume' attributes updated
+2026-11-22 15:12:54,676 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "attributes": {"volume": -30}}, "cat": "ENTITY"}
+2026-11-22 15:12:54,676 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.volume", "entity_type": "sensor", "attributes": {"value": "-30"}}, "cat": "ENTITY"}
+2026-11-22 15:12:54,743 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:54,746 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "resp", "req_id": 16, "code": 200, "msg": "result", "msg_data": {}}
+2026-11-22 15:12:54,747 | DEBUG    | ucapi.api                 | [('IP', 50154)] ->: {"msg": "entity_command", "msg_data": {"cmd_id": "volume_down", "entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "params": {}}, "id": 17, "kind": "req"}
+2026-11-22 15:12:54,748 | INFO     | intg_monoprice_htp1.media_player | [media_player.htp1_10_0_0_56] Command: volume_down 
+2026-11-22 15:12:54,749 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:54,843 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:54,859 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: changemso [{"op":"replace","path":"/volume","value":-38}]
+2026-11-22 15:12:54,859 | ERROR    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Receiver state mismatch after transaction at /volume
+2026-11-22 15:12:55,047 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:55,048 | DEBUG    | ucapi.entities            | [configured]: entity 'media_player.htp1_10_0_0_56' attributes updated
+2026-11-22 15:12:55,048 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.volume' attributes updated
+2026-11-22 15:12:55,050 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "attributes": {"volume": -31}}, "cat": "ENTITY"}
+2026-11-22 15:12:55,051 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.volume", "entity_type": "sensor", "attributes": {"value": "-31"}}, "cat": "ENTITY"}
+2026-11-22 15:12:55,158 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:55,162 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "resp", "req_id": 17, "code": 200, "msg": "result", "msg_data": {}}
+2026-11-22 15:12:55,163 | DEBUG    | ucapi.api                 | [('IP', 50154)] ->: {"msg": "entity_command", "msg_data": {"cmd_id": "volume_down", "entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "params": {}}, "id": 18, "kind": "req"}
+2026-11-22 15:12:55,164 | INFO     | intg_monoprice_htp1.media_player | [media_player.htp1_10_0_0_56] Command: volume_down 
+2026-11-22 15:12:55,166 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:55,242 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:55,261 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: changemso [{"op":"replace","path":"/volume","value":-39}]
+2026-11-22 15:12:55,262 | ERROR    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Receiver state mismatch after transaction at /volume
+2026-11-22 15:12:55,462 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:55,463 | DEBUG    | ucapi.entities            | [configured]: entity 'media_player.htp1_10_0_0_56' attributes updated
+2026-11-22 15:12:55,464 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.volume' attributes updated
+2026-11-22 15:12:55,464 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "attributes": {"volume": -32}}, "cat": "ENTITY"}
+2026-11-22 15:12:55,465 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.volume", "entity_type": "sensor", "attributes": {"value": "-32"}}, "cat": "ENTITY"}
+2026-11-22 15:12:55,546 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:55,550 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "resp", "req_id": 18, "code": 200, "msg": "result", "msg_data": {}}
+2026-11-22 15:12:55,551 | DEBUG    | ucapi.api                 | [('IP', 50154)] ->: {"msg": "entity_command", "msg_data": {"cmd_id": "volume_down", "entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "params": {}}, "id": 19, "kind": "req"}
+2026-11-22 15:12:55,552 | INFO     | intg_monoprice_htp1.media_player | [media_player.htp1_10_0_0_56] Command: volume_down 
+2026-11-22 15:12:55,553 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:56,007 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:56,014 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: changemso [{"op":"replace","path":"/volume","value":-40}]
+2026-11-22 15:12:56,014 | ERROR    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Receiver state mismatch after transaction at /volume
+2026-11-22 15:12:56,298 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:56,299 | DEBUG    | ucapi.entities            | [configured]: entity 'media_player.htp1_10_0_0_56' attributes updated
+2026-11-22 15:12:56,299 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.volume' attributes updated
+2026-11-22 15:12:56,300 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "attributes": {"volume": -33}}, "cat": "ENTITY"}
+2026-11-22 15:12:56,300 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.volume", "entity_type": "sensor", "attributes": {"value": "-33"}}, "cat": "ENTITY"}
+2026-11-22 15:12:56,368 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:56,369 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "resp", "req_id": 19, "code": 200, "msg": "result", "msg_data": {}}
+2026-11-22 15:12:56,370 | DEBUG    | ucapi.api                 | [('IP', 50154)] ->: {"msg": "entity_command", "msg_data": {"cmd_id": "volume_down", "entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "params": {}}, "id": 20, "kind": "req"}
+2026-11-22 15:12:56,371 | INFO     | intg_monoprice_htp1.media_player | [media_player.htp1_10_0_0_56] Command: volume_down 
+2026-11-22 15:12:56,372 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:56,433 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:56,453 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: changemso [{"op":"replace","path":"/volume","value":-41}]
+2026-11-22 15:12:56,453 | ERROR    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Receiver state mismatch after transaction at /volume
+2026-11-22 15:12:56,616 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:56,618 | DEBUG    | ucapi.entities            | [configured]: entity 'media_player.htp1_10_0_0_56' attributes updated
+2026-11-22 15:12:56,619 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.volume' attributes updated
+2026-11-22 15:12:56,621 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "attributes": {"volume": -34}}, "cat": "ENTITY"}
+2026-11-22 15:12:56,622 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.volume", "entity_type": "sensor", "attributes": {"value": "-34"}}, "cat": "ENTITY"}
+2026-11-22 15:12:56,687 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:56,691 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "resp", "req_id": 20, "code": 200, "msg": "result", "msg_data": {}}
+2026-11-22 15:12:56,692 | DEBUG    | ucapi.api                 | [('IP', 50154)] ->: {"msg": "entity_command", "msg_data": {"cmd_id": "volume_down", "entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "params": {}}, "id": 21, "kind": "req"}
+2026-11-22 15:12:56,693 | INFO     | intg_monoprice_htp1.media_player | [media_player.htp1_10_0_0_56] Command: volume_down 
+2026-11-22 15:12:56,693 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:56,768 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:56,783 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: changemso [{"op":"replace","path":"/volume","value":-42}]
+2026-11-22 15:12:56,784 | ERROR    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Receiver state mismatch after transaction at /volume
+2026-11-22 15:12:57,029 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:57,030 | DEBUG    | ucapi.entities            | [configured]: entity 'media_player.htp1_10_0_0_56' attributes updated
+2026-11-22 15:12:57,030 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.volume' attributes updated
+2026-11-22 15:12:57,031 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "attributes": {"volume": -35}}, "cat": "ENTITY"}
+2026-11-22 15:12:57,032 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.volume", "entity_type": "sensor", "attributes": {"value": "-35"}}, "cat": "ENTITY"}
+2026-11-22 15:12:57,103 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:57,105 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "resp", "req_id": 21, "code": 200, "msg": "result", "msg_data": {}}
+2026-11-22 15:12:57,106 | DEBUG    | ucapi.api                 | [('IP', 50154)] ->: {"msg": "entity_command", "msg_data": {"cmd_id": "volume_down", "entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "params": {}}, "id": 22, "kind": "req"}
+2026-11-22 15:12:57,106 | INFO     | intg_monoprice_htp1.media_player | [media_player.htp1_10_0_0_56] Command: volume_down 
+2026-11-22 15:12:57,107 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:58,070 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:58,077 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: changemso [{"op":"replace","path":"/volume","value":-43}]
+2026-11-22 15:12:58,077 | ERROR    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Receiver state mismatch after transaction at /volume
+2026-11-22 15:12:58,251 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:12:58,252 | DEBUG    | ucapi.entities            | [configured]: entity 'media_player.htp1_10_0_0_56' attributes updated
+2026-11-22 15:12:58,252 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.volume' attributes updated
+2026-11-22 15:12:58,253 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "media_player.htp1_10_0_0_56", "entity_type": "media_player", "attributes": {"volume": -36}}, "cat": "ENTITY"}
+2026-11-22 15:12:58,254 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.volume", "entity_type": "sensor", "attributes": {"value": "-36"}}, "cat": "ENTITY"}
+2026-11-22 15:12:58,322 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:12:58,323 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "resp", "req_id": 22, "code": 200, "msg": "result", "msg_data": {}}
+2026-11-22 15:13:11,423 | DEBUG    | ucapi.api                 | [('IP', 50154)] ->: {"msg": "entity_command", "msg_data": {"cmd_id": "select_option", "entity_id": "select.htp1_10_0_0_56.calibration", "entity_type": "select", "params": {"option": "6 Point Tweaked"}}, "id": 23, "kind": "req"}
+2026-11-22 15:13:11,423 | INFO     | intg_monoprice_htp1.selector | [Remote HTP-1 (IP)] Setting {'en': 'Remote HTP-1 Calibration'} to: 6 Point Tweaked
+2026-11-22 15:13:11,424 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:13:11,581 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:13:11,583 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: changemso [{"op":"replace","path":"/cal/currentdiracslot","value":0}]
+2026-11-22 15:13:11,750 | INFO     | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Dirac slot request mws9xuad-6plj5lukl2 accepted; monitoring completion in background
+2026-11-22 15:13:11,751 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "resp", "req_id": 23, "code": 200, "msg": "result", "msg_data": {}}
+2026-11-22 15:13:16,972 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Sent: getmso
+2026-11-22 15:13:18,528 | DEBUG    | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Received full state
+2026-11-22 15:13:18,532 | INFO     | intg_monoprice_htp1.device | [Remote HTP-1 (IP)] Dirac slot change to index 0 completed and confirmed
+2026-11-22 15:13:18,534 | DEBUG    | ucapi.entities            | [configured]: entity 'sensor.htp1_10_0_0_56.dirac_slot' attributes updated
+2026-11-22 15:13:18,535 | DEBUG    | ucapi.entities            | [configured]: entity 'select.htp1_10_0_0_56.calibration' attributes updated
+2026-11-22 15:13:18,536 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "sensor.htp1_10_0_0_56.dirac_slot", "entity_type": "sensor", "attributes": {"value": "6 Point Tweaked"}}, "cat": "ENTITY"}
+2026-11-22 15:13:18,537 | DEBUG    | ucapi.api                 | [('IP', 50154)] <-: {"kind": "event", "msg": "entity_change", "msg_data": {"entity_id": "select.htp1_10_0_0_56.calibration", "entity_type": "select", "attributes": {"current_option": "6 Point Tweaked"}}, "cat": "ENTITY"}
