@@ -7,6 +7,7 @@ from pathlib import Path
 
 from intg_monoprice_htp1.config import HTP1Config
 from intg_monoprice_htp1.device import HTP1Device, apply_json_patch
+from intg_monoprice_htp1 import device as device_module
 
 
 FIXTURE = Path(__file__).parents[1] / "fixtures" / "htp1_full_mso.json"
@@ -107,22 +108,13 @@ def test_concurrent_toggles_serialize_and_each_use_the_latest_state():
     asyncio.run(exercise())
 
 
-def test_toggle_refresh_timeout_aborts_without_writing():
+def test_toggle_refresh_timeout_aborts_without_writing(monkeypatch):
     async def exercise():
         state = json.loads(FIXTURE.read_text(encoding="utf-8"))
         device, receiver = make_device(state, reply=False)
-        device.STATE_REFRESH_TIMEOUT = 0.01
+        monkeypatch.setattr(device_module, "STATE_REFRESH_TIMEOUT", 0.01)
 
-        # _refresh_state_locked reads the module constant, so shorten it only
-        # for this test and restore it before leaving the event loop.
-        from intg_monoprice_htp1 import device as device_module
-        original_timeout = device_module.STATE_REFRESH_TIMEOUT
-        device_module.STATE_REFRESH_TIMEOUT = 0.01
-        try:
-            assert await device.toggle_power() is False
-        finally:
-            device_module.STATE_REFRESH_TIMEOUT = original_timeout
-
+        assert await device.toggle_power() is False
         assert receiver.messages == ["getmso"]
         assert receiver.changes == []
 
