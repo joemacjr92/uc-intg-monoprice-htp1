@@ -5,7 +5,9 @@ import json
 
 import pytest
 
-from intg_monoprice_htp1.config import HTP1Config, HTP1ConfigManager
+from ucapi_framework import BaseConfigManager
+
+from intg_monoprice_htp1.config import HTP1Config
 from intg_monoprice_htp1.device import HTP1Device, probe_htp1
 
 
@@ -47,6 +49,34 @@ def test_device_websocket_url_keeps_default_port_for_old_configs():
     assert device.websocket_url == "ws://192.0.2.10:80/ws/controller"
 
 
+
+
+def test_create_websocket_connects_to_configured_port(monkeypatch):
+    from intg_monoprice_htp1 import device as device_module
+
+    calls = []
+    fake_websocket = object()
+
+    async def fake_connect(url, **kwargs):
+        calls.append((url, kwargs))
+        return fake_websocket
+
+    monkeypatch.setattr(device_module.websockets, "connect", fake_connect)
+    receiver = HTP1Device.__new__(HTP1Device)
+    receiver._device_config = HTP1Config(
+        "test", "Test HTP-1", "192.0.2.10", 8088
+    )
+
+    result = asyncio.run(receiver.create_websocket())
+
+    assert result is fake_websocket
+    assert receiver._ws is fake_websocket
+    assert calls == [(
+        "ws://192.0.2.10:8088/ws/controller",
+        {"ping_interval": 20, "ping_timeout": 10, "close_timeout": 5},
+    )]
+
+
 def test_probe_uses_configured_port(monkeypatch):
     calls = []
 
@@ -76,13 +106,17 @@ def test_probe_uses_configured_port(monkeypatch):
 
 
 def test_backup_and_restore_preserve_configured_port(tmp_path):
-    source = HTP1ConfigManager(str(tmp_path / "source.json"))
+    source = BaseConfigManager(
+        str(tmp_path / "source.json"), config_class=HTP1Config
+    )
     source.add_or_update(HTP1Config("test", "Test HTP-1", "192.0.2.10", 8088))
 
     backup = source.get_backup_json()
     assert json.loads(backup)[0]["port"] == 8088
 
-    restored = HTP1ConfigManager(str(tmp_path / "restored.json"))
+    restored = BaseConfigManager(
+        str(tmp_path / "restored.json"), config_class=HTP1Config
+    )
     assert restored.restore_from_backup_json(backup)
     assert restored.get("test").port == 8088
 
@@ -95,7 +129,9 @@ def test_legacy_backup_without_port_restores_default_port(tmp_path):
             "host": "192.0.2.20",
         }
     ])
-    manager = HTP1ConfigManager(str(tmp_path / "restored.json"))
+    manager = BaseConfigManager(
+        str(tmp_path / "restored.json"), config_class=HTP1Config
+    )
 
     assert manager.restore_from_backup_json(legacy_backup)
     restored = manager.get("legacy")
