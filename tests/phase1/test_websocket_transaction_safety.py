@@ -243,3 +243,62 @@ def test_concurrent_relative_volume_updates_use_fresh_serialized_state():
         assert [change[0]["value"] for change in changes] == [-19, -18]
 
     asyncio.run(exercise())
+
+def test_source_selection_uses_fresh_visibility_not_stale_cached_inputs():
+    async def exercise():
+        cached = json.loads(FULL_FIXTURE.read_text(encoding="utf-8"))
+        actual = copy.deepcopy(cached)
+        actual["inputs"]["h1"]["visible"] = False
+        device, receiver = _make_device(
+            fixture=FULL_FIXTURE,
+            receiver_state=actual,
+        )
+
+        result = await device.select_source("Movies")
+
+        assert result is False
+        assert receiver.change_count == 0
+        assert receiver.state["input"] == cached["input"]
+
+    asyncio.run(exercise())
+
+
+def test_seat_shaker_preset_selection_requires_fresh_shaker_state():
+    async def exercise():
+        cached = json.loads(FULL_FIXTURE.read_text(encoding="utf-8"))
+        actual = copy.deepcopy(cached)
+        actual.pop("shaker")
+        device, receiver = _make_device(
+            fixture=FULL_FIXTURE,
+            receiver_state=actual,
+        )
+
+        result = await device.select_ss_preset(1)
+
+        assert result is False
+        assert receiver.change_count == 0
+        assert "shaker" not in receiver.state
+
+    asyncio.run(exercise())
+
+
+def test_calibration_selection_uses_fresh_slot_index():
+    async def exercise():
+        cached = json.loads(FULL_FIXTURE.read_text(encoding="utf-8"))
+        actual = copy.deepcopy(cached)
+        actual["cal"]["slots"][0], actual["cal"]["slots"][1] = (
+            actual["cal"]["slots"][1],
+            actual["cal"]["slots"][0],
+        )
+        device, receiver = _make_device(
+            fixture=FULL_FIXTURE,
+            receiver_state=actual,
+        )
+
+        result = await device.select_calibration("6 Point Tweaked")
+
+        assert result is True
+        assert receiver.change_count == 1
+        assert receiver.state["cal"]["currentdiracslot"] == 1
+
+    asyncio.run(exercise())
