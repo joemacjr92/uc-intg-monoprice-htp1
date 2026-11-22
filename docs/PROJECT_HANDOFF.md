@@ -9,7 +9,7 @@
 1. Read this document before continuing project work.
 2. Verify the live GitHub state (branches, commits, open PRs, checks, and working changes) before assuming a task is complete or starting new work. This document records decisions and intended scope; live repository state is authoritative for implementation status.
 3. Preserve the agreed branch strategy below. Do not develop production code directly on `main` or `tests-and-docs`.
-4. Keep the six development phases in order unless the user explicitly changes the plan. Phase 0 is the configurable-port prerequisite for private remote connectivity.
+4. Keep the approved development phases in order unless the user explicitly changes the plan. Phase 0 is the configurable-port prerequisite for private remote connectivity; Phase 1.5 is the newly approved test-hardening phase between Phases 1 and 2.
 5. Do not silently add, remove, or reinterpret requirements. Ask before expanding scope.
 6. Preserve existing behavior unless a specific correction is required by the phase. Add regression coverage for each correction.
 7. Distinguish automated tests, CI results, remote connectivity checks, and actual HTP-1 hardware acceptance. Never claim one proves another.
@@ -52,7 +52,7 @@ Upstream: [mase1981/uc-intg-monoprice-htp1](https://github.com/mase1981/uc-intg-
 
 ## Development roadmap
 
-The phases below are the approved plan. Phase 0 adds configurable-port support required for remote testing through the user's existing private reverse-proxy setup. Phases 1–6 retain the user's specified scope.
+The phases below are the approved plan. Phase 0 adds configurable-port support required for remote testing through the user's existing private reverse-proxy setup. Phase 1.5 is an approved test-hardening phase added after the Phase 1 review; it does not replace or reorder Phases 2–6.
 
 ### Phase 0 — Configurable HTP-1 port and private reverse-proxy access
 
@@ -81,6 +81,45 @@ The phases below are the approved plan. Phase 0 adds configurable-port support r
 - Fix the unbounded catalogue lock registry.
 - Validate hardware control bounds.
 - Add regression tests for each correction.
+
+### Phase 1.5 — Integration and state-flow test hardening
+
+**Goal:** Improve confidence in the integration's connection lifecycle and end-to-end state handling without changing production behavior unless testing exposes a verified defect.
+
+**Scope and priority:**
+
+1. **Connection lifecycle tests**
+   - Build a small in-process fake HTP-1 WebSocket server that can respond to initial `getmso` requests and accept/echo or acknowledge `changemso` updates.
+   - Exercise the real WebSocket connection and message-handling path rather than mocking every internal method.
+   - Cover WebSocket creation, receive/parse behavior, initial state retrieval, connection/disconnection callbacks, reconnect/recovery, and HTTP command delivery where practical.
+   - Retain and extend the existing concurrent-write serialization, write-failure recovery, and disconnected-send tests; do not describe these existing tests as absent.
+
+2. **Entity state synchronization and round trips**
+   - Test connected-state synchronization for media player, remote, selects, and sensors, including representative state and malformed/missing fields.
+   - Add command-to-patch-to-updated-state-to-parser-to-entity round-trip tests.
+   - Prioritize volume scale/readback, mute, input selection, trims, and PEQ/BEQ state.
+   - Verify that tests reflect actual HTP-1 state semantics; do not assume undocumented units or ranges.
+
+3. **BEQ browser index loading**
+   - Exercise actual `_load_index` behavior with mocked HTTP responses.
+   - Cover successful manifest loading, malformed/invalid manifests, checksum mismatch, network errors/timeouts, and recovery after failure.
+   - Keep live catalogue access opt-in; deterministic CI tests must not depend on external catalogue availability.
+
+4. **Representative HTP-1 state fixture**
+   - Obtain a representative full `getmso` capture from the user's HTP-1 when available.
+   - Scrub identifying or private information while preserving the receiver's real structure and values.
+   - Include real volume, shaker, input, and other relevant state where present; do not invent missing fields or fabricate device values.
+   - Use the fixture to validate parsing, optional fields, and firmware-dependent behavior.
+
+5. **Coverage reporting and CI**
+   - Add reproducible coverage reporting and record a baseline.
+   - Establish targeted expectations for important modules/paths before considering a global threshold.
+   - Keep Phase 0 and Phase 1 compatibility/regression tests in their dedicated QA workflow, run against the intended implementation source.
+   - Ensure the regular and dedicated QA workflows have clear, non-overlapping responsibilities and report what each actually tests.
+
+**Constraints:** This is a test-focused phase. Preserve production behavior. If tests expose a real defect, isolate the correction, add a regression test, and keep the production change narrowly scoped. Do not bundle unrelated refactoring or feature work. Keep test-only code, fixtures, coverage configuration, and QA workflow changes on `tests-and-docs`; production fixes, if required, belong on a focused `feature/*` branch. Do not include QA-only material in upstream PRs.
+
+**Acceptance:** The connection lifecycle is exercised through a fake server; connected entity synchronization and representative command/state round trips are covered; BEQ manifest validation and failure recovery are tested without live network dependencies; a scrubbed real-device fixture is added when available; and CI publishes a reproducible coverage report with documented baseline/targeted expectations. Record automated CI results separately from Remote connectivity and actual HTP-1 hardware acceptance.
 
 ### Phase 2 — Dependency and Number entity support
 
@@ -150,6 +189,7 @@ Update this section as work progresses. Record verified facts only.
 | Branch strategy | Agreed: `main` mirrors upstream; `tests-and-docs` holds QA/docs; `feature/*` holds production development. |
 | Phase 0 | **Complete.** Configurable port setup and connection paths implemented; legacy config/backup defaults to port 80; backup preserves per-entry ports. Remote sensors confirmed working through the user's private reverse-proxy path. Endpoint and topology details are intentionally not recorded. See `docs/phase-0-validation.md`. |
 | Phase 1 | **Implementation and automated validation complete; hardware acceptance pending.** Feature branch `feature/phase-1-websocket-safety` at `d218f8a` merged into `feature-validation` via PR #3 (`f59e494`). QA: 91 regression tests passed, 1 skipped; 33 Phase 0 compatibility tests passed; 11 Phase 1 tests passed ([QA run](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/44977615939)). ARM64 2.4.2 artifact built successfully ([run](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/44977763697)). Remote/HTP-1 hardware validation is still pending. See `docs/phase-1-validation.md`. |
+| Phase 1.5 | **Approved; not started.** Next planned phase: connection lifecycle, entity synchronization and command/state round-trip tests, BEQ index loading tests, representative real-device fixture, and coverage reporting. Test-only work stays on `tests-and-docs`; production fixes, if any, use focused feature branches. |
 | Phases 2–6 | Approved scope; implementation status must be verified against current commits, PRs, tests, and hardware checks before being marked complete. |
 | Handoff location | `docs/PROJECT_HANDOFF.md` on `tests-and-docs` only. |
 
