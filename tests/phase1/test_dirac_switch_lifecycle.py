@@ -78,6 +78,9 @@ class DiracReceiver:
 
         if self.mode == "standby":
             await self._refuse(slot)
+        elif self.mode == "delayed-standby":
+            task = asyncio.create_task(self._delayed_refuse(slot))
+            self.tasks.append(task)
         elif self.mode == "complete":
             task = asyncio.create_task(self._complete(slot))
             self.tasks.append(task)
@@ -98,6 +101,11 @@ class DiracReceiver:
             await self.device.handle_message(f"msoupdate {json.dumps([reply])}")
             task = asyncio.create_task(self._complete(slot))
             self.tasks.append(task)
+
+    async def _delayed_refuse(self, slot):
+        """Refuse after the integration has had time to acknowledge acceptance."""
+        await asyncio.sleep(0.35)
+        await self._refuse(slot)
 
     async def _complete(self, slot):
         await asyncio.sleep(self.delay)
@@ -223,6 +231,38 @@ def test_dirac_standby_refusal_with_matching_reply_fails_immediately():
             assert receiver.getmso_count == 1
             assert receiver.state["cal"]["currentdiracslot"] == 0
             assert receiver.state["cal"]["diracSwitchReply"]["id"] == receiver.request_id
+        finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
+
+def test_delayed_standby_refusal_after_acceptance_keeps_confirmed_display():
+    async def exercise():
+        device, receiver = make_device(mode="delayed-standby")
+        try:
+            original_display = device.dirac_slot_name
+            result = await device.select_calibration(device.slot_names[1])
+
+            # The receiver first publishes "requested", so the Remote is
+            # acknowledged before its delayed standby refusal arrives.
+            assert result is True
+            assert device._dirac_task is not None
+            assert device._dirac_operation_lock.locked()
+            assert device.dirac_slot_name == original_display
+
+            task = device._dirac_task
+            await asyncio.wait_for(task, timeout=1.0)
+
+            assert receiver.state["cal"]["diracSwitchReply"]["id"] == receiver.request_id
+            assert receiver.state["cal"]["diracSwitchReply"]["state"] == "refused"
+            assert receiver.state["cal"]["diracSwitch"] == receiver.previous_switch
+            assert receiver.state["cal"]["currentdiracslot"] == 0
+            assert receiver.getmso_count == 1  # No success readback after refusal.
+            assert device.dirac_slot_name == original_display
+            assert device._dirac_display_hold is True
+            assert not device._dirac_operation_lock.locked()
+            assert device._dirac_task is None
         finally:
             await receiver.cleanup()
 
