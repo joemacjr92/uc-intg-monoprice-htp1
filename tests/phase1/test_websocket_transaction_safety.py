@@ -164,7 +164,7 @@ def test_partial_beq_application_is_not_reported_as_success():
     asyncio.run(exercise())
 
 
-def test_beq_state_refresh_timeout_aborts_before_any_write():
+def test_beq_state_refresh_timeout_context_aborts_before_any_write():
     async def exercise():
         state = json.loads(BEQ_FIXTURE.read_text(encoding="utf-8"))
         device, receiver = _make_device(
