@@ -170,6 +170,70 @@ def test_beq_receiver_ignoring_patch_is_reported_as_failure_after_readback():
     asyncio.run(exercise())
 
 
+def test_transaction_convergence_predicate_is_quiet_until_final_readback(caplog):
+    async def exercise():
+        state = json.loads(BEQ_FIXTURE.read_text(encoding="utf-8"))
+        device, receiver = _make_device(
+            receiver_state=state,
+            apply_mode="ignore",
+        )
+        device._write_convergence_timeout = 0.0
+
+        result = await device.load_beq("Rejected BEQ", BEQ_FILTERS)
+
+        assert result is False
+        errors = [
+            record.getMessage()
+            for record in caplog.records
+            if record.levelname == "ERROR" and "transaction" in record.getMessage().lower()
+        ]
+        assert len(errors) == 1
+        assert "Receiver state mismatch after transaction at /peq/" in errors[0]
+        assert receiver.change_count == 1
+        assert receiver.messages.count("getmso") >= 2
+
+    asyncio.run(exercise())
+
+
+def test_transaction_mismatch_helper_reports_first_missing_or_different_path():
+    async def exercise():
+        device, _ = _make_device()
+        expected = copy.deepcopy(device._state)
+        expected["volume"] = -10
+        operations = [
+            {"op": "replace", "path": "/volume", "value": -10},
+            {"op": "replace", "path": "/muted", "value": True},
+        ]
+
+        assert device._transaction_mismatch_path(expected, operations) == "/volume"
+        device._state["volume"] = -10
+        assert device._transaction_mismatch_path(expected, operations) is None
+
+        device._state.pop("muted", None)
+        expected["muted"] = True
+        assert device._transaction_mismatch_path(expected, operations) == "/muted"
+
+    asyncio.run(exercise())
+
+
+def test_transaction_mismatch_helper_marks_unavailable_state():
+    async def exercise():
+        device, _ = _make_device()
+        expected = copy.deepcopy(device._state)
+        device._state = None
+
+        assert device._transaction_mismatch_path(
+            expected,
+            [{"op": "replace", "path": "/volume", "value": -10}],
+        ) == "<no state>"
+        assert not device._transaction_matches_state(
+            expected,
+            [{"op": "replace", "path": "/volume", "value": -10}],
+        )
+
+    asyncio.run(exercise())
+
+
 def test_partial_beq_application_is_not_reported_as_success():
     async def exercise():
         state = json.loads(BEQ_FIXTURE.read_text(encoding="utf-8"))
