@@ -285,3 +285,29 @@ def test_catalogue_entry_locks_are_removed_after_requests(monkeypatch):
         assert browser._entry_locks == {}
 
     asyncio.run(exercise())
+
+
+
+def test_volume_step_controls_reject_malformed_receiver_values():
+    async def exercise():
+        device = HTP1Device(
+            HTP1Config("test", "Test HTP-1", "127.0.0.1"),
+            loop=asyncio.get_running_loop(),
+        )
+        sent = []
+
+        async def capture(operations):
+            sent.append(operations)
+            return True
+
+        device._send_transaction = capture
+        device.vph = 12
+        device.vpl = -80
+        device.zp = 0
+        for bad_value in (True, "0", None, float("nan"), float("inf")):
+            device._state = {"volume": bad_value}
+            assert not await device.volume_up()
+            assert not await device.volume_down()
+        assert sent == []
+
+    asyncio.run(exercise())
