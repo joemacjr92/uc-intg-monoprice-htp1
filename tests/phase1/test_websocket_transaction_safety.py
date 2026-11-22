@@ -165,10 +165,15 @@ def test_partial_beq_application_is_not_reported_as_success():
 
 
 def test_beq_state_refresh_timeout_aborts_before_any_write(monkeypatch):
-    # Set the production timeout before creating the device/event loop.
-    import intg_monoprice_htp1.device as device_module
+    original_wait_for = asyncio.wait_for
 
-    monkeypatch.setattr(device_module, "STATE_REFRESH_TIMEOUT", 0.05)
+    async def shorten_refresh_wait(awaitable, timeout=None):
+        # Only shorten the production state-refresh wait, not the outer guard.
+        if timeout == 5.0:
+            timeout = 0.05
+        return await original_wait_for(awaitable, timeout=timeout)
+
+    monkeypatch.setattr(asyncio, "wait_for", shorten_refresh_wait)
 
     async def exercise():
         state = json.loads(BEQ_FIXTURE.read_text(encoding="utf-8"))
