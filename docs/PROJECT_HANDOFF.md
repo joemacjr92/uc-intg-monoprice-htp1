@@ -158,7 +158,7 @@ The phases below are the approved plan. Phase 0 adds configurable-port support r
 
 - Ordinary `changemso` state writes wait up to two seconds for the relevant live `msoupdate` to converge, then perform one confirming `getmso` snapshot. The touched JSON paths must match before success is returned. The write transaction remains serialized; the live update is registered/observed before any subsequent operation can overtake it.
 - Plain-text `error` WebSocket frames are handled as receiver protocol errors, not malformed JSON. Their message is retained for the pending operation.
-- Dirac selection is no longer verified by the early /cal/currentdiracslot value. The HTP-1 generates the request ID; the integration compares the new `cal.diracSwitch.id` with the pre-write ID, waits for that request to reach `complete` (15-second overall budget), then performs one confirming `getmso` readback.
+- Dirac selection is no longer verified by the early `/cal/currentdiracslot` value. The HTP-1 generates the request ID; the integration compares the new `cal.diracSwitch.id` with the pre-write ID, waits for that request to reach `complete` (15-second overall budget), then performs one confirming `getmso` readback.
 - `requested` and `running` are progress only. A matching-ID `diracSwitchReply` refusal is a failure; a newly changed non-`nr-...` refusal reply is also recognized if the receiver has already reverted the visible switch snapshot. An unrelated `nr-...` busy reply does not cancel an already accepted request. A plain-text error fails the pending change only if no accepted request ID has been observed.
 - A receiver already reporting `diracSwitch.locked` or `diracApplying` is rejected locally before sending another slot change.
 - QA-only regressions cover 250 ms delayed volume convergence, delayed Dirac completion, standby refusal, unrelated busy replies, plain-text busy rejection, and Dirac timeout. Tests remain exclusively on `tests-and-docs`; production code remains on `feature-validation`.
@@ -167,7 +167,7 @@ The phases below are the approved plan. Phase 0 adds configurable-port support r
 **Validation results (2026-11-22):**
 
 - Production source branch: `feature-validation` at `27ae1f47af651ba7dc63b9c535ebffbe9a8f9b29`.
-- QA/handoff branch: `tests-and-docs` at `f1d3b68d18b6bb13136a1105178687365b1daa37`.
+- QA test commit: `f1d3b68d18b6bb13136a1105178687365b1daa37`; current QA/handoff branch head after recording these results: `1d77bb759ab383ebec34441049a7521c34c7127a`.
 - ARM64 Test Build: passed — [run 45055106945](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45055106945).
 - Phase 1 WebSocket Safety QA: passed — [run 45055356382](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45055356382). Results: 95 regression tests passed, 1 skipped; 33 Phase 0 compatibility tests passed; 21 added regression-gap tests passed; 111 Phase 1 tests passed; 2 TLS tests passed. Focused Ruff correctness checks passed. Broader Ruff audit remains diagnostic.
 - Full QA and Phase 0 workflow: passed — [run 45055356346](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45055356346).
