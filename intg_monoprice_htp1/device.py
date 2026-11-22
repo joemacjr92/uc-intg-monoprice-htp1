@@ -553,7 +553,7 @@ class HTP1Device(WebSocketDevice):
             _LOG.warning("[%s] Rejecting invalid volume value: %r", self.log_id, volume)
             return False
         async with self._transaction_lock:
-            if not await self._refresh_state_locked():
+            if not await self._refresh_state_locked() or not isinstance(self._state, dict):
                 return False
             cal = _as_dict(self._state.get("cal"))
             vpl = cal.get("vpl")
