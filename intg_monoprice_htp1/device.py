@@ -614,30 +614,13 @@ class HTP1Device(WebSocketDevice):
             return False
 
     def _get_sub_channels(self) -> list[str]:
-        """Return the subwoofer PEQ channels used by the established BEQ path.
+        """Return the single LFE path used for BEQ before Dirac processing.
 
-        The HTP-1's Pre placement targets Sub1 only. Other PEQ placements
-        target each configured subwoofer output, matching the original
-        Python integration behavior.
+        PEQ Pre is required for BEQ compatibility. In the HTP-1 MSO this
+        signal is represented by the sub1 PEQ channel; it must not be copied
+        independently to the post-Dirac subwoofer outputs.
         """
-        if not self._state:
-            return ["sub1"]
-
-        peq = _as_dict(self._state.get("peq"))
-        if peq.get("location") == "pre":
-            return ["sub1"]
-
-        speakers = _as_dict(self._state.get("speakers"))
-        groups = _as_dict(speakers.get("groups"))
-        channels = [
-            key
-            for key, value in groups.items()
-            if isinstance(key, str)
-            and key.startswith("sub")
-            and isinstance(value, dict)
-            and value.get("present") is True
-        ]
-        return channels or ["sub1"]
+        return ["sub1"]
 
     def _find_empty_peq_slot(self, start_slot: int = BEQ_SLOT_START, ch: str | None = None) -> int | None:
         """Find a reusable band with a complete PEQ record for this channel."""
@@ -781,7 +764,7 @@ class HTP1Device(WebSocketDevice):
         # BEQ must run before Dirac so it modifies the LFE channel signal,
         # not individual post-Dirac subwoofer outputs. In the HTP-1 MSO,
         # sub1 is the Pre-PEQ LFE path.
-        sub_channels = ["sub1"]
+        sub_channels = self._get_sub_channels()
 
         next_slot = BEQ_SLOT_START
         filter_ops: list[dict[str, Any]] = []
