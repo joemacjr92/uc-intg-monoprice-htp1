@@ -330,7 +330,7 @@ The intermittent HTP-1 responsiveness observed during a real hardware Dirac appl
 **Verified branch state**
 
 - Production implementation commit: 282bf486d4ac6ddc5068b57168177b75e5ccf1b3 on feature-validation. The only later branch change observed during this review is an update to dumps/integration.log, not production source.
-- QA/documentation head: 7c5ed4c66e7126ddfed106a6cbde89b598c613c0 on tests-and-docs.
+- QA/test snapshot before the documentation-only audit: 7c5ed4c66e7126ddfed106a6cbde89b598c613c0. Documentation audit commits on tests-and-docs: README 4a0544c, handoff b9005ba, validation record 70e49c (current head after these updates).
 - The test/QA branch remains separate from production. QA tests and QA-only workflow changes are not present in the production branch.
 
 **Latest automated validation**
