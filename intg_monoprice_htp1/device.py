@@ -29,6 +29,7 @@ KEEPALIVE_INTERVAL = 20
 KEEPALIVE_TIMEOUT = 10
 PROBE_TIMEOUT = 5.0
 STATE_REFRESH_TIMEOUT = 5.0
+WRITE_CONVERGENCE_TIMEOUT = 2.0
 SEAT_SHAKER_TRIM_MIN = -24
 SEAT_SHAKER_TRIM_MAX = 6
 
@@ -95,6 +96,9 @@ class HTP1Device(WebSocketDevice):
         self._device_config = device_config
         self._state: dict[str, Any] | None = None
         self._state_ready = asyncio.Event()
+        self._state_update_event = asyncio.Event()
+        self._state_update_paths: set[str] = set()
+        self._transaction_error: str | None = None
         self._ws: Any | None = None
         self._send_lock = asyncio.Lock()
         self._transaction_lock = asyncio.Lock()
@@ -216,7 +220,16 @@ class HTP1Device(WebSocketDevice):
             return
 
         cmd, payload = message.split(" ", 1)
-        
+
+        # The receiver uses plain-text error frames for rejected commands.
+        # Handle these before JSON decoding so the actual reason is retained.
+        if cmd == "error":
+            error = payload.strip() or "HTP-1 rejected the command"
+            self._transaction_error = error
+            self._state_update_event.set()
+            _LOG.warning("[%s] HTP-1 command error: %s", self.log_id, error)
+            return
+
         try:
             data = json.loads(payload)
         except json.JSONDecodeError as err:
@@ -259,6 +272,12 @@ class HTP1Device(WebSocketDevice):
                 return
 
             self._state = candidate_state
+            self._state_update_paths.update(
+                piece["path"]
+                for piece in data
+                if isinstance(piece, dict) and isinstance(piece.get("path"), str)
+            )
+            self._state_update_event.set()
             self._parse_state()
             self.push_update()
 
@@ -498,10 +517,58 @@ class HTP1Device(WebSocketDevice):
                 return False
         return True
 
+    @staticmethod
+    def _paths_overlap(first: str, second: str) -> bool:
+        """Return whether two JSON Pointer paths refer to overlapping state."""
+        return (
+            first == second
+            or first.startswith(second.rstrip("/") + "/")
+            or second.startswith(first.rstrip("/") + "/")
+        )
+
+    async def _wait_for_transaction_update_locked(
+        self, expected_state: dict[str, Any], operations: list[dict[str, Any]]
+    ) -> None:
+        """Wait briefly for a relevant live patch; the full snapshot remains authoritative."""
+        paths = [operation["path"] for operation in operations]
+        if self._transaction_matches_state(expected_state, operations):
+            # An idempotent write still receives a confirming getmso below.
+            return
+
+        deadline = asyncio.get_running_loop().time() + WRITE_CONVERGENCE_TIMEOUT
+        while True:
+            if self._transaction_error:
+                return
+            relevant_update = any(
+                self._paths_overlap(updated, target)
+                for updated in self._state_update_paths
+                for target in paths
+            )
+            if relevant_update and self._transaction_matches_state(expected_state, operations):
+                return
+
+            remaining = deadline - asyncio.get_running_loop().time()
+            if remaining <= 0:
+                _LOG.warning(
+                    "[%s] Timed out waiting for live state convergence; confirming with getmso",
+                    self.log_id,
+                )
+                return
+
+            self._state_update_event.clear()
+            try:
+                await asyncio.wait_for(self._state_update_event.wait(), timeout=remaining)
+            except asyncio.TimeoutError:
+                _LOG.warning(
+                    "[%s] Timed out waiting for live state convergence; confirming with getmso",
+                    self.log_id,
+                )
+                return
+
     async def _execute_transaction_locked(
         self, operations: list[dict[str, Any]]
     ) -> bool:
-        """Write and verify one transaction; caller must hold _transaction_lock."""
+        """Write, await live convergence, then confirm one receiver snapshot."""
         if not operations:
             return True
         if not isinstance(self._state, dict):
@@ -521,9 +588,28 @@ class HTP1Device(WebSocketDevice):
             return False
 
         payload = json.dumps(operations, separators=(",", ":"))
+        self._state_update_paths.clear()
+        self._state_update_event.clear()
+        self._transaction_error = None
         if not await self.send_message(f"changemso {payload}"):
             return False
+
+        await self._wait_for_transaction_update_locked(expected_state, operations)
+        if self._transaction_error:
+            _LOG.warning(
+                "[%s] Receiver rejected state transaction: %s",
+                self.log_id,
+                self._transaction_error,
+            )
+            return False
         if not await self._refresh_state_locked():
+            return False
+        if self._transaction_error:
+            _LOG.warning(
+                "[%s] Receiver rejected state transaction: %s",
+                self.log_id,
+                self._transaction_error,
+            )
             return False
         return self._transaction_matches_state(expected_state, operations)
 
