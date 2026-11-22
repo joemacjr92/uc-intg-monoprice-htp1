@@ -15,6 +15,7 @@
 7. Distinguish automated tests, CI results, remote connectivity checks, and actual HTP-1 hardware acceptance. Never claim one proves another.
 8. Do not push to upstream, merge PRs, publish releases, or deploy without explicit user authorization.
 9. Update this document on `tests-and-docs` when the user approves a material plan or status change. Keep it out of production feature PRs to upstream.
+10. **Test-isolation rule is mandatory:** all test code and QA-only assets live only on `tests-and-docs`. Never add or copy tests into `feature-validation`, `feature/*`, `main`, or an upstream PR. Read the Test isolation and upstream-leak prevention section below before any test, branch, workflow, or PR work.
 
 ## Repository and branch strategy
 
@@ -25,17 +26,34 @@ Upstream: [mase1981/uc-intg-monoprice-htp1](https://github.com/mase1981/uc-intg-
 |---|---|
 | `main` | Mirror Mase's upstream production code. Do not develop independent changes here. |
 | `tests-and-docs` | QA and documentation workspace: tests, fixtures, project handoff, and branch-specific validation workflows. |
-| `feature/*` | Focused production-code development. Branch from the appropriate current baseline and use the QA infrastructure on `tests-and-docs`. |
+| `feature-validation` and `feature/*` | Production implementation only. `feature-validation` is the current production integration branch; focused `feature/*` branches are for scoped production changes. No test code or QA-only assets belong here. |
 | Existing specialized branches | Preserve their purpose and history. Do not repurpose or delete without approval. |
 
 ### Branch rules
 
 - Keep the fork's `main` aligned with upstream; do not put local product development there.
-- Keep tests, fixtures, project documentation, and QA-only workflows on `tests-and-docs`.
-- Implement production changes on focused `feature/*` branches.
+- Keep tests, fixtures, test configuration, coverage assets, and QA-only workflows on `tests-and-docs` exclusively.
+- Implement production changes on `feature-validation` or focused production `feature/*` branches, as directed by the user. These branches must not contain test code or QA-only assets.
 - Upstream PRs must contain only the intended production changes. Do not include this handoff, QA-only workflows, test fixtures, or unrelated documentation.
 - Do not create a new branch when the user has specified an existing branch, and do not rewrite branch history without explicit approval.
 - Before creating a feature branch, inspect the current branch heads and choose the correct base. Do not assume that `tests-and-docs` is the production base.
+
+## Test isolation and upstream-leak prevention — mandatory
+
+This rule takes precedence over convenience and applies to every future chat, branch, PR, and workflow:
+
+1. **Single home for tests:** all automated test files (including unit, integration, regression, contract, and hardware-simulation tests), test helpers, `conftest.py`, fixtures and captured test data, snapshots, coverage configuration/reports, test-only scripts, and QA-only documentation/workflows must exist only on `tests-and-docs`.
+2. **Never put tests on production branches:** do not add, copy, cherry-pick, merge, or otherwise transfer test assets onto `feature-validation`, any `feature/*` production branch, or `main`. Do not temporarily place tests there for convenience. If a test is needed for a production fix, add it to `tests-and-docs` and run it against the selected implementation branch.
+3. **Production CI stays production-only:** workflows on `feature-validation` and production feature branches may build, package, lint production code, or perform non-test artifact/smoke validation only when explicitly part of the production build. They must not run pytest or a test suite, check out QA test files, or introduce test dependencies/configuration solely to execute tests. Test execution belongs to workflows on `tests-and-docs`, which may check out the implementation branch under test.
+4. **Keep the QA workflow one-way:** `tests-and-docs` may fetch/check out `feature-validation` (or the specifically selected production ref) as implementation input and run its own tests against it. Never merge the QA branch into a production branch, and never use `tests-and-docs` as the source branch for an upstream PR.
+5. **No bulk branch transfer:** do not merge `tests-and-docs` into `feature-validation`, `main`, or another production branch. Do not cherry-pick QA commits into production. If a commit mixes production and QA changes, stop and separate the changes on their proper branches before proceeding.
+6. **Upstream PR is a strict allowlist:** prepare upstream-bound production work from a clean production lineage based on the appropriate upstream code. Transfer only the specific production source changes and strictly necessary runtime dependencies or user-facing documentation approved for that PR. Never transfer tests, fixtures, QA workflows, handoff/validation documents, coverage files, or test-only dependencies/configuration.
+7. **Mandatory pre-PR audit:** inspect the complete diff and GitHub's final changed-file list against the upstream base. Confirm there are no test paths (for example `tests/**`, `test_*.py`, `*_test.py`, `conftest.py`), fixtures, QA workflows, coverage artifacts/configuration, handoff docs, or test-only dependency changes. Check the actual PR file list, not just the local commit summary. If anything is ambiguous, stop and ask; do not open or update the upstream PR.
+8. **After every branch/workflow change:** verify the live GitHub tree for `tests-and-docs` and `feature-validation`. Confirm test assets remain in the QA branch and are absent from production branches. Do not claim isolation based only on intended branch names.
+9. **If a test is missing from QA:** recover or recreate it on `tests-and-docs` from the relevant history or implementation behavior. Do not restore it to a production branch.
+10. **User authorization does not imply permission to merge/release/deploy:** continue to follow the separate approval requirements above.
+
+Before any upstream PR is considered ready, report the exact base/head, changed-file list, and the result of this isolation audit. A clean production diff is a release gate, not an optional cleanup step.
 
 ## Development principles
 
@@ -125,7 +143,7 @@ The phases below are the approved plan. Phase 0 adds configurable-port support r
    - Keep Phase 0 and Phase 1 compatibility/regression tests in their dedicated QA workflow, run against the intended implementation source.
    - Ensure the regular and dedicated QA workflows have clear, non-overlapping responsibilities and report what each actually tests.
 
-**Constraints:** This is a test-focused phase. Preserve production behavior. If tests expose a real defect, isolate the correction, add a regression test, and keep the production change narrowly scoped. Do not bundle unrelated refactoring or feature work. Keep test-only code, fixtures, coverage configuration, and QA workflow changes on `tests-and-docs`; production fixes, if required, belong on a focused `feature/*` branch. Do not include QA-only material in upstream PRs.
+**Constraints:** This is a test-focused phase. Preserve production behavior. If tests expose a real defect, isolate the correction, add a regression test, and keep the production change narrowly scoped. Do not bundle unrelated refactoring or feature work. Keep test-only code, fixtures, coverage configuration, and QA workflow changes on `tests-and-docs` exclusively; production fixes, if required, belong on `feature-validation` or a focused production `feature/*` branch. Never place tests on those production branches. Do not include QA-only material in upstream PRs. Follow the mandatory Test isolation and upstream-leak prevention gate above.
 
 **Transaction safety behavior implemented (2026-11-22):**
 
