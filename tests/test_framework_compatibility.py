@@ -137,6 +137,7 @@ def test_device_command_validation_and_requested_mute_state():
 
         device._send_transaction = capture
         _install_transaction_test_doubles(device, sent)
+        _install_transaction_test_doubles(device, sent)
 
         assert await device.mute_toggle(True)
         assert sent[-1][0]["value"] is True
@@ -401,6 +402,7 @@ def test_beq_operations_reject_malformed_nested_state_and_filter_payloads():
             return True
 
         device._send_transaction = capture
+        _install_transaction_test_doubles(device, sent)
         device._state = {"peq": {"location": "pre", "slots": [None, {"channels": []}]}, "speakers": {"groups": []}}
         assert device._get_sub_channels() == ["sub1"]
         assert device._find_empty_peq_slot(0, "sub1") is None
@@ -465,6 +467,7 @@ def test_source_selection_handles_malformed_input_state():
             return True
 
         device._send_transaction = capture
+        _install_transaction_test_doubles(device, sent)
         device._state = {"inputs": []}
         assert not await device.select_source("HDMI 1")
         device._state = {"inputs": {"input1": {"label": "HDMI 1", "visible": True}}}
@@ -523,6 +526,7 @@ def test_beq_pre_targets_sub1_only_and_cleans_legacy_tags_on_all_channels():
             return True
 
         device._send_transaction = capture
+        _install_transaction_test_doubles(device, sent)
         assert await device.load_beq("Test BEQ", [
             {"type": "PeakingEQ", "freq": 30, "gain": 4, "q": 1},
             {"type": "LowShelf", "freq": 40, "gain": 3, "q": 0.7},
@@ -595,6 +599,7 @@ def test_beq_capacity_failure_preserves_current_filter_without_sending():
             return True
 
         device._send_transaction = capture
+        _install_transaction_test_doubles(device, sent)
         assert not await device.load_beq("Too Many", [
             {"freq": 30, "gain": 4, "q": 1},
             {"freq": 40, "gain": 3, "q": 1},
@@ -619,6 +624,7 @@ def test_beq_clamps_imported_values_and_rejects_malformed_values_and_more_than_1
             return True
 
         device._send_transaction = capture
+        _install_transaction_test_doubles(device, sent)
         malformed_filters = [
             {"type": [], "freq": 100, "gain": 0, "q": 1},
             {"freq": True, "gain": 0, "q": 1},
