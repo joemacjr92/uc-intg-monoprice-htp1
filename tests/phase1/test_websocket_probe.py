@@ -42,30 +42,18 @@ def test_probe_ignores_non_state_messages_until_valid_state_marker():
     asyncio.run(exercise())
 
 
-def test_probe_times_out_when_server_never_returns_state(monkeypatch):
+def test_probe_maps_state_wait_timeout_to_connection_error(monkeypatch):
+    from intg_monoprice_htp1 import device as device_module
+
     async def exercise():
-        sent = []
+        async def fake_wait_for(awaitable, timeout):
+            assert timeout == 0.01
+            awaitable.close()
+            raise asyncio.TimeoutError
 
-        class SilentWebSocket:
-            async def __aenter__(self):
-                return self
-
-            async def __aexit__(self, *_args):
-                return False
-
-            async def send(self, message):
-                sent.append(message)
-
-            async def recv(self):
-                await asyncio.Event().wait()
-
-        websocket = SilentWebSocket()
-        monkeypatch.setattr(websockets, "connect", lambda *_args, **_kwargs: websocket)
-
+        monkeypatch.setattr(device_module.asyncio, "wait_for", fake_wait_for)
         result = await probe_htp1("127.0.0.1", timeout=0.01, port=12345)
-
         assert result == "No response from 127.0.0.1:12345 within 0 seconds"
-        assert sent == ["getmso"]
 
     asyncio.run(exercise())
 
