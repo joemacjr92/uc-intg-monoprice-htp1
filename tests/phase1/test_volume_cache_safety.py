@@ -402,12 +402,50 @@ def test_inverted_volume_bounds_fail_closed():
         receiver_state["cal"]["vpl"] = -10
         receiver_state["cal"]["vph"] = -30
         device, receiver = make_volume_device(receiver_state=receiver_state)
+        device._state = copy.deepcopy(receiver_state)
+        device._parse_state()
+        device._record_volume_state_observation()
 
         assert await device.volume_up() is False
         assert await device.volume_down() is False
         assert receiver.writes == []
 
     asyncio.run(exercise())
+
+
+@pytest.mark.parametrize("field", ["volume", "vpl", "vph", "zeroPoint"])
+def test_missing_relative_volume_dependency_fails_closed(field):
+    async def exercise():
+        receiver_state = json.loads(FULL_FIXTURE.read_text(encoding="utf-8"))
+        if field == "volume":
+            receiver_state.pop("volume", None)
+        else:
+            receiver_state["cal"].pop(field, None)
+        device, receiver = make_volume_device(receiver_state=receiver_state)
+        device._state = copy.deepcopy(receiver_state)
+        device._parse_state()
+        device._record_volume_state_observation()
+
+        assert await device.volume_up() is False
+        assert await device.volume_down() is False
+        assert receiver.writes == []
+
+    asyncio.run(exercise())
+
+
+def test_volume_down_reconciles_silent_external_change_after_cache_age():
+    async def exercise():
+        clock = FakeClock()
+        device, receiver = make_volume_device(clock=clock)
+        receiver.state["volume"] = -30
+        clock.advance(0.5)
+
+        assert await device.volume_down() is True
+        assert written_volume_targets(receiver) == [-31]
+        assert receiver.messages[0] == "getmso"
+
+    asyncio.run(exercise())
+
 
 def test_unrelated_patch_does_not_make_volume_dependencies_fresh():
     async def exercise():
