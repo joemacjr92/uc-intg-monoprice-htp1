@@ -26,6 +26,19 @@ import intg_monoprice_htp1.device as device_module
 FULL_FIXTURE = Path(__file__).parents[1] / "fixtures" / "htp1_full_mso.json"
 
 
+class FakeClock:
+    """Deterministic monotonic clock for cache-age boundary tests."""
+
+    def __init__(self):
+        self.now = 0.0
+
+    def __call__(self):
+        return self.now
+
+    def advance(self, seconds):
+        self.now += seconds
+
+
 class VolumeReceiver:
     """Receiver double with independent authoritative and integration state."""
 
@@ -105,7 +118,9 @@ class VolumeReceiver:
         raise AssertionError(f"unknown change_event_mode: {self.change_event_mode}")
 
 
-def make_volume_device(*, receiver_state=None, reply_to_getmso=True, change_event_mode="apply"):
+def make_volume_device(
+    *, receiver_state=None, reply_to_getmso=True, change_event_mode="apply", clock=None
+):
     device = HTP1Device(
         HTP1Config("volume-cache-safety", "Volume Cache Safety HTP-1", "127.0.0.1"),
         loop=asyncio.get_running_loop(),
@@ -117,7 +132,10 @@ def make_volume_device(*, receiver_state=None, reply_to_getmso=True, change_even
     cached["cal"]["zeroPoint"] = 0
     device._state = copy.deepcopy(cached)
     device._is_connected = True
+    if clock is not None:
+        device._clock = clock
     device._parse_state()
+    device._record_volume_state_observation()
     receiver = VolumeReceiver(
         device,
         receiver_state if receiver_state is not None else cached,
@@ -137,20 +155,23 @@ def written_volume_targets(receiver):
     ]
 
 
-def test_lost_external_volume_update_is_reconciled_before_relative_write():
-    """A silent external change must not be overwritten from the stale cache."""
+@pytest.mark.parametrize("gap_seconds", [0.5, 2, 5, 10])
+def test_lost_external_volume_update_is_reconciled_after_freshness_gap(gap_seconds):
+    """A silent update at or beyond the cache-age bound must be refreshed."""
     async def exercise():
-        device, receiver = make_volume_device()
+        clock = FakeClock()
+        device, receiver = make_volume_device(clock=clock)
         # The receiver changes independently; no msoupdate reaches the client.
         receiver.state["volume"] = -10
+        clock.advance(gap_seconds)
 
         result = await device.volume_up()
 
         assert result is True
         assert written_volume_targets(receiver) == [-9]
         assert device._state["volume"] == -9
-        # The first receiver interaction must be the authoritative preflight,
-        # before the changemso based on the refreshed -10 dB state.
+        # A stale dependency forces a pre-write snapshot, so the write is based
+        # on the receiver's -10 dB value rather than the cached -20 dB value.
         assert receiver.messages[0] == "getmso"
         assert receiver.messages.index("getmso") < next(
             index for index, message in enumerate(receiver.messages)
@@ -162,7 +183,8 @@ def test_lost_external_volume_update_is_reconciled_before_relative_write():
 
 def test_delivered_external_volume_update_is_applied_to_cached_state():
     async def exercise():
-        device, receiver = make_volume_device()
+        clock = FakeClock()
+        device, receiver = make_volume_device(clock=clock)
         receiver.state["volume"] = -10
 
         await device.handle_message(
@@ -177,6 +199,9 @@ def test_delivered_external_volume_update_is_applied_to_cached_state():
         assert result is True
         assert written_volume_targets(receiver) == [-9]
         assert receiver.state["volume"] == -9
+        # The delivered update made the relevant cache entry fresh, so the
+        # command starts with changemso and does not issue a pre-write getmso.
+        assert receiver.messages[0].startswith("changemso ")
 
     asyncio.run(exercise())
 
@@ -188,6 +213,7 @@ def test_disconnect_invalidates_state_and_prevents_relative_volume_write():
         device._on_connection_lost()
 
         assert device._state is None
+        assert device._volume_state_timestamps == {}
         assert await device.volume_up() is False
         assert receiver.writes == []
         assert not any(message.startswith("changemso ") for message in receiver.messages)
@@ -206,6 +232,8 @@ def test_malformed_patch_without_recovery_snapshot_prevents_relative_volume_writ
 
         # The malformed patch is rejected and a recovery snapshot is requested.
         assert receiver.messages == ["getmso"]
+        assert device._state is None
+        assert device._volume_state_timestamps == {}
 
         # A subsequent relative command must not proceed on the old cache when
         # the required fresh snapshot is unavailable.
@@ -326,6 +354,9 @@ def test_incomplete_full_snapshot_fails_closed_for_relative_volume():
         receiver_state["volume"] = -20
         receiver_state.pop("cal", None)
         device, receiver = make_volume_device(receiver_state=receiver_state)
+        device._state = copy.deepcopy(receiver_state)
+        device._parse_state()
+        device._record_volume_state_observation()
 
         assert await device.volume_up() is False
         assert receiver.writes == []
@@ -353,6 +384,9 @@ def test_invalid_relative_volume_inputs_fail_closed(field, value):
         else:
             receiver_state["cal"][field] = value
         device, receiver = make_volume_device(receiver_state=receiver_state)
+        device._state = copy.deepcopy(receiver_state)
+        device._parse_state()
+        device._record_volume_state_observation()
 
         assert await device.volume_up() is False
         assert await device.volume_down() is False
@@ -374,3 +408,68 @@ def test_inverted_volume_bounds_fail_closed():
         assert receiver.writes == []
 
     asyncio.run(exercise())
+
+def test_unrelated_patch_does_not_make_volume_dependencies_fresh():
+    async def exercise():
+        clock = FakeClock()
+        device, receiver = make_volume_device(clock=clock)
+        receiver.state["volume"] = -10
+        receiver.state["powerIsOn"] = True
+
+        clock.advance(0.49)
+        await device.handle_message(
+            'msoupdate [{"op":"replace","path":"/powerIsOn","value":true}]'
+        )
+        assert device._volume_state_timestamps == {
+            "/volume": 0.0,
+            "/cal/vpl": 0.0,
+            "/cal/vph": 0.0,
+            "/cal/zeroPoint": 0.0,
+        }
+
+        clock.advance(0.01)
+        assert await device.volume_up() is True
+        assert written_volume_targets(receiver) == [-9]
+        assert receiver.messages[0] == "getmso"
+
+    asyncio.run(exercise())
+
+
+def test_freshness_is_checked_after_waiting_for_transaction_lock():
+    async def exercise():
+        clock = FakeClock()
+        device, receiver = make_volume_device(clock=clock)
+        receiver.state["volume"] = -10
+
+        await device._transaction_lock.acquire()
+        try:
+            pending = asyncio.create_task(device.volume_up())
+            await asyncio.sleep(0)
+            clock.advance(0.5)
+        finally:
+            device._transaction_lock.release()
+
+        assert await pending is True
+        assert written_volume_targets(receiver) == [-9]
+        assert receiver.messages[0] == "getmso"
+
+    asyncio.run(exercise())
+
+
+def test_calibration_parent_patch_refreshes_all_calibration_dependencies():
+    async def exercise():
+        clock = FakeClock()
+        device, _receiver = make_volume_device(clock=clock)
+        clock.advance(0.2)
+        await device.handle_message(
+            'msoupdate [{"op":"replace","path":"/cal","value":'
+            + json.dumps(device._state["cal"])
+            + "}]"
+        )
+
+        assert device._volume_state_timestamps["/volume"] == 0.0
+        for path in ("/cal/vpl", "/cal/vph", "/cal/zeroPoint"):
+            assert device._volume_state_timestamps[path] == 0.2
+
+    asyncio.run(exercise())
+
