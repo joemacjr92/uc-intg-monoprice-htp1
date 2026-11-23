@@ -691,3 +691,32 @@ All results below are from QA branch `tests-and-docs`, with tests executed again
 **Hardware boundary:** The uploaded Remote log documents 11 down and 12 up writes over two five-second holds, with no receiver state-mismatch warnings in the captured volume window. It does not measure Remote display catch-up after release or a deliberately suppressed external volume update. No hardware test has been performed for a coalescing worker because no production worker has been selected or implemented. Full Remote/HTP-1 acceptance remains a separate outstanding activity.
 
 **Repository boundary:** The current QA branch head at the time of this update is recorded by the resulting commit. Production implementation remains on `feature-validation`; this documentation and all tests remain QA-only. No merge, upstream PR, release, or deployment is authorized by this work.
+
+### Dirac lifecycle status sensor implementation and validation — 2026-11-23
+
+The user supplied real HTP-1 MSO traces for a standby refusal and a successful powered-on slot change. The resulting implementation is on `feature-validation`; QA fixtures/tests and this handoff remain on `tests-and-docs`.
+
+**Production implementation**
+- Latest production commit: `78ccb01a735983b5e18c8e6904dd0dc0e9e06139`.
+- The existing `sensor.<device_id>.dirac_slot` now displays `Loading <target>` during a request, the confirmed slot name after successful completion/readback, and `Not applied: <reason>` after failure/refusal.
+- The calibration select still uses the confirmed `dirac_slot_name`; no second entity was added.
+- The integration-owned lifecycle state machine and final authoritative readback were retained.
+- `diracSwitchReply` refusal correlation now requires the reply ID to match the active request ID and to differ from the prior reply ID. Historical refusals cannot fail a later request.
+- Optimistic `currentdiracslot` changes do not replace the confirmed display.
+- Temporary focused Dirac MSO diagnostic logging is intentionally still present. Do not remove it until after the user reviews the new behavior on the Remote/HTP-1. Remove it later in a separate cleanup commit.
+
+**QA and hardware fixtures**
+- Latest QA/test/doc commit: `f6879e53567084f321b93f5dcf2871e4f63d7e61`; the subsequent documentation-only validation record is on the current QA branch head.
+- `tests/fixtures/dirac_hardware_traces.json` contains sanitized relevant fields from the real standby refusal and successful slot-change traces.
+- `tests/phase1/test_dirac_switch_lifecycle.py` covers loading/complete display, refusal persistence and reset on the next request, concise failure reasons, stale reply correlation, and status remaining Loading while APPLYING.
+- `docs/phase-1.5-validation.md` records the observed protocol and validation evidence.
+
+**Latest successful automated validation**
+- [Phase 1 WebSocket Safety QA run 45189174061](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45189174061): passed. Focused Ruff correctness check passed; 95 standard tests passed/1 skipped; 33 Phase 0 compatibility tests passed; 21 regression-gap tests passed; 233 Phase 1 tests passed; Dirac concurrency stress passed five isolated repetitions × 20 attempts (100/100); verified TLS tests 2 passed. Phase 1 coverage: 83% combined, `device.py` 86%, `browser.py` 66%.
+- [Standard Tests run 45189174327](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45189174327): passed, 93 passed/1 skipped.
+- [Phase 0 and Full QA run 45189174095](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45189174095): passed, 95 passed/1 skipped and 33 Phase 0 tests passed.
+- [ARM64 Test Build run 45189081822](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45189081822): passed, including Docker smoke build and ARM64 PyInstaller package.
+- ARM64 test artifact: `uc-intg-monoprice_htp1-2.4.2-aarch64`, SHA-256 `0c3e8f82a64d054fe40e17ef2c739b629082cd213fcfe075371c8605c92c98e2`; expires 2026-11-30. This is a test artifact, not a release.
+
+**Next action when the user returns:** install/review the ARM64 test artifact on the Remote and verify the sensor displays Loading during a real slot change, Not applied after an off/standby refusal, and the confirmed slot after a successful powered-on change. Check the calibration select remains correct. Then decide whether to remove temporary diagnostic logging in a separate commit. Do not merge, open upstream PRs, release, or deploy without explicit authorization. Automated validation does not replace physical Remote/HTP-1 acceptance.
+
