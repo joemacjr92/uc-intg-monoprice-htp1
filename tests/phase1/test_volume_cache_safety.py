@@ -511,3 +511,27 @@ def test_calibration_parent_patch_refreshes_all_calibration_dependencies():
 
     asyncio.run(exercise())
 
+def test_failed_final_snapshot_invalidates_unconfirmed_volume_cache(monkeypatch):
+    async def exercise():
+        monkeypatch.setattr(device_module, "STATE_REFRESH_TIMEOUT", 0.01)
+        clock = FakeClock()
+        device, receiver = make_volume_device(
+            reply_to_getmso=False,
+            clock=clock,
+        )
+        device._write_convergence_timeout = 0.0
+
+        # The write echo updates the live cache, but the authoritative full
+        # snapshot is withheld. The cache must not remain eligible for reuse.
+        assert await device.volume_up() is False
+        assert written_volume_targets(receiver) == [-19]
+        assert device._state is None
+        assert device._volume_state_timestamps == {}
+
+        # A subsequent command cannot issue another write using the
+        # unconfirmed echo; it must first obtain a complete mso snapshot.
+        assert await device.volume_up() is False
+        assert written_volume_targets(receiver) == [-19]
+
+    asyncio.run(exercise())
+
