@@ -362,3 +362,63 @@ Both tests also logged "Receiver state mismatch after transaction at /volume" im
 - Power/Dirac slow-response and regression-gap cases were approved for automated tests; the user explicitly deferred the corresponding on-device testing to a larger testing effort.
 - The two physical HTP-1 Dirac-volume tests are limited evidence, not full Phase 1.5 acceptance.
 - No deployment, release, merge, or upstream PR has been performed.
+
+
+
+## Architectural hardening — Dirac lifecycle and transaction verification (2026-11-22)
+
+This addendum supersedes older branch-head and CI status statements above. Earlier entries remain historical records of the work performed at those points.
+
+### Pass 1 — Explicit Dirac lifecycle state
+
+The Dirac asynchronous switch flow now uses one explicit integration-owned lifecycle enum on `feature-validation`:
+
+`IDLE → REQUESTED → ACCEPTED → APPLYING → COMPLETE / FAILED`
+
+- `DiracLifecycleState` enforces an allowed transition graph. A new request may begin from either terminal state; invalid transitions raise immediately.
+- Removed the overlapping `_dirac_accepting`, `_dirac_display_hold`, and `_dirac_pending_slot_idx` fields. Command blocking and preservation of the last confirmed calibration display are derived from the lifecycle state.
+- The operation lock remains solely for serializing concurrent calibration selections. The task handle remains solely for tracking the background monitor; neither is used as a second lifecycle flag.
+- A task completion callback handles the edge case where the monitor task is cancelled before its coroutine starts. It transitions an active operation to `FAILED`, discards deferred volume intent, and releases the operation lock. Cancellation after the monitor starts is handled by the monitor's own finalizer.
+- The connection generation is captured when the request is sent. A disconnect during acceptance or application cannot allow a stale monitor to confirm a request on a replacement connection.
+- `COMPLETE` is entered only after the final full-state readback confirms the request ID, requested slot, and current slot, and deferred-volume finalization has finished. The command gate therefore remains active through the deferred-volume attempt.
+- Refusal, busy response, acceptance/completion timeout, disconnect, failed final readback, and cancellation produce `FAILED`. The last confirmed calibration display remains held after failure; ordinary state-changing commands are unblocked.
+- The existing deferred-volume behavior is preserved: captured calibration/zero-point basis, relative and absolute request aggregation, calibration bounds, one consolidated post-Dirac write, and the shared 5 dB maximum-jump limiter.
+
+Production commits on `feature-validation`:
+- `00153a7c519249f02b782763785aa3bd38219418` — introduce explicit lifecycle state and transition validation.
+- `458542a9b33c41e8797bbf211a120db332ece1ac` and `60fc568a0139ca82165b1113ab36b49c67424db9` — finalize lifecycle at authoritative readback and use connection-generation change for acceptance disconnect detection.
+- `f98b94acf6069e79105daf55fb9494d174ac690e` — derive display hold from lifecycle and remove unused pending-slot state.
+- `852fe5bad3fb31a49d0626386ea7308bdec6f14c` — keep the command gate active through deferred-volume finalization.
+- `b8ee891275ac38d8122e3a7a9354094aa67bf88f` — clean up cancellation when the monitor task is cancelled before starting; current production head for this work.
+
+QA-only lifecycle tests on `tests-and-docs` cover legal/illegal transitions, each active/terminal phase, immediate and delayed refusal, busy response, acceptance and completion timeouts, disconnect before and after acceptance, cancellation before the monitor starts, second-request rejection, a new request after terminal states, command-gate lifetime, display preservation, and the existing deferred-volume/5 dB regressions.
+
+Automated validation:
+- Phase 1 WebSocket Safety QA [run 45089825685](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45089825685) passed: 140 Phase 1 tests, 81% combined coverage (device.py 84%, browser.py 66%), focused Ruff checks, five isolated Dirac stress repetitions of 20 attempts each (100 total), and both TLS regressions.
+- Phase 0 and Full QA [run 45089825680](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45089825680) passed.
+- Standard Tests [run 45089825565](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45089825565) passed.
+- ARM64 Test Build [run 45089808380](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45089808380) passed against production commit `b8ee891275ac38d8122e3a7a9354094aa67bf88f`.
+
+### Pass 2 — Separate transaction convergence from final verdict
+
+The production implementation introduced in commit `b90d37ffa15044c23714c461638cd536f8e1dd7b` remains the basis of this pass; no additional production transaction behavior was changed.
+
+- `_transaction_mismatch_path()` is a read-only diagnostic helper. It returns the first touched JSON Pointer path that differs, a missing path, or the no-state marker; it does not log.
+- `_transaction_matches_state()` is a quiet boolean predicate used during the live convergence wait. It can be called repeatedly while receiver state is still changing without emitting premature error logs.
+- `_execute_transaction_locked()` retains the existing send, convergence wait, and authoritative `getmso` refresh. Only after that final full-state readback does it evaluate the mismatch and emit one final diagnostic if the receiver did not apply the transaction.
+- The final-verdict behavior, transaction timing, readback sequence, and no-retry policy are unchanged. In particular, no automatic retry was added for the previously observed HTP-1 volume readback warning.
+
+The transaction-safety tests now cover both sides of the distinction:
+- An ignored receiver patch still fails after final readback and emits exactly one authoritative transaction mismatch error.
+- The mismatch helper identifies the first differing/missing path and handles unavailable state; the live predicate remains quiet.
+- A delayed-convergence fake receiver first publishes a relevant but stale live patch, then returns the expected state in the final full-state readback. The transaction succeeds with no transient transaction error log.
+
+QA test commits include `04a1eb18fb7f7804b0ff7dc8bfc5734ed5f76255` (quiet predicate/final diagnostic regressions) and `a57d000f8c227f9f1024d7a09d62da039ef68282` (delayed-convergence regression and deterministic timeout setup).
+
+Final automated validation after both passes:
+- Phase 1 WebSocket Safety QA [run 45090272483](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45090272483) passed: 141 Phase 1 tests, 81% combined coverage, five isolated Dirac stress repetitions of 20 attempts each (100 total), and both TLS regressions.
+- Phase 0 and Full QA [run 45090272492](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45090272492) passed.
+- Standard Tests [run 45090272398](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45090272398) passed.
+- Focused Ruff correctness checks passed. The broader Ruff rule-family scan remains diagnostic/non-gating and must not be described as clean.
+
+**Acceptance boundary:** these are automated fake-receiver/unit tests and an ARM64 package build. No actual Unfolded Circle Remote or physical HTP-1 acceptance test was performed as part of these two passes. The earlier two limited physical HTP-1 deferred-volume observations and their immediate-readback warning remain as documented above. No merge, upstream PR, release, or deployment has been performed.
