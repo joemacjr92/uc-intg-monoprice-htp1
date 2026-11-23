@@ -5,8 +5,10 @@ import copy
 import json
 from pathlib import Path
 
+import pytest
+
 from intg_monoprice_htp1.config import HTP1Config
-from intg_monoprice_htp1.device import HTP1Device, apply_json_patch
+from intg_monoprice_htp1.device import DiracLifecycleState, HTP1Device, apply_json_patch
 
 
 FIXTURE = Path(__file__).parents[1] / "fixtures" / "htp1_full_mso.json"
@@ -51,6 +53,9 @@ class DiracReceiver:
             await self.device.handle_message(f"msoupdate {json.dumps(operations)}")
             return
         slot = operations[0]["value"]
+        if self.mode == "disconnect-before-acceptance":
+            self.device._on_connection_lost()
+            return
         if self.mode == "busy":
             await self.device.handle_message("error Dirac is busy. Wait for it to finish; this change was not applied.")
             return
@@ -195,6 +200,7 @@ def test_dirac_selection_acknowledges_receiver_acceptance_before_completion():
             elapsed = asyncio.get_running_loop().time() - started
 
             assert result is True
+            assert device._dirac_lifecycle_state is DiracLifecycleState.ACCEPTED
             assert elapsed < 0.15
             assert receiver.change_count == 1
             assert receiver.getmso_count == 1
@@ -211,6 +217,7 @@ def test_dirac_selection_acknowledges_receiver_acceptance_before_completion():
             assert receiver.state["cal"]["diracSwitch"]["state"] == "complete"
             assert receiver.state["cal"]["currentdiracslot"] == 1
             assert device.dirac_slot_name == device.slot_names[1]
+            assert device._dirac_lifecycle_state is DiracLifecycleState.COMPLETE
         finally:
             await receiver.cleanup()
 
@@ -263,6 +270,7 @@ def test_delayed_standby_refusal_after_acceptance_keeps_confirmed_display():
             assert device._dirac_display_hold is True
             assert not device._dirac_operation_lock.locked()
             assert device._dirac_task is None
+            assert device._dirac_lifecycle_state is DiracLifecycleState.FAILED
         finally:
             await receiver.cleanup()
 
@@ -375,6 +383,7 @@ def test_dirac_switch_timeout_does_not_claim_success():
             assert receiver.getmso_count == 1
             assert device.dirac_slot_name == original_display
             assert not device._dirac_operation_lock.locked()
+            assert device._dirac_lifecycle_state is DiracLifecycleState.FAILED
         finally:
             await receiver.cleanup()
 
@@ -744,6 +753,7 @@ def test_dirac_disconnect_discards_captured_volume_requests():
             assert _volume_writes(receiver) == []
             assert device._dirac_volume_capture_active is False
             assert device._dirac_volume_snapshot is None
+            assert device._dirac_lifecycle_state is DiracLifecycleState.FAILED
         finally:
             await receiver.cleanup()
 
@@ -845,14 +855,14 @@ def test_volume_request_queued_before_dirac_start_is_captured_after_lock_release
                 pending = asyncio.create_task(device.volume_up())
                 await asyncio.sleep(0)
                 device._begin_dirac_volume_capture()
-                device._dirac_accepting = True
+                device._set_dirac_lifecycle_state(DiracLifecycleState.REQUESTED)
 
             assert await asyncio.wait_for(pending, timeout=0.2) is True
             assert device._dirac_volume_delta == 1
             assert receiver.change_count == 0
             assert receiver.getmso_count == 0
         finally:
-            device._dirac_accepting = False
+            device._set_dirac_lifecycle_state(DiracLifecycleState.FAILED)
             device._discard_dirac_volume_capture()
             await receiver.cleanup()
 
@@ -919,3 +929,100 @@ def test_absolute_volume_requests_queued_before_dirac_start_are_captured_after_l
 
     asyncio.run(exercise())
 
+
+
+
+def test_dirac_lifecycle_rejects_illegal_transitions_and_allows_new_requests_after_terminal_states():
+    async def exercise():
+        device, receiver = make_device()
+        try:
+            assert device._dirac_lifecycle_state is DiracLifecycleState.IDLE
+            with pytest.raises(ValueError, match="idle -> accepted"):
+                device._set_dirac_lifecycle_state(DiracLifecycleState.ACCEPTED)
+
+            device._set_dirac_lifecycle_state(DiracLifecycleState.REQUESTED)
+            assert device._dirac_commands_blocked() is True
+            device._set_dirac_lifecycle_state(DiracLifecycleState.FAILED)
+            assert device._dirac_commands_blocked() is False
+            device._set_dirac_lifecycle_state(DiracLifecycleState.REQUESTED)
+            device._set_dirac_lifecycle_state(DiracLifecycleState.ACCEPTED)
+            device._set_dirac_lifecycle_state(DiracLifecycleState.COMPLETE)
+            assert device._dirac_commands_blocked() is False
+
+            # A terminal completion can begin a fresh, independent request.
+            result = await device.select_calibration(device.slot_names[0])
+            assert result is True
+            assert device._dirac_lifecycle_state is DiracLifecycleState.ACCEPTED
+            task = device._dirac_task
+            assert task is not None
+            await asyncio.wait_for(task, timeout=1.0)
+            assert device._dirac_lifecycle_state is DiracLifecycleState.COMPLETE
+            assert receiver.change_count == 2
+        finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
+
+def test_dirac_lifecycle_exposes_applying_then_complete_only_after_final_readback():
+    async def exercise():
+        device, receiver = make_device(delay=0.05)
+        try:
+            assert await device.select_calibration(device.slot_names[1]) is True
+            task = device._dirac_task
+            assert task is not None
+            deadline = asyncio.get_running_loop().time() + 0.5
+            while (
+                device._dirac_lifecycle_state is not DiracLifecycleState.APPLYING
+                and asyncio.get_running_loop().time() < deadline
+            ):
+                await asyncio.sleep(0.005)
+
+            assert device._dirac_lifecycle_state is DiracLifecycleState.APPLYING
+            await asyncio.wait_for(task, timeout=1.0)
+            assert device._dirac_lifecycle_state is DiracLifecycleState.COMPLETE
+        finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
+
+def test_dirac_monitor_cancellation_fails_closed_and_releases_owned_resources():
+    async def exercise():
+        device, receiver = make_device(mode="never")
+        try:
+            assert await device.select_calibration(device.slot_names[1]) is True
+            assert await device.volume_up() is True
+            task = device._dirac_task
+            assert task is not None
+
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+
+            assert device._dirac_lifecycle_state is DiracLifecycleState.FAILED
+            assert not device._dirac_operation_lock.locked()
+            assert device._dirac_task is None
+            assert device._dirac_volume_capture_active is False
+            assert device._dirac_volume_snapshot is None
+            assert _volume_writes(receiver) == []
+        finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
+
+def test_disconnect_before_receiver_acceptance_fails_promptly():
+    async def exercise():
+        device, receiver = make_device(mode="disconnect-before-acceptance")
+        try:
+            started = asyncio.get_running_loop().time()
+            assert await device.select_calibration(device.slot_names[1]) is False
+            assert asyncio.get_running_loop().time() - started < 0.2
+            assert device._dirac_lifecycle_state is DiracLifecycleState.FAILED
+            assert not device._dirac_operation_lock.locked()
+            assert device._dirac_task is None
+            assert device._dirac_volume_capture_active is False
+        finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
