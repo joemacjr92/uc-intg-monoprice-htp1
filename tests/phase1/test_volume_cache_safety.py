@@ -283,7 +283,9 @@ def test_delivered_calibration_update_refreshes_relative_volume_dependencies():
     asyncio.run(exercise())
 
 
-def test_malformed_json_msoupdate_invalidates_cache_and_requests_snapshot():
+def test_malformed_json_msoupdate_invalidates_cache_and_requests_snapshot(monkeypatch):
+    monkeypatch.setattr(device_module, "STATE_REFRESH_TIMEOUT", 0.01)
+
     async def exercise():
         device, receiver = make_volume_device(reply_to_getmso=False)
 
