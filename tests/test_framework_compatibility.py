@@ -100,9 +100,9 @@ def test_malformed_patch_entries_reject_entire_batch_and_request_full_state():
             '{"op": "replace", "path": "/powerIsOn", "value": true}]'
         )
 
-        # Invalid patches are atomic: don't apply the valid trailing operation
-        # to a potentially incomplete state; request a complete receiver snapshot.
-        assert device._state == {"powerIsOn": False}
+        # Invalid patches are atomic and invalidate the old baseline. The
+        # valid trailing operation must not mutate the original state object.
+        assert device._state is None
         assert updates == []
         assert sent == ["getmso"]
 
