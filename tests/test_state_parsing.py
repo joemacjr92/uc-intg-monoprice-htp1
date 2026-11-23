@@ -223,7 +223,8 @@ def test_msoupdate_is_atomic_and_requests_full_state_on_invalid_patch(device):
             'msoupdate [{"op":"replace","path":"/powerIsOn","value":true},'
             '{"op":"replace","path":"/missing/key","value":1}]'
         )
-        assert device._state == original
+        assert device._state is None
+        assert original["powerIsOn"] is False
         assert device.power is False
         assert sent == ["getmso"]
 
@@ -245,7 +246,8 @@ def test_msoupdate_rejects_non_object_entries_atomically(device):
         await device.handle_message(
             'msoupdate [{"op":"replace","path":"/powerIsOn","value":true},null]'
         )
-        assert device._state == original
+        assert device._state is None
+        assert original["powerIsOn"] is False
         assert sent == ["getmso"]
 
     device._loop.run_until_complete(exercise())
