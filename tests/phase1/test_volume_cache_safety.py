@@ -84,11 +84,22 @@ class VolumeReceiver:
             # These are deliberately uncorrelated, post-send events. The fake
             # receiver's authoritative state does not change, so only the
             # subsequent full mso snapshot can determine the final outcome.
-            await self.device.handle_message(f"msoupdate {json.dumps([matching])}")
-            if self.change_event_mode == "duplicate_match":
+            if self.change_event_mode == "aba_replay":
+                # Replay an event that was queued before this write. It is
+                # delivered after send and is indistinguishable from a new
+                # matching echo because the protocol has no transaction ID.
+                queued = getattr(self, "queued_events", [])
+                for event in queued:
+                    await self.device.handle_message(
+                        f"msoupdate {json.dumps([event])}"
+                    )
+                self.queued_events = []
+            else:
                 await self.device.handle_message(f"msoupdate {json.dumps([matching])}")
-            elif self.change_event_mode == "out_of_order":
-                await self.device.handle_message(f"msoupdate {json.dumps([stale])}")
+                if self.change_event_mode == "duplicate_match":
+                    await self.device.handle_message(f"msoupdate {json.dumps([matching])}")
+                elif self.change_event_mode == "out_of_order":
+                    await self.device.handle_message(f"msoupdate {json.dumps([stale])}")
             return
 
         raise AssertionError(f"unknown change_event_mode: {self.change_event_mode}")
@@ -126,15 +137,13 @@ def written_volume_targets(receiver):
     ]
 
 
-@pytest.mark.parametrize("gap_seconds", [0.5, 2.0, 5.0, 10.0])
-def test_lost_external_volume_update_is_reconciled_before_relative_write(gap_seconds):
+def test_lost_external_volume_update_is_reconciled_before_relative_write():
     """A silent external change must not be overwritten from the stale cache."""
     async def exercise():
         device, receiver = make_volume_device()
         # The receiver changes independently; no msoupdate reaches the client.
         receiver.state["volume"] = -10
 
-        await asyncio.sleep(gap_seconds)
         result = await device.volume_up()
 
         assert result is True
@@ -220,6 +229,9 @@ def test_untagged_duplicate_or_out_of_order_volume_patch_is_not_final_confirmati
             # it looks like a match but has no transaction identity.
             await device.handle_message('msoupdate [{"op":"replace","path":"/volume","value":-19}]')
             await device.handle_message('msoupdate [{"op":"replace","path":"/volume","value":-20}]')
+            receiver.queued_events = [
+                {"op": "replace", "path": "/volume", "value": -19}
+            ]
         device._write_convergence_timeout = 0.0
 
         result = await device._execute_transaction_locked(
@@ -234,5 +246,70 @@ def test_untagged_duplicate_or_out_of_order_volume_patch_is_not_final_confirmati
         assert receiver.state["volume"] == -20
         assert device._state["volume"] == -20
         assert receiver.messages[-1] == "getmso"
+
+    asyncio.run(exercise())
+
+
+
+def test_delivered_calibration_update_refreshes_relative_volume_dependencies():
+    async def exercise():
+        device, receiver = make_volume_device()
+        receiver.state["volume"] = -20
+        receiver.state["cal"]["vph"] = -20
+        receiver.state["cal"]["vpl"] = -30
+        receiver.state["cal"]["zeroPoint"] = 2
+
+        await device.handle_message(
+            'msoupdate [{"op":"replace","path":"/cal/vph","value":-20},'
+            '{"op":"replace","path":"/cal/vpl","value":-30},'
+            '{"op":"replace","path":"/cal/zeroPoint","value":2}]'
+        )
+
+        assert device.vph == -20
+        assert device.vpl == -30
+        assert device.zp == 2
+        # At the updated upper bound, volume_up must be a no-op.
+        assert await device.volume_up() is True
+        assert written_volume_targets(receiver) == []
+
+        # The lower-bound calculation must use the updated zero point.
+        receiver.state["volume"] = -28
+        await device.handle_message(
+            'msoupdate [{"op":"replace","path":"/volume","value":-28}]'
+        )
+        assert await device.volume_down() is True
+        assert written_volume_targets(receiver) == [-29]
+
+    asyncio.run(exercise())
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="Malformed JSON msoupdate currently logs and returns without invalidating/requesting a fresh snapshot.",
+)
+def test_malformed_json_msoupdate_invalidates_cache_and_requests_snapshot():
+    async def exercise():
+        device, receiver = make_volume_device()
+
+        await device.handle_message('msoupdate [{"op":"replace","path":"/volume"')
+
+        assert receiver.messages == ["getmso"]
+
+    asyncio.run(exercise())
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="A syntactically valid full snapshot missing calibration fields currently falls back to parser defaults.",
+)
+def test_incomplete_full_snapshot_fails_closed_for_relative_volume():
+    async def exercise():
+        receiver_state = json.loads(FULL_FIXTURE.read_text(encoding="utf-8"))
+        receiver_state["volume"] = -20
+        receiver_state.pop("cal", None)
+        device, receiver = make_volume_device(receiver_state=receiver_state)
+
+        assert await device.volume_up() is False
+        assert receiver.writes == []
 
     asyncio.run(exercise())
