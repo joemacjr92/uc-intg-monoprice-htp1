@@ -72,6 +72,18 @@ The integration provides live status for:
 | Connection | Receiver connection status |
 | BEQ Filter | Name of the loaded BEQ filter, or None |
 
+**Dirac Slot status**
+
+The **Dirac Slot** sensor reports the receiver's confirmed Dirac state and also makes an in-progress calibration change visible:
+
+- **Calibration name** – the active, confirmed Dirac calibration.
+- **Dirac Bypass** – Dirac is bypassed.
+- **Dirac Off** – Dirac is off.
+- **Loading <target>** – the HTP-1 has accepted a calibration change and is applying the requested slot. If the target name is not available, the sensor displays **Loading calibration**.
+- **Not applied: <reason>** – the requested change was refused or could not be completed.
+
+The HTP-1 can report the requested slot index before its DSP has finished applying that calibration. During this interval, the sensor keeps showing the last confirmed state rather than presenting the requested slot as already active. After the change completes, the integration reads the receiver's state and displays the confirmed result. If the change fails, the last confirmed calibration remains displayed and the failure status explains why the request was not applied.
+
 ## Requirements and network access
 
 - An Unfolded Circle Remote 2 or Remote 3.
