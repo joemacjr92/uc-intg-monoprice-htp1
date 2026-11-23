@@ -1,368 +1,172 @@
-"""Deterministic simulation of a coalescing volume worker.
+"""Fast-response simulation of the proposed coalescing volume worker.
 
-This is a design-level fake, not production code. It models the proposed
-latest-target worker with serialized writes. It compares two candidate write
-policies: a 5 dB maximum step (conservative but slow to catch up) and an
-unbounded latest-target write (fast but permits a large single jump). The
-2.1 s acknowledgement delay is anchored to the observed
-15:12:42.632-15:12:45.754 (>2.09 s) HTP-1 full-state response in
-dumps/integration.log. It is a stress input, not a claim that every volume
-write takes 2.1 s.
+Design-level model only; it is not production code or hardware validation.
 
-The five-second hold uses 10 relative requests per second (50 total), an
-explicit stress profile rather than a measured Remote repeat rate.
+The model assumes:
+- a five-second hold at 10 one-dB requests/second (50 requests);
+- a 5 dB maximum change per device write;
+- one serialized write in flight;
+- each write completes when a matching post-send /volume msoupdate arrives;
+- normal per-write response latency is swept at 0.3, 0.4, and 0.5 seconds,
+  based on the earlier capture-derived estimate discussed during design review;
+- no pre-write getmso refresh and no full getmso after each write;
+- one authoritative full snapshot after the worker becomes idle, with the
+  same 0.3-0.5 second latency assumption.
+
+The msoupdate is modeled as a matching completion event for timing purposes.
+This does not solve the protocol's untagged-event ABA ambiguity; that remains
+a separate completion-correlation design risk.
 """
 
-import asyncio
 from dataclasses import dataclass
 
-
-OBSERVED_SLOW_STATE_RESPONSE_SECONDS = 2.1
 HOLD_SECONDS = 5.0
 REQUESTS_PER_SECOND = 10
+REQUEST_COUNT = int(HOLD_SECONDS * REQUESTS_PER_SECOND)
 MAX_WRITE_STEP_DB = 5
-VOLUME_MIN_DB = -80
-VOLUME_MAX_DB = 12
+INITIAL_VOLUME_DB = -40
+NORMAL_RESPONSE_SECONDS = (0.3, 0.4, 0.5)
 
 
-@dataclass
-class PendingWrite:
-    sequence: int
+@dataclass(frozen=True)
+class Write:
+    sent_at: float
     target: int
-    completion: asyncio.Future
+    completed_at: float
 
 
-class ControlledReceiver:
-    """Fake receiver whose writes complete only when the test acknowledges them."""
+@dataclass(frozen=True)
+class SimulationResult:
+    response_seconds: float
+    requested_target: int
+    confirmed_volume: int
+    writes: tuple[Write, ...]
+    max_in_flight: int
+    final_write_completion: float
+    snapshot_completion: float
+    snapshot_count: int
 
-    def __init__(self, initial_volume: int):
-        self.actual_volume = initial_volume
-        self.pending: list[PendingWrite] = []
-        self.max_in_flight = 0
-        self.write_history: list[tuple[int, int]] = []
-
-    async def write_volume(self, target: int, sequence: int) -> int:
-        future = asyncio.get_running_loop().create_future()
-        self.pending.append(PendingWrite(sequence, target, future))
-        self.write_history.append((sequence, target))
-        self.max_in_flight = max(self.max_in_flight, len(self.pending))
-        try:
-            return await future
-        finally:
-            self.pending = [item for item in self.pending if item.completion is not future]
-
-    def acknowledge_next(self) -> PendingWrite:
-        assert self.pending, "worker has no outstanding write"
-        pending = self.pending[0]
-        self.actual_volume = pending.target
-        pending.completion.set_result(self.actual_volume)
-        return pending
-
-    def fail_next(self) -> PendingWrite:
-        assert self.pending, "worker has no outstanding write"
-        pending = self.pending[0]
-        pending.completion.set_exception(ConnectionError("simulated receiver write failure"))
-        return pending
+    @property
+    def settle_after_release(self) -> float:
+        return self.snapshot_completion - HOLD_SECONDS
 
 
-class CoalescingVolumeWorkerModel:
-    """Small executable model of the proposed single-worker architecture."""
+def simulate_five_second_hold(response_seconds: float) -> SimulationResult:
+    """Run a deterministic event-time simulation with no wall-clock sleeps."""
+    request_times = tuple(
+        index / REQUESTS_PER_SECOND for index in range(REQUEST_COUNT)
+    )
+    target = INITIAL_VOLUME_DB
+    confirmed = INITIAL_VOLUME_DB
+    request_index = 0
+    now = 0.0
+    in_flight: tuple[float, int, float] | None = None
+    writes: list[Write] = []
+    max_in_flight = 0
 
-    def __init__(
-        self,
-        receiver: ControlledReceiver,
-        initial_volume: int,
-        *,
-        minimum: int = VOLUME_MIN_DB,
-        maximum: int = VOLUME_MAX_DB,
-        max_write_step: int | None = MAX_WRITE_STEP_DB,
-    ):
-        self.receiver = receiver
-        self.confirmed_volume = initial_volume
-        self.requested_target = initial_volume
-        self.minimum = minimum
-        self.maximum = maximum
-        self.max_write_step = max_write_step
-        self._sequence = 0
-        self.reported_volume = initial_volume
-        self._worker_task: asyncio.Task | None = None
-        self.connected = True
-        self.corrections: list[int] = []
-        self.failures = 0
-
-    def request_step(self, delta: int) -> bool:
-        """Record a relative request without awaiting receiver I/O."""
-        if not self.connected or delta not in (-1, 1):
-            return False
-        self.requested_target = max(
-            self.minimum, min(self.maximum, self.requested_target + delta)
+    def start_write(sent_at: float) -> tuple[float, int, float]:
+        nonlocal max_in_flight
+        difference = target - confirmed
+        bounded_difference = max(
+            -MAX_WRITE_STEP_DB, min(MAX_WRITE_STEP_DB, difference)
         )
-        if self._worker_task is None or self._worker_task.done():
-            self._worker_task = asyncio.create_task(self._run_worker())
-        return True
+        write_target = confirmed + bounded_difference
+        completion_time = sent_at + response_seconds
+        writes.append(Write(sent_at, write_target, completion_time))
+        max_in_flight = max(max_in_flight, 1)
+        return completion_time, write_target, sent_at
 
-    async def _run_worker(self) -> None:
-        while self.connected and self.confirmed_volume != self.requested_target:
-            difference = self.requested_target - self.confirmed_volume
-            step = (
-                difference
-                if self.max_write_step is None
-                else max(-self.max_write_step, min(self.max_write_step, difference))
-            )
-            target = self.confirmed_volume + step
-            self._sequence += 1
-            sequence = self._sequence
-            try:
-                actual = await self.receiver.write_volume(target, sequence)
-            except (ConnectionError, asyncio.CancelledError):
-                if not self.connected:
-                    return
-                self.failures += 1
-                self.requested_target = self.receiver.actual_volume
-                self.confirmed_volume = self.receiver.actual_volume
-                self.reported_volume = self.receiver.actual_volume
-                self.corrections.append(self.confirmed_volume)
-                return
-            self.confirmed_volume = actual
-            self.reported_volume = actual
-
-    def receive_state_event(self, volume: int) -> None:
-        """Model an untagged HTP-1 patch without changing worker intent.
-
-        HTP-1 state events do not carry a transaction sequence ID. The worker
-        therefore advances only from the transaction's authoritative result;
-        a live patch can update the observed/displayed snapshot but cannot
-        replace the logical target or the last transaction-confirmed base.
-        """
-        self.reported_volume = volume
-
-    async def wait_for_worker_to_start(self) -> None:
-        await asyncio.sleep(0)
-
-    async def finish_all_writes(self) -> None:
-        """Acknowledge serialized writes until the latest target is reached."""
-        while self.confirmed_volume != self.requested_target:
-            await self.wait_for_worker_to_start()
-            assert len(self.receiver.pending) == 1
-            self.receiver.acknowledge_next()
-            await self.wait_for_worker_to_start()
-        if self._worker_task is not None:
-            await self._worker_task
-
-    async def disconnect(self) -> None:
-        self.connected = False
-        if self._worker_task is not None and not self._worker_task.done():
-            self._worker_task.cancel()
-            await asyncio.gather(self._worker_task, return_exceptions=True)
-        self.requested_target = self.confirmed_volume
-
-
-def test_five_second_hold_coalesces_intent_and_serializes_slow_writes():
-    async def exercise():
-        initial = -40
-        receiver = ControlledReceiver(initial)
-        worker = CoalescingVolumeWorkerModel(receiver, initial)
-
-        # A five-second hold at 10 requests/second: 50 logical +1 dB requests.
-        # Advance a virtual timeline and acknowledge writes at 2.1 s and 4.2 s.
-        request_times = [index / REQUESTS_PER_SECOND for index in range(50)]
-        assert request_times[-1] < HOLD_SECONDS
-        completed_during_hold = 0
-        for index, _timestamp in enumerate(request_times):
-            assert worker.request_step(+1)
-            await worker.wait_for_worker_to_start()
-            if index in (20, 41):
-                receiver.acknowledge_next()
-                completed_during_hold += 1
-                await worker.wait_for_worker_to_start()
-
-        assert worker.requested_target == 10
-        assert completed_during_hold == 2
-        assert worker.confirmed_volume == -34
-        assert len(receiver.pending) == 1
-        assert receiver.pending[0].target == -29
-
-        # The third write began at 4.2 s; at release (5.0 s), 1.3 s of its
-        # 2.1 s acknowledgement remains, followed by seven more round trips.
-        await worker.finish_all_writes()
-
-        assert worker.confirmed_volume == 10
-        assert receiver.actual_volume == 10
-        assert receiver.max_in_flight == 1
-        assert len(receiver.write_history) == 11
-        assert all(
-            abs(target - (initial if index == 0 else receiver.write_history[index - 1][1])) <= MAX_WRITE_STEP_DB
-            for index, (_sequence, target) in enumerate(receiver.write_history)
+    while request_index < REQUEST_COUNT or in_flight is not None:
+        next_request = (
+            request_times[request_index]
+            if request_index < REQUEST_COUNT
+            else float("inf")
+        )
+        next_completion = (
+            in_flight[0] if in_flight is not None else float("inf")
         )
 
-        simulated_total_ack_time = len(receiver.write_history) * OBSERVED_SLOW_STATE_RESPONSE_SECONDS
-        simulated_after_release = (
-            (len(receiver.write_history) - completed_during_hold) * OBSERVED_SLOW_STATE_RESPONSE_SECONDS
-            - (HOLD_SECONDS - 2 * OBSERVED_SLOW_STATE_RESPONSE_SECONDS)
-        )
-        assert simulated_total_ack_time == 23.1
-        assert simulated_after_release == 18.1
-        # Under this bounded-write policy and observed slow-response stress
-        # input, the final target does NOT settle within one RTT after release.
+        # Process a button press before a completion at the same virtual time.
+        if next_request <= next_completion:
+            now = next_request
+            target += 1
+            request_index += 1
+            if in_flight is None and target != confirmed:
+                in_flight = start_write(now)
+        else:
+            now = next_completion
+            assert in_flight is not None
+            confirmed = in_flight[1]
+            in_flight = None
+            if target != confirmed:
+                in_flight = start_write(now)
 
-    asyncio.run(exercise())
+    # Exactly one authoritative getmso is performed after the worker is idle.
+    # No pre-write refresh and no per-write full-state verification are modeled.
+    final_write_completion = now
+    snapshot_completion = final_write_completion + response_seconds
 
-
-def test_unbounded_latest_target_policy_catches_up_after_release_in_about_two_rtts():
-    async def exercise():
-        initial = -40
-        receiver = ControlledReceiver(initial)
-        worker = CoalescingVolumeWorkerModel(
-            receiver, initial, max_write_step=None
-        )
-
-        # Same five-second / 50-step hold. The worker starts at t=0, then
-        # completes writes at t=2.1 and t=4.2 while requests keep arriving.
-        for index in range(50):
-            assert worker.request_step(+1)
-            await worker.wait_for_worker_to_start()
-            if index in (20, 41):
-                receiver.acknowledge_next()
-                await worker.wait_for_worker_to_start()
-
-        assert worker.requested_target == 10
-        assert worker.confirmed_volume == -19
-        assert len(receiver.pending) == 1
-        assert receiver.pending[0].target == 2
-
-        # The in-flight write has 1.3 s remaining at release. It confirms at
-        # 6.3 s, then the final latest-target write confirms at 8.4 s.
-        receiver.acknowledge_next()
-        await worker.wait_for_worker_to_start()
-        assert worker.confirmed_volume == 2
-        assert receiver.pending[0].target == 10
-        receiver.acknowledge_next()
-        await worker.wait_for_worker_to_start()
-        await worker._worker_task
-
-        assert worker.confirmed_volume == 10
-        assert receiver.actual_volume == 10
-        assert len(receiver.write_history) == 4
-        assert receiver.max_in_flight == 1
-        simulated_after_release = (
-            OBSERVED_SLOW_STATE_RESPONSE_SECONDS
-            - (HOLD_SECONDS - 2 * OBSERVED_SLOW_STATE_RESPONSE_SECONDS)
-            + OBSERVED_SLOW_STATE_RESPONSE_SECONDS
-        )
-        assert abs(simulated_after_release - 3.4) < 1e-9
-        # This policy approaches the proposed latency, but it does so by
-        # allowing large writes (the final one is +8 dB, earlier ones larger).
-
-    asyncio.run(exercise())
+    return SimulationResult(
+        response_seconds=response_seconds,
+        requested_target=target,
+        confirmed_volume=confirmed,
+        writes=tuple(writes),
+        max_in_flight=max_in_flight,
+        final_write_completion=final_write_completion,
+        snapshot_completion=snapshot_completion,
+        snapshot_count=1,
+    )
 
 
-def test_stale_state_event_cannot_erase_newer_requested_target():
-    async def exercise():
-        receiver = ControlledReceiver(-40)
-        worker = CoalescingVolumeWorkerModel(receiver, -40)
+def test_normal_response_time_sweep_settles_within_about_one_second_after_release():
+    expected = {
+        0.3: (18, 5.4, 0.7),
+        0.4: (14, 5.6, 1.0),
+        0.5: (11, 5.5, 1.0),
+    }
 
-        for _ in range(10):
-            assert worker.request_step(+1)
-        await worker.wait_for_worker_to_start()
-        assert receiver.pending[0].target == -35
+    for response_seconds, (write_count, final_completion, settle_time) in expected.items():
+        result = simulate_five_second_hold(response_seconds)
 
-        receiver.acknowledge_next()
-        await worker.wait_for_worker_to_start()
-        assert worker.confirmed_volume == -35
-        assert receiver.pending[0].target == -30
-
-        for _ in range(10):
-            assert worker.request_step(+1)
-        assert worker.requested_target == -20
-
-        receiver.acknowledge_next()
-        await worker.wait_for_worker_to_start()
-        assert worker.confirmed_volume == -30
-        assert receiver.pending[0].target == -25
-
-        # A delayed, untagged patch from write one arrives after write two's
-        # authoritative confirmation. It may temporarily affect the reported
-        # snapshot, but cannot roll back the worker's confirmed base or target.
-        worker.receive_state_event(-35)
-        assert worker.reported_volume == -35
-        assert worker.confirmed_volume == -30
-        assert worker.requested_target == -20
-
-        await worker.finish_all_writes()
-        assert worker.confirmed_volume == -20
-        assert worker.reported_volume == -20
-
-    asyncio.run(exercise())
+        assert result.requested_target == 10
+        assert result.confirmed_volume == 10
+        assert len(result.writes) == write_count
+        assert abs(result.final_write_completion - final_completion) < 1e-9
+        assert abs(result.settle_after_release - settle_time) < 1e-9
 
 
-def test_untagged_state_patch_does_not_replace_transaction_confirmed_volume():
-    receiver = ControlledReceiver(-30)
-    worker = CoalescingVolumeWorkerModel(receiver, -30)
-    worker.confirmed_volume = -28
-    worker.reported_volume = -28
-    worker.requested_target = -25
+def test_every_write_preserves_five_db_cap_and_single_in_flight_rule():
+    for response_seconds in NORMAL_RESPONSE_SECONDS:
+        result = simulate_five_second_hold(response_seconds)
+        previous = INITIAL_VOLUME_DB
 
-    worker.receive_state_event(-29)
+        for write in result.writes:
+            assert abs(write.target - previous) <= MAX_WRITE_STEP_DB
+            assert abs(
+                (write.completed_at - write.sent_at) - response_seconds
+            ) < 1e-9
+            previous = write.target
 
-    assert worker.reported_volume == -29
-    assert worker.confirmed_volume == -28
-    assert worker.requested_target == -25
-
-
-def test_write_failure_reconciles_to_actual_state_without_automatic_retry():
-    async def exercise():
-        receiver = ControlledReceiver(-30)
-        worker = CoalescingVolumeWorkerModel(receiver, -30)
-        assert worker.request_step(+1)
-        await worker.wait_for_worker_to_start()
-        assert len(receiver.pending) == 1
-
-        receiver.fail_next()
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-
-        assert worker.failures == 1
-        assert worker.confirmed_volume == -30
-        assert worker.requested_target == -30
-        assert worker.corrections == [-30]
-        assert receiver.write_history == [(1, -29)]
-        assert receiver.pending == []
-
-    asyncio.run(exercise())
+        assert result.max_in_flight == 1
+        assert result.confirmed_volume == result.requested_target
 
 
-def test_requested_target_obeys_receiver_volume_bounds():
-    async def exercise():
-        receiver = ControlledReceiver(11)
-        worker = CoalescingVolumeWorkerModel(receiver, 11, maximum=12)
+def test_full_snapshot_occurs_once_after_idle_not_after_each_write():
+    for response_seconds in NORMAL_RESPONSE_SECONDS:
+        result = simulate_five_second_hold(response_seconds)
 
-        for _ in range(20):
-            assert worker.request_step(+1)
-        await worker.wait_for_worker_to_start()
-
-        assert worker.requested_target == 12
-        assert len(receiver.pending) == 1
-        assert receiver.pending[0].target == 12
-        receiver.acknowledge_next()
-        await worker.wait_for_worker_to_start()
-        assert worker.confirmed_volume == 12
-
-    asyncio.run(exercise())
+        assert result.snapshot_count == 1
+        assert abs(
+            result.snapshot_completion
+            - (result.final_write_completion + response_seconds)
+        ) < 1e-9
+        assert len(result.writes) > result.snapshot_count
 
 
-def test_disconnect_cancels_worker_and_discards_unconfirmed_intent():
-    async def exercise():
-        receiver = ControlledReceiver(-30)
-        worker = CoalescingVolumeWorkerModel(receiver, -30)
-        assert worker.request_step(+1)
-        await worker.wait_for_worker_to_start()
-        assert len(receiver.pending) == 1
+def test_five_second_hold_coalesces_fifty_presses_into_fewer_writes():
+    for response_seconds in NORMAL_RESPONSE_SECONDS:
+        result = simulate_five_second_hold(response_seconds)
 
-        await worker.disconnect()
-
-        assert not worker.connected
-        assert worker.requested_target == -30
-        assert not worker.request_step(+1)
-        assert worker._worker_task.cancelled() or worker._worker_task.done()
-
-    asyncio.run(exercise())
+        assert REQUEST_COUNT == 50
+        assert len(result.writes) < REQUEST_COUNT
+        assert result.requested_target == INITIAL_VOLUME_DB + REQUEST_COUNT
