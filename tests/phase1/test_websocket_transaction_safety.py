@@ -227,7 +227,7 @@ def test_transient_mismatch_is_quiet_when_final_snapshot_converges(caplog):
             receiver_state=state,
             apply_mode="late",
         )
-        device._write_convergence_timeout = 0.02
+        device._write_convergence_timeout = 0.0
 
         result = await device.load_beq("Delayed BEQ convergence", BEQ_FILTERS)
 
