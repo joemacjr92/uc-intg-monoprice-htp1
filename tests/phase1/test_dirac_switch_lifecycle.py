@@ -100,7 +100,7 @@ class DiracReceiver:
                 "value": {
                     "state": "refused",
                     "message": "Dirac is busy. Wait for it to finish; this change was not applied.",
-                    "id": "nr-unrelated-request",
+                    "id": "stale-unrelated-request",
                 },
             }
             apply_json_patch(self.state, reply["op"], reply["path"], reply["value"])
@@ -1079,3 +1079,115 @@ def test_dirac_command_gate_remains_active_until_deferred_volume_finalization():
             await receiver.cleanup()
 
     asyncio.run(exercise())
+
+
+
+def test_dirac_sensor_status_reports_loading_then_confirmed_slot():
+    async def exercise():
+        device, receiver = make_device(delay=0.1)
+        try:
+            target = device.slot_names[1]
+            original = device.dirac_slot_name
+            assert device.dirac_status_text == original
+            assert device.get_sensor_value("dirac_slot") == original
+
+            assert await device.select_calibration(target) is True
+            assert device.dirac_status_text == f"Loading {target}"
+            assert device.get_sensor_value("dirac_slot") == f"Loading {target}"
+            assert device.dirac_slot_name == original
+
+            task = device._dirac_task
+            assert task is not None
+            await asyncio.wait_for(task, timeout=1.0)
+
+            assert device.dirac_status_text == target
+            assert device.get_sensor_value("dirac_slot") == target
+            assert device.dirac_slot_name == target
+            assert device._dirac_lifecycle_state is DiracLifecycleState.COMPLETE
+        finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
+
+def test_dirac_sensor_status_persists_refusal_until_next_request():
+    async def exercise():
+        device, receiver = make_device(mode="standby")
+        try:
+            original = device.dirac_slot_name
+            target = device.slot_names[1]
+
+            assert await device.select_calibration(target) is False
+            assert device.dirac_status_text == "Not applied: standby"
+            assert device.get_sensor_value("dirac_slot") == "Not applied: standby"
+            assert device.dirac_slot_name == original
+            assert device._dirac_lifecycle_state is DiracLifecycleState.FAILED
+
+            # A new request clears the previous failure and displays its target.
+            receiver.mode = "complete"
+            assert await device.select_calibration(target) is True
+            assert device.dirac_status_text == f"Loading {target}"
+            assert device.get_sensor_value("dirac_slot") == f"Loading {target}"
+
+            task = device._dirac_task
+            assert task is not None
+            await asyncio.wait_for(task, timeout=1.0)
+            assert device.dirac_status_text == target
+            assert device.get_sensor_value("dirac_slot") == target
+        finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
+
+def test_dirac_sensor_status_uses_short_failure_reasons():
+    async def exercise():
+        device, receiver = make_device()
+        try:
+            device._dirac_target_slot_name = device.slot_names[1]
+            device._set_dirac_lifecycle_state(DiracLifecycleState.REQUESTED)
+            device._dirac_failure_reason = (
+                "Timed out waiting for the HTP-1 to complete the Dirac slot change"
+            )
+            device._set_dirac_lifecycle_state(DiracLifecycleState.FAILED)
+            assert device.dirac_status_text == "Not applied: timeout"
+            assert device.get_sensor_value("dirac_slot") == "Not applied: timeout"
+
+            device._dirac_target_slot_name = device.slot_names[2]
+            device._set_dirac_lifecycle_state(DiracLifecycleState.REQUESTED)
+            device._dirac_failure_reason = "HTP-1 is busy applying a correction"
+            device._set_dirac_lifecycle_state(DiracLifecycleState.FAILED)
+            assert device.dirac_status_text == "Not applied: busy"
+            assert device.get_sensor_value("dirac_slot") == "Not applied: busy"
+        finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
+
+def test_observed_hardware_traces_correlate_refusal_and_ignore_stale_reply():
+    trace_path = Path(__file__).parents[1] / "fixtures" / "dirac_hardware_traces.json"
+    traces = json.loads(trace_path.read_text(encoding="utf-8"))
+    device, receiver = make_device()
+    try:
+        standby = traces["standby"]
+        refusal = standby["reply"]
+        assert refusal["id"] == standby["request"]["id"]
+        assert device._dirac_refusal(
+            standby["request"]["id"], standby["previous_reply"]["id"]
+        ) == refusal["message"]
+
+        success = traces["successful_switch"]
+        assert success["request"]["id"] == success["running"]["id"]
+        assert success["running"]["id"] == success["complete"]["id"]
+        assert success["complete"]["state"] == "complete"
+
+        # The standby refusal remains in the receiver snapshot during the later
+        # successful operation, but its old request ID cannot fail the new one.
+        device._state["cal"]["diracSwitch"] = success["complete"]
+        device._state["cal"]["diracSwitchReply"] = refusal
+        assert device._dirac_refusal(
+            success["request"]["id"], refusal["id"]
+        ) is None
+    finally:
+        asyncio.run(receiver.cleanup())
