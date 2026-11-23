@@ -1315,6 +1315,21 @@ class HTP1Device(WebSocketDevice):
                 self._dirac_operation_lock.release()
             self._dirac_task = None
 
+    def _on_dirac_task_done(self, task: asyncio.Task) -> None:
+        """Clean up even when a newly-created monitor is cancelled before it starts."""
+        if self._dirac_task is not task:
+            return
+        if self._dirac_lifecycle_state in {
+            DiracLifecycleState.REQUESTED,
+            DiracLifecycleState.ACCEPTED,
+            DiracLifecycleState.APPLYING,
+        }:
+            self._set_dirac_lifecycle_state(DiracLifecycleState.FAILED)
+            self._discard_dirac_volume_capture()
+        if self._dirac_operation_lock.locked():
+            self._dirac_operation_lock.release()
+        self._dirac_task = None
+
     async def select_calibration(self, slot_name: str) -> bool:
         """Start a Dirac slot change and return once the receiver accepts it."""
         if not isinstance(slot_name, str) or not slot_name:
@@ -1392,6 +1407,7 @@ class HTP1Device(WebSocketDevice):
                         connection_generation,
                     )
                 )
+                self._dirac_task.add_done_callback(self._on_dirac_task_done)
                 handed_off = True
                 _LOG.info(
                     "[%s] Dirac slot request %s accepted; monitoring completion in background",
