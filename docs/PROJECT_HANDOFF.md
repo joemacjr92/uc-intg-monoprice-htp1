@@ -590,6 +590,7 @@ The uploaded UCR3_logs_2026-11-23.txt contains a volume-down sequence for the HT
 - Volume down: 11 volume_down commands and 11 one-decibel writes, from 22:33:05.847 through 22:33:11.626; targets progress from -28 dB to -38 dB.
 - Volume up: 12 volume_up commands and 12 one-decibel writes, from 22:33:14.947 through 22:33:21.090; targets progress from -37 dB to -26 dB.
 - Each successful write is followed by the existing getmso and full-state readback. This post-write snapshot updates the volume cache timestamps before the next repeat command.
+- Across the 23 writes, elapsed time from Sent: changemso to the next Received full state was 0.273–0.855 seconds (median 0.338 seconds; 90th percentile 0.808 seconds). This interval includes the existing post-write convergence/readback path and is a more plausible area to investigate for hold responsiveness than the cache-age threshold.
 - The first down command had no prior full-state baseline and therefore required a refresh. The first up command arrived 2.997 seconds after the previous full snapshot and also required a pre-write refresh.
 - For the other 21 command starts, cache age measured from the preceding Received full state to the next Command: volume_* was between 0.020 and 0.216 seconds. No additional pre-write refresh was needed during either sustained sequence.
 - No Receiver state mismatch after transaction warning appears in the captured volume-command window.
