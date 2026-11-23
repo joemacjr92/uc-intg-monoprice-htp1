@@ -7,6 +7,7 @@ on:
     paths:
       - ".github/workflows/phase1-qa.yml"
       - "tests/**"
+      - "docs/PROJECT_HANDOFF.md"
   workflow_dispatch:
     inputs:
       source_ref:
