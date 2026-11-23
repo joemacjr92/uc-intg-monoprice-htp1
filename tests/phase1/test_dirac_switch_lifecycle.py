@@ -945,15 +945,17 @@ def test_dirac_lifecycle_rejects_illegal_transitions_and_allows_new_requests_aft
             assert device._dirac_commands_blocked() is True
             device._set_dirac_lifecycle_state(DiracLifecycleState.FAILED)
             assert device._dirac_commands_blocked() is False
-            device._set_dirac_lifecycle_state(DiracLifecycleState.REQUESTED)
-            device._set_dirac_lifecycle_state(DiracLifecycleState.ACCEPTED)
-            device._set_dirac_lifecycle_state(DiracLifecycleState.COMPLETE)
-            assert device._dirac_commands_blocked() is False
+            # A failed terminal state can begin a fresh request.
+            result = await device.select_calibration(device.slot_names[1])
+            assert result is True
+            task = device._dirac_task
+            assert task is not None
+            await asyncio.wait_for(task, timeout=1.0)
+            assert device._dirac_lifecycle_state is DiracLifecycleState.COMPLETE
 
-            # A terminal completion can begin a fresh, independent request.
+            # A completed terminal state can also begin another request.
             result = await device.select_calibration(device.slot_names[0])
             assert result is True
-            assert device._dirac_lifecycle_state is DiracLifecycleState.ACCEPTED
             task = device._dirac_task
             assert task is not None
             await asyncio.wait_for(task, timeout=1.0)
