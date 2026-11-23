@@ -534,3 +534,22 @@ Protocol limitation: a missing update has no sequence number or gap marker, so i
 The earlier ABA-inclusive baseline at commit `76b15e6` passed Standard Tests, Phase 0, and the complete Phase 1 workflow, including isolated Dirac stress and TLS checks. The test refinements and strict expected-failure cases in the current follow-up commit require a fresh CI run; do not treat the earlier green run as validation of these latest edits.
 
 **Acceptance boundary:** deterministic tests are authoritative for the integration's defined behavior under injected cache, timing, malformed-state, and event-order scenarios. Hardware observations may provide operational context but are not required to prove those deterministic properties. No production source, release, merge, upstream PR, or deployment was changed.
+
+### Volume-cache validity implementation follow-up
+
+The first production validity hardening pass is now implemented on `feature-validation`:
+
+- A malformed JSON `mso` or `msoupdate` frame discards the cached snapshot and requests a new full `getmso`.
+- A non-object full-state payload invalidates the cache and requests a replacement snapshot.
+- A malformed JSON Patch batch is applied only to a candidate copy; if any operation fails, the entire batch is rejected, the live cache is discarded, and a full snapshot is requested.
+- A partial `msoupdate` cannot restore a discarded baseline. Only a later full `mso` object can do so.
+- Relative `volume_up` and `volume_down` now fail closed unless the refreshed full snapshot contains an integer (non-boolean) raw volume, finite `vpl`, `vph`, and `zeroPoint`, and correctly ordered bounds (`vpl < vph`). Parser fallback defaults are not treated as valid receiver inputs.
+- Disconnect handling continues to wake in-flight state waiters while discarding the state.
+
+Production commits:
+- `a77a0ee2541a6c934bc35931f5dce2555f8dd3a7` — invalidate malformed state and validate relative-volume inputs.
+- `9d564f91ddb27e7531030d12e28d82e333481a90` — preserve waiter wake-up on WebSocket loss.
+
+QA tests on `tests-and-docs` have been converted from strict expected failures to normal regressions and extended to cover malformed JSON invalidation, full-snapshot-only recovery, incomplete snapshots, invalid numeric inputs, and inverted bounds. The cache-age/freshness policy remains unimplemented; ordinary relative commands still perform the existing unconditional pre-write refresh. No coalescing worker or performance-path change is included.
+
+The next validation gate is the full CI suite against the production branch. Do not select a maximum cache age or remove the pre-write refresh until this validity change is green and the separate freshness tests are in place.
