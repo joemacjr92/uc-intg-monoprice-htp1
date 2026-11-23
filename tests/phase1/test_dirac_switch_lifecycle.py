@@ -219,6 +219,7 @@ def test_dirac_selection_acknowledges_receiver_acceptance_before_completion():
             assert receiver.state["cal"]["currentdiracslot"] == 1
             assert device.dirac_slot_name == device.slot_names[1]
             assert device._dirac_lifecycle_state is DiracLifecycleState.COMPLETE
+            assert device._dirac_display_held is False
         finally:
             await receiver.cleanup()
 
@@ -1030,6 +1031,48 @@ def test_disconnect_before_receiver_acceptance_fails_promptly():
             assert device._dirac_task is None
             assert device._dirac_volume_capture_active is False
         finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
+
+
+
+def test_dirac_command_gate_remains_active_until_deferred_volume_finalization():
+    async def exercise():
+        device, receiver = make_device(delay=0.05)
+        apply_started = asyncio.Event()
+        allow_apply = asyncio.Event()
+        original_apply = device._apply_deferred_dirac_volume_locked
+
+        async def paused_apply():
+            apply_started.set()
+            await allow_apply.wait()
+            return await original_apply()
+
+        device._apply_deferred_dirac_volume_locked = paused_apply
+        try:
+            assert await device.select_calibration(device.slot_names[1]) is True
+            assert await device.volume_up() is True
+            task = device._dirac_task
+            assert task is not None
+
+            await asyncio.wait_for(apply_started.wait(), timeout=1.0)
+            assert device._dirac_lifecycle_state in {
+                DiracLifecycleState.ACCEPTED,
+                DiracLifecycleState.APPLYING,
+            }
+            assert device._dirac_commands_blocked() is True
+            messages_before = list(receiver.messages)
+            assert await device.send_command("send_avcui: hpe") is False
+            assert receiver.messages == messages_before
+
+            allow_apply.set()
+            await asyncio.wait_for(task, timeout=1.0)
+            assert device._dirac_lifecycle_state is DiracLifecycleState.COMPLETE
+            assert device._dirac_commands_blocked() is False
+            assert _volume_writes(receiver) == [receiver.state["volume"]]
+        finally:
+            allow_apply.set()
             await receiver.cleanup()
 
     asyncio.run(exercise())
