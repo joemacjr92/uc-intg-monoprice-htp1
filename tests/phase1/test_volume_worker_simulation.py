@@ -1,4 +1,9 @@
-"""Fast-response simulation of the proposed coalescing volume worker.
+"""Exploratory fast-response model for a proposed coalescing volume worker.
+
+This model is retained as a QA design experiment after the 2026-11-23
+cost/benefit review decided not to pursue a production worker at this time.
+Its simulated write counts and settle times are not a production forecast and
+must not be used as evidence of expected user-perceived improvement.
 
 Design-level model only; it is not production code or hardware validation.
 
