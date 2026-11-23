@@ -990,8 +990,11 @@ def test_dirac_lifecycle_exposes_applying_then_complete_only_after_final_readbac
                 await asyncio.sleep(0.005)
 
             assert device._dirac_lifecycle_state is DiracLifecycleState.APPLYING
+            assert device.dirac_status_text == f"Loading {device.slot_names[1]}"
+            assert device.get_sensor_value("dirac_slot") == f"Loading {device.slot_names[1]}"
             await asyncio.wait_for(task, timeout=1.0)
             assert device._dirac_lifecycle_state is DiracLifecycleState.COMPLETE
+            assert device.dirac_status_text == device.slot_names[1]
         finally:
             await receiver.cleanup()
 
