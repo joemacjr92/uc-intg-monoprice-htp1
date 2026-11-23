@@ -1087,7 +1087,10 @@ class HTP1Device(WebSocketDevice):
                 return captured
             if self._dirac_commands_blocked():
                 return False
-            if not await self._refresh_state_locked() or not self._volume_state_is_valid():
+            if not self._volume_state_is_valid() or not self._volume_state_is_fresh():
+                if not await self._refresh_state_locked():
+                    return False
+            if not self._volume_state_is_valid() or not self._volume_state_is_fresh():
                 return False
             current = self._state["volume"]
             if not _is_finite_number(self.vpl) or not _is_finite_number(self.zp):
