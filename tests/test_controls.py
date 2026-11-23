@@ -65,7 +65,7 @@ def test_volume_up_down_respect_receiver_limits():
 
         device._send_transaction = capture
         install_transaction_test_doubles(device, sent)
-        device._state = {"volume": 11}
+        device._state = {"volume": 11, "cal": {"vpl": -80, "vph": 12, "zeroPoint": 0}}
         device.vph = 12
         assert await device.volume_up()
         assert sent[-1][0]["value"] == 12
@@ -74,7 +74,7 @@ def test_volume_up_down_respect_receiver_limits():
         assert await device.volume_up()
         assert len(sent) == before
 
-        device._state = {"volume": -79}
+        device._state = {"volume": -79, "cal": {"vpl": -80, "vph": 12, "zeroPoint": 0}}
         device.vpl = -80
         device.zp = 0
         assert await device.volume_down()
