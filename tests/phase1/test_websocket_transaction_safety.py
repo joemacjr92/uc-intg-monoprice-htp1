@@ -23,7 +23,7 @@ BEQ_FILTERS = [
 
 
 class FakeReceiver:
-    """Small deterministic receiver that can apply, ignore, or partly apply writes."""
+    """Small deterministic receiver for immediate, ignored, partial, or delayed writes."""
 
     def __init__(
         self,
@@ -62,7 +62,8 @@ class FakeReceiver:
             if self.first_change_gate is not None:
                 await self.first_change_gate.wait()
 
-        if self.apply_mode == "all":
+        delayed_update = self.apply_mode == "late"
+        if self.apply_mode == "all" or delayed_update:
             applied = operations
         elif self.apply_mode == "partial":
             applied = operations[: max(1, len(operations) // 2)]
@@ -70,6 +71,29 @@ class FakeReceiver:
             applied = []
         else:
             raise AssertionError(f"unknown fake receiver apply mode: {self.apply_mode}")
+
+        if delayed_update:
+            existing_replace = next(
+                (
+                    operation
+                    for operation in operations
+                    if operation.get("op") == "replace"
+                    and self.device._json_pointer_value(self.state, operation["path"])
+                    is not self.device._MISSING
+                ),
+                None,
+            )
+            assert existing_replace is not None
+            path = existing_replace["path"]
+            old_value = self.device._json_pointer_value(self.state, path)
+            stale_update = [{
+                "op": "replace",
+                "path": path,
+                "value": copy.deepcopy(old_value),
+            }]
+            # Publish a relevant but still-stale patch first. The final getmso
+            # below will carry the actual applied state.
+            await self.device.handle_message(f"msoupdate {json.dumps(stale_update)}")
 
         if applied:
             candidate = copy.deepcopy(self.state)
@@ -108,7 +132,8 @@ class FakeReceiver:
                 )
                 update_operations.append(lifecycle_patch)
             self.state = candidate
-            await self.device.handle_message(f"msoupdate {json.dumps(update_operations)}")
+            if not delayed_update:
+                await self.device.handle_message(f"msoupdate {json.dumps(update_operations)}")
 
         if self.disconnect_after_change:
             self.device._on_connection_lost()
@@ -191,6 +216,32 @@ def test_transaction_convergence_predicate_is_quiet_until_final_readback(caplog)
         assert "Receiver state mismatch after transaction at /peq/" in errors[0]
         assert receiver.change_count == 1
         assert receiver.messages.count("getmso") >= 2
+
+    asyncio.run(exercise())
+
+
+def test_transient_mismatch_is_quiet_when_final_snapshot_converges(caplog):
+    async def exercise():
+        state = json.loads(BEQ_FIXTURE.read_text(encoding="utf-8"))
+        device, receiver = _make_device(
+            receiver_state=state,
+            apply_mode="late",
+        )
+        device._write_convergence_timeout = 0.02
+
+        result = await device.load_beq("Delayed BEQ convergence", BEQ_FILTERS)
+
+        assert result is True
+        assert receiver.change_count == 1
+        assert receiver.messages.count("getmso") >= 2
+        assert device._state["peq"]["beqActive"] == "Delayed BEQ convergence"
+        transaction_errors = [
+            record.getMessage()
+            for record in caplog.records
+            if record.levelname == "ERROR"
+            and "transaction" in record.getMessage().lower()
+        ]
+        assert transaction_errors == []
 
     asyncio.run(exercise())
 
