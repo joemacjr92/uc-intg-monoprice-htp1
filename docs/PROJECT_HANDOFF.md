@@ -9,7 +9,7 @@
 1. Read this document before continuing project work.
 2. Verify the live GitHub state (branches, commits, open PRs, checks, and working changes) before assuming a task is complete or starting new work. This document records decisions and intended scope; live repository state is authoritative for implementation status.
 3. Preserve the agreed branch strategy below. Do not develop production code directly on `main` or `tests-and-docs`.
-4. Keep the approved development phases in order unless the user explicitly changes the plan. Phase 0 is complete; Phase 1.5 automated implementation and validation are complete. Limited physical HTP-1 testing has now verified deferred volume handling during Dirac application, but full Remote/HTP-1 hardware acceptance remains pending. Phase 2 is the next planned development phase. Preserve the complete approved Phase 2–6 roadmap in PROJECT_HANDOFF.md.
+4. Keep the approved development phases in order unless the user explicitly changes the plan. Phase 0 is complete; Phase 1.5 automated implementation and validation are complete. Limited physical HTP-1 testing has verified deferred volume handling during Dirac application. A separate five-second Remote volume-hold trace has been analyzed for cache freshness and transaction timing; it does not complete full Remote/HTP-1 hardware acceptance. Phase 2 is the next planned development phase. Preserve the complete approved Phase 2–6 roadmap in PROJECT_HANDOFF.md.
 5. Do not silently add, remove, or reinterpret requirements. Ask before expanding scope.
 6. Preserve existing behavior unless a specific correction is required by the phase. Add regression coverage for each correction.
 7. Distinguish automated tests, CI results, remote connectivity checks, and actual HTP-1 hardware acceptance. Never claim one proves another.
@@ -659,4 +659,35 @@ The transaction lock remains held across this sequence, so the next relative vol
 
 **QA addition:** The test named test_volume_transaction_waits_for_live_patch_before_authoritative_snapshot models a 205 ms live-patch delay followed by a 128 ms full-state response delay. It asserts the ordering changemso → matching msoupdate → getmso → full mso and verifies the final authoritative state. This is a deterministic transaction-order regression test, not a claim that CI reproduces physical receiver latency.
 
-**Decision:** No production transaction behavior has been changed. Keep the current live-convergence wait and authoritative full-state readback. The next implementation candidate, if approved, should be a separately tested volume-only coalescing worker rather than relaxing the cache-age threshold or removing transaction verification. Hardware validation is still required before accepting a production optimization.
+**Decision (updated after cost/benefit review on 2026-11-23):** No production transaction behavior has been changed. Keep the current live-convergence wait and authoritative full-state readback. A volume-only coalescing worker is **not selected for implementation at this time**. It could reduce the number of serial write/readback cycles, but the available evidence does not establish that it would deliver a significant user-perceived improvement relative to the queueing, ordering, completion, Dirac, disconnect, and external-state complexity it introduces. Do not relax the 0.5-second cache freshness limit or remove authoritative readback as substitutes. Reconsider coalescing only if a representative end-to-end measurement shows at least a 25–30% reduction in volume-hold completion time and a design demonstrates preservation of existing command semantics and safety. Any future prototype must remain QA-only until its assumptions and measured benefit are independently validated.
+
+
+### Volume coalescing cost/benefit decision and current validation — 2026-11-23
+
+The transaction investigation and the user's follow-up review concluded that a coalescing worker is not justified by the current evidence. The measured transaction path is not free, but the log alone does not establish that consolidating requests would make volume control feel significantly faster. The expected reduction in write count is not the same as a demonstrated reduction in Remote-perceived hold/settle time.
+
+**Decision**
+- Retain the current synchronous, serialized volume transaction path.
+- Retain the matching-live-update convergence wait and final authoritative full-state readback. The former prevents a readback racing ahead of receiver application; the latter protects against untagged duplicate, delayed, out-of-order, and ABA-replayed patches.
+- Retain `VOLUME_STATE_MAX_AGE = 0.5` seconds. The recorded trace shows that raising it to 1 or 2 seconds would not have removed any pre-write refresh in the two holds, while increasing exposure to a silently missed external update.
+- Do not implement a production coalescing worker now. No production source was changed for this investigation or decision.
+- A future proposal must demonstrate at least a 25–30% improvement in measured end-to-end volume-hold completion time, not merely fewer writes or lower simulated transaction counts, while preserving step/direction ordering, bounds, external updates, command completion, disconnect behavior, Dirac deferred-volume handling, and ordering with unrelated state mutations.
+
+**Interpretation of the exploratory worker simulation**
+
+`tests/phase1/test_volume_worker_simulation.py` remains a deterministic design-model experiment only. It assumes 10 requests per second, a 5 dB write cap, 0.3–0.5 second response times, one matching `msoupdate` completion event per write, no pre-write freshness refresh, and only one final full snapshot after the worker becomes idle. Those assumptions do not reproduce the current production transaction path, which performs an authoritative full-state readback after every successful write. The model also does not resolve untagged-event correlation, external volume changes, Dirac interactions, disconnects, or Remote display convergence. Its simulated write counts and settle times must not be presented as a forecast of production performance or as proof that coalescing would meet the 25–30% target. The four passing model tests establish only that the model behaves according to its own assumptions.
+
+**Latest QA validation**
+
+All results below are from QA branch `tests-and-docs`, with tests executed against production implementation branch `feature-validation` at `9884b4f82b48c1015e7468c9e15cc38d2e4edb7c`. QA test files and handoff documentation remain isolated from the production branch.
+
+- [Phase 1 WebSocket Safety QA run 45110442565](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45110442565): passed. Existing regression suite: 95 passed, 1 skipped; Phase 0 compatibility: 33 passed; newly added regression-gap tests: 21 passed; Phase 1 suite: 229 passed; isolated Dirac stress: 5 repetitions, each 1 passed (31 deselected); TLS regressions: 2 passed.
+- Phase 1 coverage: 82% combined; `device.py` 86%, `browser.py` 66%.
+- [Phase 0 and Full QA run 45110442545](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45110442545): passed; existing regression suite 95 passed, 1 skipped, and Phase 0 tests 33 passed.
+- [Standard Tests run 45110477387](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45110477387), on QA documentation commit `9020e123abe7510c5e0b171ede1d95914edd58ff`: passed; 93 passed, 1 skipped. The earlier run 45110442570 was cancelled by the subsequent push and is superseded by this successful run.
+- Focused Ruff correctness checks (`ruff check --select F`) passed. The broader Ruff rule-family scan is explicitly diagnostic/non-gating and reported 587 findings; Ruff is **not** globally clean. The CI job succeeds because this diagnostic step is configured `continue-on-error`.
+- The delayed-transaction regression models a 205 ms live-patch delay and 128 ms full-snapshot response delay, asserting event ordering. It is deterministic test coverage, not hardware latency validation.
+
+**Hardware boundary:** The uploaded Remote log documents 11 down and 12 up writes over two five-second holds, with no receiver state-mismatch warnings in the captured volume window. It does not measure Remote display catch-up after release or a deliberately suppressed external volume update. No hardware test has been performed for a coalescing worker because no production worker has been selected or implemented. Full Remote/HTP-1 acceptance remains a separate outstanding activity.
+
+**Repository boundary:** The current QA branch head at the time of this update is recorded by the resulting commit. Production implementation remains on `feature-validation`; this documentation and all tests remain QA-only. No merge, upstream PR, release, or deployment is authorized by this work.
