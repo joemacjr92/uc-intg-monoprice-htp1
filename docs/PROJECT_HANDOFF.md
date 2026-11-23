@@ -507,49 +507,55 @@ Current regression coverage:
 - **Duplicate and out-of-order updates:** live matching patches are provisional only; the final authoritative `mso` readback decides transaction success.
 - **True delayed ABA replay:** a matching `/volume` event is queued before the transaction, the value changes away, and the queued old event is delivered after the write. Since the protocol has no transaction ID or sequence number, the old event is indistinguishable from a new matching echo; final full-state readback must reject it when receiver state did not change.
 
-Two strict expected-failure tests document gaps in the current production implementation:
+### Implemented volume cache validity and freshness policy
 
-- Malformed JSON in an `msoupdate` frame currently logs and returns without requesting a full snapshot or invalidating cached state.
-- A syntactically valid full snapshot missing calibration fields currently falls back to parser defaults; relative volume must instead fail closed when required calibration inputs are absent or invalid.
+The production implementation is now on `feature-validation` at `9884b4f82b48c1015e7468c9e15cc38d2e4edb7c`. The change is limited to ordinary `volume_up` and `volume_down` cache handling; it does not introduce the proposed coalescing worker.
 
-These are intentional `xfail(strict=True)` tests, not passing production behavior. A future production change should make them pass, at which point the xfail markers must be removed. The test suite must not silently normalize these unsafe cases as acceptable behavior.
+**Validity and recovery**
+- Malformed JSON `mso` or `msoupdate` frames invalidate the cached state and request a new full `getmso`.
+- Non-object full-state payloads invalidate the cache and request a replacement snapshot.
+- Patch batches are applied to a deep-copied candidate. If any operation is malformed, the entire batch is rejected, the cached baseline is discarded, and a full snapshot is requested.
+- Partial `msoupdate` events are ignored while the baseline is invalid. Only a later full `mso` object can restore it.
+- Relative volume commands require a raw integer volume and finite `vpl`, `vph`, and `zeroPoint`, with `vpl < vph`. Missing values, booleans, strings, NaN, infinity, and inverted bounds fail closed instead of using parser fallback defaults.
+- A failed or timed-out authoritative refresh also invalidates the cache. A live write echo alone is not retained as a trusted baseline when the final full snapshot cannot be obtained.
 
-### Proposed cache-freshness policy (design only; not implemented)
+**Freshness**
+- Each of `/volume`, `/cal/vpl`, `/cal/vph`, and `/cal/zeroPoint` has its own monotonic observation timestamp.
+- A full `mso` refreshes all four timestamps. A patch refreshes only the dependency it actually changes; a parent `/cal` patch refreshes all three calibration dependencies. Unrelated paths do not refresh volume freshness.
+- Both validity and freshness are checked after acquiring the serialized transaction lock. An invalid or stale cache triggers one pre-write `getmso`; a fresh valid cache can be used without that extra request.
+- The maximum age is `VOLUME_STATE_MAX_AGE = 0.5` seconds. The selected bound is the earliest of the deliberate silent-update intervals requested for the regression sweep (0.5, 2, 5, and 10 seconds). The comparison is strict: age **at or above** 0.5 seconds triggers refresh.
+- This is a conservative policy bound, not a measurement of the HTP-1's event-loss rate. The explicit just-below-boundary test documents the remaining limitation: a silently lost external update less than 0.5 seconds old can still be indistinguishable from a current cache. The protocol has no sequence number or gap signal to detect it sooner.
 
-The optimization target is limited to ordinary `volume_up` and `volume_down`. Keep the existing serialized transaction lock, write/convergence sequence, final authoritative full-state readback, 5 dB cap, and all Dirac volume capture/finalization behavior unchanged. Do not introduce the coalescing worker as part of this change.
+**Preserved behavior**
+- The transaction lock, live convergence wait, final authoritative full-state readback, no-retry policy, 5 dB safeguards used by normalized/Dirac volume handling, and all Dirac deferred-volume capture/finalization behavior remain intact.
+- Every successful state-changing transaction still ends with the existing authoritative snapshot. This refreshes the four timestamps, so a queued relative-volume press can generally use the just-confirmed cache rather than issuing a redundant pre-write snapshot.
+- Other commands retain their existing refresh behavior. No coalescing worker, automatic retry, or device-specific timing assumption was introduced.
 
-The proposed policy has two independent gates:
-
-1. **Validity gate:** cache must be based on a valid full `mso` snapshot and remain valid. Disconnect, malformed JSON, malformed patch batches, and invalid full-state payloads invalidate it. A valid full snapshot is required to restore validity; partial patches must not repair an invalid whole-state baseline.
-2. **Freshness gate:** track monotonic observation times for the four inputs used by relative volume calculations: raw `/volume`, `/cal/vpl`, `/cal/vph`, and `/cal/zeroPoint`. A full snapshot refreshes all four. A successfully applied patch refreshes only the dependencies it actually covers; a parent-path patch such as `/cal` refreshes the corresponding calibration dependencies. Unrelated patches must not make volume inputs appear newer.
-
-The relative-volume path must evaluate both gates **after acquiring the transaction lock**. If the cache is invalid, any required value is absent/invalid, or any dependency is older than the selected maximum age, obtain one authoritative `getmso` snapshot before calculating the target. If refresh fails or the snapshot lacks valid volume/calibration inputs, do not write. Otherwise use the refreshed/current cache. Keep the existing final full-state readback after the write.
-
-The maximum age is deliberately **not selected yet**. It is a policy bound on how long the integration is willing to use an unrefreshed volume dependency, not a claim about the HTP-1's event-loss rate. A deterministic fake clock should test candidate limits (including the 0.5, 2, 5, and 10 second cases), exact boundary behavior, and that unrelated patches do not reset the relevant age. The selected value should be documented as an explicit safety/performance tradeoff; no physical-device test is required to prove the algorithm or its threshold behavior.
-
-Protocol limitation: a missing update has no sequence number or gap marker, so it cannot be detected immediately. A maximum age bounds the stale-cache exposure after the last observed update but cannot eliminate it. Likewise, a delayed duplicate/replayed patch delivered before a command can look like a fresh update. In-flight duplicate/ABA cases are contained by the existing final snapshot, but the protocol cannot prove the provenance of an untagged patch. Tests should make this limitation explicit rather than claim perfect detection.
-
-### Validation status
-
-The earlier ABA-inclusive baseline at commit `76b15e6` passed Standard Tests, Phase 0, and the complete Phase 1 workflow, including isolated Dirac stress and TLS checks. The test refinements and strict expected-failure cases in the current follow-up commit require a fresh CI run; do not treat the earlier green run as validation of these latest edits.
-
-**Acceptance boundary:** deterministic tests are authoritative for the integration's defined behavior under injected cache, timing, malformed-state, and event-order scenarios. Hardware observations may provide operational context but are not required to prove those deterministic properties. No production source, release, merge, upstream PR, or deployment was changed.
-
-### Volume-cache validity implementation follow-up
-
-The first production validity hardening pass is now implemented on `feature-validation`:
-
-- A malformed JSON `mso` or `msoupdate` frame discards the cached snapshot and requests a new full `getmso`.
-- A non-object full-state payload invalidates the cache and requests a replacement snapshot.
-- A malformed JSON Patch batch is applied only to a candidate copy; if any operation fails, the entire batch is rejected, the live cache is discarded, and a full snapshot is requested.
-- A partial `msoupdate` cannot restore a discarded baseline. Only a later full `mso` object can do so.
-- Relative `volume_up` and `volume_down` now fail closed unless the refreshed full snapshot contains an integer (non-boolean) raw volume, finite `vpl`, `vph`, and `zeroPoint`, and correctly ordered bounds (`vpl < vph`). Parser fallback defaults are not treated as valid receiver inputs.
-- Disconnect handling continues to wake in-flight state waiters while discarding the state.
+QA coverage in `tests/phase1/test_volume_cache_safety.py` now includes:
+- Silent external volume changes with the update omitted at 0.5, 2, 5, and 10 seconds; both up and down paths.
+- Delivered external volume/calibration patches, no unnecessary pre-write refresh for a fresh delivered volume update, per-dependency timestamp updates, full-snapshot timestamp reset, and parent `/cal` handling.
+- Unrelated patches not refreshing volume dependencies, and the freshness check occurring only after the transaction lock is acquired.
+- Disconnect, malformed JSON, malformed patch batches, partial-update rejection while invalid, full-snapshot-only recovery, invalid/missing numeric inputs, and inverted bounds.
+- Duplicate, out-of-order, and delayed ABA-replay volume patches remaining provisional until the authoritative full snapshot.
+- Failed final readback invalidating the unconfirmed cache, plus the documented sub-0.5-second silent-update limitation.
 
 Production commits:
 - `a77a0ee2541a6c934bc35931f5dce2555f8dd3a7` — invalidate malformed state and validate relative-volume inputs.
-- `9d564f91ddb27e7531030d12e28d82e333481a90` — preserve waiter wake-up on WebSocket loss.
+- `9d564f91ddb27e7531030d12e28d82e333481a90` — preserve state-waiter wake-up on WebSocket loss.
+- `71e93a3921733d6e0b20adce9bad4a7378509efb` — track per-dependency monotonic freshness and gate volume-up.
+- `514f85dad235e34b3299207630c28949d79070a1` — apply the same freshness gate to volume-down.
+- `9884b4f82b48c1015e7468c9e15cc38d2e4edb7c` — invalidate the cache when an authoritative refresh fails.
 
-QA tests on `tests-and-docs` have been converted from strict expected failures to normal regressions and extended to cover malformed JSON invalidation, full-snapshot-only recovery, incomplete snapshots, invalid numeric inputs, and inverted bounds. The cache-age/freshness policy remains unimplemented; ordinary relative commands still perform the existing unconditional pre-write refresh. No coalescing worker or performance-path change is included.
+The Standard Tests workflow was also adjusted to check out `feature-validation` as the implementation under test, keeping QA tests/docs on `tests-and-docs` while avoiding tests running against the older QA-branch copy of production code.
 
-The next validation gate is the full CI suite against the production branch. Do not select a maximum cache age or remove the pre-write refresh until this validity change is green and the separate freshness tests are in place.
+### Validation status
+
+For QA commit `4f6ff939065056c003fc340d8d4bca6695e680b1`:
+- Standard Tests [run 45101402643](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45101402643) passed: 93 passed, 1 skipped.
+- Phase 0 and Full QA [run 45101402455](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45101402455) passed: 95 passed, 1 skipped, plus 33 Phase 0 tests.
+- Phase 1 WebSocket Safety QA [run 45101402709](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45101402709) passed: 180 Phase 1 tests, 82% combined coverage (device.py 86%, browser.py 66%), five isolated Dirac stress repetitions, and both TLS regressions.
+- ARM64 Test Build for production commit `9884b4f` [run 45101254231](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45101254231) passed.
+
+The additional just-below-0.5-second limitation test is on the newer QA commit `1888dbccd01cae3b867c29f593569cb17c9d7ec7`; its final Phase 1 run is still pending at the time of this handoff update. The focused Ruff correctness checks passed. The broader Ruff scan remains diagnostic/non-gating and still reports existing findings; do not describe it as clean.
+
+**Acceptance boundary:** deterministic tests are authoritative for the injected state, timing, and event-order behavior. No physical HTP-1/Remote hardware test was performed for this cache policy. No merge, upstream PR, release, or deployment has been performed.
