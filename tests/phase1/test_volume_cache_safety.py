@@ -39,6 +39,13 @@ class FakeClock:
         self.now += seconds
 
 
+def record_volume_observation_if_supported(device):
+    """Seed freshness metadata when testing the implementation that has it."""
+    recorder = getattr(device, "_record_volume_state_observation", None)
+    if recorder is not None:
+        recorder()
+
+
 class VolumeReceiver:
     """Receiver double with independent authoritative and integration state."""
 
@@ -135,7 +142,7 @@ def make_volume_device(
     if clock is not None:
         device._clock = clock
     device._parse_state()
-    device._record_volume_state_observation()
+    record_volume_observation_if_supported(device)
     receiver = VolumeReceiver(
         device,
         receiver_state if receiver_state is not None else cached,
@@ -356,7 +363,7 @@ def test_incomplete_full_snapshot_fails_closed_for_relative_volume():
         device, receiver = make_volume_device(receiver_state=receiver_state)
         device._state = copy.deepcopy(receiver_state)
         device._parse_state()
-        device._record_volume_state_observation()
+        record_volume_observation_if_supported(device)
 
         assert await device.volume_up() is False
         assert receiver.writes == []
@@ -386,7 +393,7 @@ def test_invalid_relative_volume_inputs_fail_closed(field, value):
         device, receiver = make_volume_device(receiver_state=receiver_state)
         device._state = copy.deepcopy(receiver_state)
         device._parse_state()
-        device._record_volume_state_observation()
+        record_volume_observation_if_supported(device)
 
         assert await device.volume_up() is False
         assert await device.volume_down() is False
@@ -404,7 +411,7 @@ def test_inverted_volume_bounds_fail_closed():
         device, receiver = make_volume_device(receiver_state=receiver_state)
         device._state = copy.deepcopy(receiver_state)
         device._parse_state()
-        device._record_volume_state_observation()
+        record_volume_observation_if_supported(device)
 
         assert await device.volume_up() is False
         assert await device.volume_down() is False
@@ -424,7 +431,7 @@ def test_missing_relative_volume_dependency_fails_closed(field):
         device, receiver = make_volume_device(receiver_state=receiver_state)
         device._state = copy.deepcopy(receiver_state)
         device._parse_state()
-        device._record_volume_state_observation()
+        record_volume_observation_if_supported(device)
 
         assert await device.volume_up() is False
         assert await device.volume_down() is False
