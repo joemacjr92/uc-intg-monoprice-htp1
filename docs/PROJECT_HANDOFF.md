@@ -493,24 +493,44 @@ Important limitations:
 
 ### Volume cache freshness and WebSocket event-order regressions — 2026-11-23
 
-A new QA-only test module, `tests/phase1/test_volume_cache_safety.py`, exercises the existing `feature-validation` implementation through the Phase 1 workflow. No production source or volume-command behavior was changed.
+QA-only coverage lives in `tests/phase1/test_volume_cache_safety.py` and runs against the `feature-validation` implementation. Production source is unchanged.
 
-The fake receiver maintains authoritative receiver state separately from the integration's cached state. It can change the receiver's volume without delivering an `msoupdate`, deliver an external volume patch, withhold full-state responses, and emit duplicate or out-of-order volume patches.
+The fake receiver maintains authoritative state separately from the integration cache. It can deliver or omit external changes, withhold full snapshots, and inject duplicate, out-of-order, and delayed ABA-replay patches.
 
-Coverage includes:
+Current regression coverage:
 
-- **Silent lost-update gap sweep:** the receiver changes from -20 dB to -10 dB without delivering an event. The test waits 0.5, 2, 5, and 10 seconds, then invokes `volume_up`. Each case verifies that the pre-write `getmso` refresh observes -10 dB and writes -9 dB, rather than overwriting the external change with -19 dB.
-- **Delivered external update:** a valid `/volume` patch updates the cached raw volume and parsed displayed volume, and the next relative command uses the receiver's actual value.
-- **Disconnect:** loss of connection clears the state and prevents a relative volume write.
-- **Malformed patch:** the malformed batch is rejected and requests a full snapshot. If that snapshot is unavailable, the subsequent relative command fails closed without sending `changemso`.
-- **Duplicate and out-of-order events:** matching live `/volume` patches are not treated as final transaction confirmation. The authoritative full `mso` readback remains decisive.
-- **ABA replay:** the test first observes a volume value, observes it change away, and then replays the old matching value after a new write. Because the protocol has no transaction ID or sequence number, the replay is indistinguishable at the event level; the final full snapshot must reject it when the receiver's authoritative state did not change.
+- **Silent lost update:** the receiver changes from -20 dB to -10 dB without delivering an `msoupdate`. The current implementation's mandatory pre-write `getmso` must observe -10 dB and write -9 dB. This is a baseline check of unconditional refresh; it does not test a time threshold.
+- **Delivered volume update:** a valid `/volume` patch updates raw cached state and parsed displayed volume.
+- **Delivered calibration updates:** `/cal/vpl`, `/cal/vph`, and `/cal/zeroPoint` patches update the relative-volume dependencies and enforce the changed upper/lower boundaries.
+- **Disconnect:** connection loss clears state and prevents a relative write.
+- **Malformed valid-JSON patch:** an invalid JSON Patch operation is rejected, a full snapshot is requested, and the relative command fails closed if that snapshot is unavailable.
+- **Duplicate and out-of-order updates:** live matching patches are provisional only; the final authoritative `mso` readback decides transaction success.
+- **True delayed ABA replay:** a matching `/volume` event is queued before the transaction, the value changes away, and the queued old event is delivered after the write. Since the protocol has no transaction ID or sequence number, the old event is indistinguishable from a new matching echo; final full-state readback must reject it when receiver state did not change.
 
-The lost-update tests deliberately exercise the current conservative behavior: every relative volume command obtains a fresh full snapshot before calculating its write. They are a baseline safety contract, not evidence for a particular future cache-age threshold. If a later implementation removes the unconditional pre-write refresh, these tests must be adapted to prove that invalid cache state and cache age both force reconciliation before a relative write. A delivered update may keep the cache current, but a silently omitted update cannot be detected from the untagged protocol alone.
+Two strict expected-failure tests document gaps in the current production implementation:
 
-Validation at the time of this entry:
+- Malformed JSON in an `msoupdate` frame currently logs and returns without requesting a full snapshot or invalidating cached state.
+- A syntactically valid full snapshot missing calibration fields currently falls back to parser defaults; relative volume must instead fail closed when required calibration inputs are absent or invalid.
 
-- Commit `cb001d8b45b81aaebf74bf12783987a86ae57837`: Standard Tests [run 45098687967](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45098687967) passed; Phase 0 and Full QA [run 45098687901](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45098687901) passed; the Phase 1 test-suite step passed in [run 45098687877](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45098687877). The complete Phase 1 workflow was still running its isolated Dirac stress repetitions and TLS checks when this entry was written.
-- The additional ABA replay case was added in commit `76b15e62a24ed94f7b13633726159d5dc616991a`; its complete CI validation is pending.
+These are intentional `xfail(strict=True)` tests, not passing production behavior. A future production change should make them pass, at which point the xfail markers must be removed. The test suite must not silently normalize these unsafe cases as acceptable behavior.
 
-**Acceptance boundary:** these deterministic tests are the authority for the integration's defined cache, transaction, and event-order behavior under the injected scenarios. They do not estimate how often a physical HTP-1 omits an event. No on-device test is required to establish these deterministic safety properties. Hardware observations may inform operational latency or freshness tuning, but must not replace the automated regression suite. No production source, release, merge, upstream PR, or deployment was changed.
+### Proposed cache-freshness policy (design only; not implemented)
+
+The optimization target is limited to ordinary `volume_up` and `volume_down`. Keep the existing serialized transaction lock, write/convergence sequence, final authoritative full-state readback, 5 dB cap, and all Dirac volume capture/finalization behavior unchanged. Do not introduce the coalescing worker as part of this change.
+
+The proposed policy has two independent gates:
+
+1. **Validity gate:** cache must be based on a valid full `mso` snapshot and remain valid. Disconnect, malformed JSON, malformed patch batches, and invalid full-state payloads invalidate it. A valid full snapshot is required to restore validity; partial patches must not repair an invalid whole-state baseline.
+2. **Freshness gate:** track monotonic observation times for the four inputs used by relative volume calculations: raw `/volume`, `/cal/vpl`, `/cal/vph`, and `/cal/zeroPoint`. A full snapshot refreshes all four. A successfully applied patch refreshes only the dependencies it actually covers; a parent-path patch such as `/cal` refreshes the corresponding calibration dependencies. Unrelated patches must not make volume inputs appear newer.
+
+The relative-volume path must evaluate both gates **after acquiring the transaction lock**. If the cache is invalid, any required value is absent/invalid, or any dependency is older than the selected maximum age, obtain one authoritative `getmso` snapshot before calculating the target. If refresh fails or the snapshot lacks valid volume/calibration inputs, do not write. Otherwise use the refreshed/current cache. Keep the existing final full-state readback after the write.
+
+The maximum age is deliberately **not selected yet**. It is a policy bound on how long the integration is willing to use an unrefreshed volume dependency, not a claim about the HTP-1's event-loss rate. A deterministic fake clock should test candidate limits (including the 0.5, 2, 5, and 10 second cases), exact boundary behavior, and that unrelated patches do not reset the relevant age. The selected value should be documented as an explicit safety/performance tradeoff; no physical-device test is required to prove the algorithm or its threshold behavior.
+
+Protocol limitation: a missing update has no sequence number or gap marker, so it cannot be detected immediately. A maximum age bounds the stale-cache exposure after the last observed update but cannot eliminate it. Likewise, a delayed duplicate/replayed patch delivered before a command can look like a fresh update. In-flight duplicate/ABA cases are contained by the existing final snapshot, but the protocol cannot prove the provenance of an untagged patch. Tests should make this limitation explicit rather than claim perfect detection.
+
+### Validation status
+
+The earlier ABA-inclusive baseline at commit `76b15e6` passed Standard Tests, Phase 0, and the complete Phase 1 workflow, including isolated Dirac stress and TLS checks. The test refinements and strict expected-failure cases in the current follow-up commit require a fresh CI run; do not treat the earlier green run as validation of these latest edits.
+
+**Acceptance boundary:** deterministic tests are authoritative for the integration's defined behavior under injected cache, timing, malformed-state, and event-order scenarios. Hardware observations may provide operational context but are not required to prove those deterministic properties. No production source, release, merge, upstream PR, or deployment was changed.
