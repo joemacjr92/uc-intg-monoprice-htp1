@@ -601,11 +601,13 @@ class HTP1Device(WebSocketDevice):
     async def _refresh_state_locked(self) -> bool:
         """Request a fresh receiver snapshot while holding the transaction lock."""
         if not self._ws or not self.is_connected:
+            self._invalidate_state("cannot refresh while disconnected")
             return False
 
         generation = self._connection_generation
         self._state_ready.clear()
         if not await self.send_message("getmso"):
+            self._invalidate_state("failed to request fresh receiver state")
             return False
         waiter = asyncio.create_task(self._state_ready.wait())
         try:
@@ -616,6 +618,7 @@ class HTP1Device(WebSocketDevice):
                 _LOG.warning(
                     "[%s] Timed out waiting for fresh HTP-1 state", self.log_id
                 )
+                self._invalidate_state("timed out waiting for fresh receiver state")
                 return False
             await waiter
         finally:
@@ -623,11 +626,14 @@ class HTP1Device(WebSocketDevice):
                 waiter.cancel()
                 await asyncio.gather(waiter, return_exceptions=True)
 
-        return (
+        refreshed = (
             self.is_connected
             and self._connection_generation == generation
             and isinstance(self._state, dict)
         )
+        if not refreshed:
+            self._invalidate_state("connection changed during state refresh")
+        return refreshed
 
     _MISSING = object()
 
