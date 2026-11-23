@@ -10,6 +10,7 @@ import copy
 import json
 import logging
 import math
+from enum import Enum
 import re
 from typing import Any
 
@@ -31,6 +32,37 @@ PROBE_TIMEOUT = 5.0
 STATE_REFRESH_TIMEOUT = 5.0
 WRITE_CONVERGENCE_TIMEOUT = 2.0
 DIRAC_SWITCH_TIMEOUT = 15.0
+
+
+class DiracLifecycleState(Enum):
+    """Integration-owned lifecycle for one receiver Dirac slot request."""
+
+    IDLE = "idle"
+    REQUESTED = "requested"
+    ACCEPTED = "accepted"
+    APPLYING = "applying"
+    COMPLETE = "complete"
+    FAILED = "failed"
+
+
+_DIRAC_LIFECYCLE_TRANSITIONS = {
+    DiracLifecycleState.IDLE: {DiracLifecycleState.REQUESTED},
+    DiracLifecycleState.REQUESTED: {
+        DiracLifecycleState.ACCEPTED,
+        DiracLifecycleState.FAILED,
+    },
+    DiracLifecycleState.ACCEPTED: {
+        DiracLifecycleState.APPLYING,
+        DiracLifecycleState.COMPLETE,
+        DiracLifecycleState.FAILED,
+    },
+    DiracLifecycleState.APPLYING: {
+        DiracLifecycleState.COMPLETE,
+        DiracLifecycleState.FAILED,
+    },
+    DiracLifecycleState.COMPLETE: {DiracLifecycleState.REQUESTED},
+    DiracLifecycleState.FAILED: {DiracLifecycleState.REQUESTED},
+}
 SEAT_SHAKER_TRIM_MIN = -24
 SEAT_SHAKER_TRIM_MAX = 6
 
@@ -106,7 +138,7 @@ class HTP1Device(WebSocketDevice):
         self._dirac_request_slot: int | None = None
         self._dirac_update_event = asyncio.Event()
         self._dirac_error: str | None = None
-        self._dirac_accepting = False
+        self._dirac_lifecycle_state = DiracLifecycleState.IDLE
         self._dirac_acceptance_timeout = 2.0
         self._dirac_operation_lock = asyncio.Lock()
         self._dirac_task: asyncio.Task | None = None
@@ -244,7 +276,7 @@ class HTP1Device(WebSocketDevice):
         # Handle these before JSON decoding so the actual reason is retained.
         if cmd == "error":
             error = payload.strip() or "HTP-1 rejected the command"
-            if self._dirac_accepting:
+            if self._dirac_lifecycle_state is DiracLifecycleState.REQUESTED:
                 self._dirac_error = error
                 self._dirac_update_event.set()
             else:
@@ -691,12 +723,24 @@ class HTP1Device(WebSocketDevice):
                 )
         return False
 
+    def _set_dirac_lifecycle_state(self, state: DiracLifecycleState) -> None:
+        """Apply one legal Dirac lifecycle transition."""
+        current = getattr(self, "_dirac_lifecycle_state", DiracLifecycleState.IDLE)
+        if state is current:
+            return
+        if state not in _DIRAC_LIFECYCLE_TRANSITIONS[current]:
+            raise ValueError(
+                f"Invalid Dirac lifecycle transition: {current.value} -> {state.value}"
+            )
+        self._dirac_lifecycle_state = state
+
     def _dirac_commands_blocked(self) -> bool:
         """Return whether ordinary state mutations must wait for Dirac."""
-        return (
-            getattr(self, "_dirac_accepting", False)
-            or getattr(self, "_dirac_task", None) is not None
-        )
+        return getattr(self, "_dirac_lifecycle_state", DiracLifecycleState.IDLE) in {
+            DiracLifecycleState.REQUESTED,
+            DiracLifecycleState.ACCEPTED,
+            DiracLifecycleState.APPLYING,
+        }
 
     def _discard_dirac_volume_capture(self) -> None:
         """Discard volume requests captured for a Dirac operation."""
@@ -1072,12 +1116,22 @@ class HTP1Device(WebSocketDevice):
         return None
 
     async def _wait_for_dirac_acceptance(
-        self, previous_id: str | None, previous_reply_id: str | None, slot_idx: int
+        self,
+        previous_id: str | None,
+        previous_reply_id: str | None,
+        slot_idx: int,
+        connection_generation: int,
     ) -> tuple[str | None, str | None]:
         """Wait only until the receiver accepts this request, not for DSP completion."""
         loop = asyncio.get_running_loop()
         deadline = loop.time() + self._dirac_acceptance_timeout
         while True:
+            if (
+                not self.is_connected
+                or self._connection_generation != connection_generation
+            ):
+                return None, "HTP-1 connection was lost before Dirac accepted the slot change"
+
             request_id = (
                 self._dirac_request_id
                 if self._dirac_request_slot == slot_idx
@@ -1154,7 +1208,10 @@ class HTP1Device(WebSocketDevice):
                 return refusal
             if switch.get("id") == request_id:
                 if switch.get("state") == "complete":
+                    self._set_dirac_lifecycle_state(DiracLifecycleState.COMPLETE)
                     return None
+                if switch.get("state") == "running":
+                    self._set_dirac_lifecycle_state(DiracLifecycleState.APPLYING)
                 if switch.get("state") in {"refused", "failed", "error"}:
                     return str(switch.get("message") or "The HTP-1 refused the Dirac slot change")
 
@@ -1170,7 +1227,10 @@ class HTP1Device(WebSocketDevice):
             if refusal:
                 return refusal
             if switch.get("id") == request_id and switch.get("state") == "complete":
+                self._set_dirac_lifecycle_state(DiracLifecycleState.COMPLETE)
                 return None
+            if switch.get("id") == request_id and switch.get("state") == "running":
+                self._set_dirac_lifecycle_state(DiracLifecycleState.APPLYING)
             try:
                 await asyncio.wait_for(self._dirac_update_event.wait(), timeout=remaining)
             except asyncio.TimeoutError:
@@ -1240,6 +1300,8 @@ class HTP1Device(WebSocketDevice):
         finally:
             self._dirac_pending_slot_idx = None
             if not verified:
+                if self._dirac_lifecycle_state is not DiracLifecycleState.FAILED:
+                    self._set_dirac_lifecycle_state(DiracLifecycleState.FAILED)
                 self._discard_dirac_volume_capture()
                 self._dirac_display_hold = True
             if self._dirac_operation_lock.locked():
@@ -1286,7 +1348,8 @@ class HTP1Device(WebSocketDevice):
                 self._dirac_pending_slot_idx = slot_idx
                 self._dirac_display_hold = True
                 self._begin_dirac_volume_capture()
-                self._dirac_accepting = True
+                connection_generation = self._connection_generation
+                self._set_dirac_lifecycle_state(DiracLifecycleState.REQUESTED)
                 operation = {
                     "op": "replace",
                     "path": "/cal/currentdiracslot",
@@ -1294,7 +1357,7 @@ class HTP1Device(WebSocketDevice):
                 }
                 payload = json.dumps([operation], separators=(",", ":"))
                 if not await self.send_message(f"changemso {payload}"):
-                    self._dirac_accepting = False
+                    self._set_dirac_lifecycle_state(DiracLifecycleState.FAILED)
                     self._discard_dirac_volume_capture()
                     self._dirac_pending_slot_idx = None
                     self._dirac_display_hold = False
@@ -1303,15 +1366,15 @@ class HTP1Device(WebSocketDevice):
                     return False
 
                 request_id, failure = await self._wait_for_dirac_acceptance(
-                    previous_id, previous_reply_id, slot_idx
+                    previous_id, previous_reply_id, slot_idx, connection_generation
                 )
-                self._dirac_accepting = False
                 if failure or request_id is None:
                     _LOG.warning(
                         "[%s] Dirac slot change was not accepted: %s",
                         self.log_id,
                         failure or "No receiver request ID was observed",
                     )
+                    self._set_dirac_lifecycle_state(DiracLifecycleState.FAILED)
                     self._discard_dirac_volume_capture()
                     self._dirac_pending_slot_idx = None
                     self._dirac_display_hold = False
@@ -1319,12 +1382,13 @@ class HTP1Device(WebSocketDevice):
                     self.push_update()
                     return False
 
+                self._set_dirac_lifecycle_state(DiracLifecycleState.ACCEPTED)
                 self._dirac_task = asyncio.create_task(
                     self._monitor_dirac_switch(
                         request_id,
                         slot_idx,
                         previous_reply_id,
-                        self._connection_generation,
+                        connection_generation,
                     )
                 )
                 handed_off = True
@@ -1335,8 +1399,13 @@ class HTP1Device(WebSocketDevice):
                 )
                 return True
         finally:
-            self._dirac_accepting = False
             if not handed_off and self._dirac_operation_lock.locked():
+                if self._dirac_lifecycle_state in {
+                    DiracLifecycleState.REQUESTED,
+                    DiracLifecycleState.ACCEPTED,
+                    DiracLifecycleState.APPLYING,
+                }:
+                    self._set_dirac_lifecycle_state(DiracLifecycleState.FAILED)
                 self._discard_dirac_volume_capture()
                 self._dirac_pending_slot_idx = None
                 self._dirac_operation_lock.release()
