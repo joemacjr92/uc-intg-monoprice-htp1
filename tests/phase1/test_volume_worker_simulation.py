@@ -156,18 +156,26 @@ def test_five_second_hold_coalesces_intent_and_serializes_slow_writes():
         worker = CoalescingVolumeWorkerModel(receiver, initial)
 
         # A five-second hold at 10 requests/second: 50 logical +1 dB requests.
-        # The request timestamps are virtual; no wall-clock sleeps are needed.
+        # Advance a virtual timeline and acknowledge writes at 2.1 s and 4.2 s.
         request_times = [index / REQUESTS_PER_SECOND for index in range(50)]
         assert request_times[-1] < HOLD_SECONDS
-        for _timestamp in request_times:
+        completed_during_hold = 0
+        for index, _timestamp in enumerate(request_times):
             assert worker.request_step(+1)
+            await worker.wait_for_worker_to_start()
+            if index in (21, 42):
+                receiver.acknowledge_next()
+                completed_during_hold += 1
+                await worker.wait_for_worker_to_start()
 
-        await worker.wait_for_worker_to_start()
         assert worker.requested_target == 10
-        assert worker.confirmed_volume == initial
+        assert completed_during_hold == 2
+        assert worker.confirmed_volume == -30
         assert len(receiver.pending) == 1
-        assert receiver.pending[0].target == -35
+        assert receiver.pending[0].target == -25
 
+        # The third write began at 4.2 s; at release (5.0 s), 1.3 s of its
+        # 2.1 s acknowledgement remains, followed by seven more round trips.
         await worker.finish_all_writes()
 
         assert worker.confirmed_volume == 10
@@ -179,12 +187,15 @@ def test_five_second_hold_coalesces_intent_and_serializes_slow_writes():
             for index, (_sequence, target) in enumerate(receiver.write_history)
         )
 
-        # At the observed slow-response stress input, ten serialized 5 dB
-        # writes require about 21 seconds of receiver acknowledgement time.
-        simulated_ack_time = len(receiver.write_history) * OBSERVED_SLOW_STATE_RESPONSE_SECONDS
-        assert simulated_ack_time == 21.0
-        # This explicitly disproves a universal "one RTT after release" bound
-        # when the safety policy requires multiple bounded writes.
+        simulated_total_ack_time = len(receiver.write_history) * OBSERVED_SLOW_STATE_RESPONSE_SECONDS
+        simulated_after_release = (
+            (len(receiver.write_history) - completed_during_hold) * OBSERVED_SLOW_STATE_RESPONSE_SECONDS
+            - (HOLD_SECONDS - 2 * OBSERVED_SLOW_STATE_RESPONSE_SECONDS)
+        )
+        assert simulated_total_ack_time == 21.0
+        assert simulated_after_release == 16.0
+        # Under this bounded-write policy and observed slow-response stress
+        # input, the final target does NOT settle within one RTT after release.
 
     asyncio.run(exercise())
 
@@ -259,14 +270,22 @@ def test_write_failure_reconciles_to_actual_state_without_automatic_retry():
 
 
 def test_requested_target_obeys_receiver_volume_bounds():
-    receiver = ControlledReceiver(11)
-    worker = CoalescingVolumeWorkerModel(receiver, 11, maximum=12)
+    async def exercise():
+        receiver = ControlledReceiver(11)
+        worker = CoalescingVolumeWorkerModel(receiver, 11, maximum=12)
 
-    for _ in range(20):
-        assert worker.request_step(+1)
+        for _ in range(20):
+            assert worker.request_step(+1)
+        await worker.wait_for_worker_to_start()
 
-    assert worker.requested_target == 12
-    assert len(receiver.pending) <= 0
+        assert worker.requested_target == 12
+        assert len(receiver.pending) == 1
+        assert receiver.pending[0].target == 12
+        receiver.acknowledge_next()
+        await worker.wait_for_worker_to_start()
+        assert worker.confirmed_volume == 12
+
+    asyncio.run(exercise())
 
 
 def test_disconnect_cancels_worker_and_discards_unconfirmed_intent():
