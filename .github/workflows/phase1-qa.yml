@@ -28,7 +28,7 @@ jobs:
       - name: Checkout Phase 1 implementation under test
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ inputs.source_ref || 'feature-validation' }}
+          ref: ${{ inputs.source_ref || 'b8ee891275ac38d8122e3a7a9354094aa67bf88f' }}
           path: implementation
 
       - name: Set up Python
@@ -38,6 +38,23 @@ jobs:
 
       - name: Install test dependencies
         run: python -m pip install -r implementation/requirements.txt pytest pytest-cov
+
+      - name: Run volume cache safety regressions against selected baseline
+        continue-on-error: true
+        working-directory: implementation
+        run: |
+          python - <<'PY'
+          import os
+          import sys
+          import pytest
+
+          sys.path.insert(0, os.getcwd())
+          raise SystemExit(pytest.main([
+              "-q",
+              "--import-mode=importlib",
+              "../tests/phase1/test_volume_cache_safety.py",
+          ]))
+          PY
 
       - name: Run focused Ruff correctness checks
         run: |
