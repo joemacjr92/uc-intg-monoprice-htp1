@@ -1,9 +1,10 @@
 """Deterministic simulation of a coalescing volume worker.
 
 This is a design-level fake, not production code. It models the proposed
-latest-target worker with serialized writes. It compares two candidate write policies: a 5 dB
-maximum step (conservative but slow to catch up) and an unbounded latest-target
-write (fast but permits a large single jump). The 2.1 s acknowledgement delay is anchored to the observed
+latest-target worker with serialized writes. It compares two candidate write
+policies: a 5 dB maximum step (conservative but slow to catch up) and an
+unbounded latest-target write (fast but permits a large single jump). The
+2.1 s acknowledgement delay is anchored to the observed
 15:12:42.632-15:12:45.754 (>2.09 s) HTP-1 full-state response in
 dumps/integration.log. It is a stress input, not a claim that every volume
 write takes 2.1 s.
@@ -119,6 +120,7 @@ class CoalescingVolumeWorkerModel:
                 self.failures += 1
                 self.requested_target = self.receiver.actual_volume
                 self.confirmed_volume = self.receiver.actual_volume
+                self.reported_volume = self.receiver.actual_volume
                 self.corrections.append(self.confirmed_volume)
                 return
             self.confirmed_volume = actual
@@ -293,7 +295,7 @@ def test_stale_state_event_cannot_erase_newer_requested_target():
     asyncio.run(exercise())
 
 
-def test_out_of_order_older_confirmation_is_ignored():
+def test_untagged_state_patch_does_not_replace_transaction_confirmed_volume():
     receiver = ControlledReceiver(-30)
     worker = CoalescingVolumeWorkerModel(receiver, -30)
     worker.confirmed_volume = -28
