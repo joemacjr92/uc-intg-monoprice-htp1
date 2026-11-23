@@ -943,6 +943,9 @@ def test_dirac_lifecycle_rejects_illegal_transitions_and_allows_new_requests_aft
         device, receiver = make_device()
         try:
             assert device._dirac_lifecycle_state is DiracLifecycleState.IDLE
+            assert not hasattr(device, "_dirac_accepting")
+            assert not hasattr(device, "_dirac_display_hold")
+            assert not hasattr(device, "_dirac_pending_slot_idx")
             with pytest.raises(ValueError, match="idle -> accepted"):
                 device._set_dirac_lifecycle_state(DiracLifecycleState.ACCEPTED)
 
