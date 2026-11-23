@@ -83,7 +83,7 @@ class CoalescingVolumeWorkerModel:
         self.maximum = maximum
         self.max_write_step = max_write_step
         self._sequence = 0
-        self._last_confirmed_sequence = 0
+        self.reported_volume = initial_volume
         self._worker_task: asyncio.Task | None = None
         self.connected = True
         self.corrections: list[int] = []
@@ -121,17 +121,18 @@ class CoalescingVolumeWorkerModel:
                 self.confirmed_volume = self.receiver.actual_volume
                 self.corrections.append(self.confirmed_volume)
                 return
-            if sequence >= self._last_confirmed_sequence:
-                self._last_confirmed_sequence = sequence
-                self.confirmed_volume = actual
+            self.confirmed_volume = actual
+            self.reported_volume = actual
 
-    def receive_state_event(self, volume: int, sequence: int) -> None:
-        """Ignore stale receiver events and never replace newer user intent."""
-        if sequence < self._last_confirmed_sequence:
-            return
-        self._last_confirmed_sequence = sequence
-        self.confirmed_volume = volume
-        # Deliberately do not assign requested_target from a state event.
+    def receive_state_event(self, volume: int) -> None:
+        """Model an untagged HTP-1 patch without changing worker intent.
+
+        HTP-1 state events do not carry a transaction sequence ID. The worker
+        therefore advances only from the transaction's authoritative result;
+        a live patch can update the observed/displayed snapshot but cannot
+        replace the logical target or the last transaction-confirmed base.
+        """
+        self.reported_volume = volume
 
     async def wait_for_worker_to_start(self) -> None:
         await asyncio.sleep(0)
@@ -272,17 +273,22 @@ def test_stale_state_event_cannot_erase_newer_requested_target():
             assert worker.request_step(+1)
         assert worker.requested_target == -20
 
-        # A delayed event from the first write arrives after the second write
-        # has already been sent. It may not roll back the logical target.
-        worker.receive_state_event(-35, sequence=1)
-        assert worker.requested_target == -20
-
         receiver.acknowledge_next()
         await worker.wait_for_worker_to_start()
         assert worker.confirmed_volume == -30
+        assert receiver.pending[0].target == -25
+
+        # A delayed, untagged patch from write one arrives after write two's
+        # authoritative confirmation. It may temporarily affect the reported
+        # snapshot, but cannot roll back the worker's confirmed base or target.
+        worker.receive_state_event(-35)
+        assert worker.reported_volume == -35
+        assert worker.confirmed_volume == -30
         assert worker.requested_target == -20
+
         await worker.finish_all_writes()
         assert worker.confirmed_volume == -20
+        assert worker.reported_volume == -20
 
     asyncio.run(exercise())
 
@@ -290,12 +296,13 @@ def test_stale_state_event_cannot_erase_newer_requested_target():
 def test_out_of_order_older_confirmation_is_ignored():
     receiver = ControlledReceiver(-30)
     worker = CoalescingVolumeWorkerModel(receiver, -30)
-    worker._last_confirmed_sequence = 2
     worker.confirmed_volume = -28
+    worker.reported_volume = -28
     worker.requested_target = -25
 
-    worker.receive_state_event(-29, sequence=1)
+    worker.receive_state_event(-29)
 
+    assert worker.reported_volume == -29
     assert worker.confirmed_volume == -28
     assert worker.requested_target == -25
 
