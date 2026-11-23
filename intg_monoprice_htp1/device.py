@@ -1126,10 +1126,7 @@ class HTP1Device(WebSocketDevice):
         loop = asyncio.get_running_loop()
         deadline = loop.time() + self._dirac_acceptance_timeout
         while True:
-            if (
-                not self.is_connected
-                or self._connection_generation != connection_generation
-            ):
+            if self._connection_generation != connection_generation:
                 return None, "HTP-1 connection was lost before Dirac accepted the slot change"
 
             request_id = (
