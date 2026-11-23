@@ -161,3 +161,15 @@ Real-device evidence captured 2026-11-23 is preserved in `tests/fixtures/dirac_h
 
 Regression coverage in `tests/phase1/test_dirac_switch_lifecycle.py` checks loading and completion display, persistent refusal and reset on the next request, concise failure reasons, exact request/reply correlation, and an unrelated stale reply with a non-reserved ID. The temporary focused MSO diagnostic logging remains in production during implementation and hardware verification; removal is deferred to a separate cleanup change.
 
+### Dirac lifecycle implementation — automated validation complete (2026-11-23)
+
+- Production implementation: `feature-validation` commit `78ccb01a735983b5e18c8e6904dd0dc0e9e06139`.
+- QA tests, sanitized hardware traces, and documentation: `tests-and-docs` commit `f6879e53567084f321b93f5dcf2871e4f63d7e61`.
+- Phase 1 WebSocket Safety QA [run 45189174061](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45189174061): passed. Focused Ruff correctness checks passed; standard regression tests 95 passed/1 skipped; Phase 0 compatibility 33 passed; Phase 1 suite 233 passed; Dirac concurrency stress repeated five times with 20 attempts per run (100/100 attempts passed); verified TLS tests 2 passed. Phase 1 measured coverage: device.py 86%, browser.py 66%, combined 83%.
+- Separate standard Tests workflow [run 45189174327](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45189174327): 93 passed, 1 skipped.
+- Phase 0 and Full QA workflow [run 45189174095](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45189174095): passed; 95 passed/1 skipped in the standard suite and 33 Phase 0 tests passed.
+- ARM64 Test Build [run 45189081822](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45189081822): passed, including Docker smoke build and ARM64 PyInstaller build/package. Artifact: `uc-intg-monoprice_htp1-2.4.2-aarch64` (24,496,297 bytes; SHA-256 `0c3e8f82a64d054fe40e17ef2c739b629082cd213fcfe075371c8605c92c98e2`). GitHub Actions artifact expires 2026-11-30.
+- The build is a test artifact only. No version bump, release, container push, merge, or deployment was performed.
+- Temporary Dirac MSO diagnostic logging remains on `feature-validation`; removal is deferred until after the user's hardware review.
+- Automated validation is complete. Actual Remote/HTP-1 hardware acceptance of the new sensor display remains pending.
+
