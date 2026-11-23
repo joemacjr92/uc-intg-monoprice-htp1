@@ -606,3 +606,94 @@ def test_silent_update_just_below_age_limit_documents_bounded_exposure():
 
     asyncio.run(exercise())
 
+
+
+# Cache ages at each Remote volume command, measured from the uploaded
+# 2026-11-22 five-second volume-down and volume-up hold trace. The first
+# command had no prior full snapshot; the remaining ages are measured from
+# the preceding Received full state to the next Command: volume_* entry.
+OBSERVED_REMOTE_HOLD_CACHE_AGES_SECONDS = (
+    None,
+    0.159, 0.083, 0.107, 0.088, 0.076, 0.159, 0.116, 0.149, 0.020, 0.103,
+    2.997,
+    0.216, 0.064, 0.133, 0.033, 0.157, 0.073, 0.106, 0.079, 0.108, 0.105, 0.134,
+)
+
+
+@pytest.mark.parametrize(
+    ("max_age", "expected_refreshes"),
+    [
+        (0.5, 2),
+        (1.0, 2),
+        (2.0, 2),
+        (3.0, 1),
+        (5.0, 1),
+    ],
+)
+def test_observed_remote_hold_trace_refresh_count_for_candidate_age(max_age, expected_refreshes):
+    """Replay measured cache ages against candidate freshness limits."""
+    async def exercise():
+        clock = FakeClock()
+        device, _receiver = make_volume_device(clock=clock)
+        device._volume_state_max_age = max_age
+        refreshes = 0
+
+        for age in OBSERVED_REMOTE_HOLD_CACHE_AGES_SECONDS:
+            if age is None:
+                # Initial command: there was no prior full-state baseline.
+                device._volume_state_timestamps.clear()
+                assert not device._volume_state_is_fresh()
+                refreshes += 1
+                continue
+
+            # Each age is measured from the preceding authoritative snapshot.
+            device._volume_state_timestamps = {
+                path: 0.0 for path in device_module.VOLUME_STATE_PATHS
+            }
+            clock.now = age
+            fresh = device._volume_state_is_fresh()
+            assert fresh is (age < max_age)
+            if not fresh:
+                refreshes += 1
+
+        assert refreshes == expected_refreshes
+
+    asyncio.run(exercise())
+
+
+@pytest.mark.parametrize("max_age", [0.5, 1.0, 2.0])
+@pytest.mark.parametrize("cache_age", [0.25, 0.5, 0.99, 1.0, 1.5, 2.0, 5.0])
+@pytest.mark.parametrize("direction", ["up", "down"])
+def test_silent_external_update_exposure_matches_candidate_age_limit(
+    max_age, cache_age, direction
+):
+    """A candidate limit only reconciles silent changes at or beyond that age."""
+    async def exercise():
+        clock = FakeClock()
+        device, receiver = make_volume_device(clock=clock)
+        device._volume_state_max_age = max_age
+
+        if direction == "up":
+            receiver.state["volume"] = -10
+            command = device.volume_up
+            stale_target = -19
+            refreshed_target = -9
+        else:
+            receiver.state["volume"] = -30
+            command = device.volume_down
+            stale_target = -21
+            refreshed_target = -31
+
+        # The external receiver change is deliberately not delivered as an
+        # msoupdate. Advance to the measured cache age before issuing a step.
+        clock.advance(cache_age)
+        assert await command() is True
+
+        expected_target = refreshed_target if cache_age >= max_age else stale_target
+        assert written_volume_targets(receiver) == [expected_target]
+        if cache_age >= max_age:
+            assert receiver.messages[0] == "getmso"
+        else:
+            assert receiver.messages[0].startswith("changemso ")
+
+    asyncio.run(exercise())
