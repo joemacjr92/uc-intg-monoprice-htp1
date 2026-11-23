@@ -582,3 +582,20 @@ def test_full_snapshot_refreshes_all_volume_dependency_timestamps():
 
     asyncio.run(exercise())
 
+def test_silent_update_just_below_age_limit_documents_bounded_exposure():
+    async def exercise():
+        clock = FakeClock()
+        device, receiver = make_volume_device(clock=clock)
+        receiver.state["volume"] = -10
+        clock.advance(0.49)
+
+        # With no sequence/gap signal, a silent change younger than the
+        # configured age bound is indistinguishable from an unchanged cache.
+        # The test records this explicit protocol limitation.
+        assert await device.volume_up() is True
+        assert written_volume_targets(receiver) == [-19]
+        assert receiver.state["volume"] == -19
+        assert receiver.messages[0].startswith("changemso ")
+
+    asyncio.run(exercise())
+
