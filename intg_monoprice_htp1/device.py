@@ -259,7 +259,7 @@ class HTP1Device(WebSocketDevice):
         self._is_connected = False
         self._connection_generation += 1
         self._state = None
-        self._state_ready.clear()
+        self._state_ready.set()
         # Wake in-flight state and Dirac lifecycle waiters on disconnect.
         self._state_ready.set()
         self._dirac_update_event.set()
