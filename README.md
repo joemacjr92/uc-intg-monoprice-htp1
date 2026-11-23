@@ -67,7 +67,7 @@ The integration provides live status for:
 | Sound Mode | Current surround or upmix mode |
 | Audio Format | Incoming audio format |
 | Output Audio Format | Current output audio format |
-| Dirac Slot | Active calibration, Dirac Bypass, or Dirac Off |
+| Dirac Slot | Active calibration, Dirac Bypass, Dirac Off, or lifecycle status |
 | Video Mode | Video resolution and available HDR/video details |
 | Connection | Receiver connection status |
 | BEQ Filter | Name of the loaded BEQ filter, or None |
