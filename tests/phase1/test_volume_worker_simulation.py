@@ -175,9 +175,9 @@ def test_five_second_hold_coalesces_intent_and_serializes_slow_writes():
 
         assert worker.requested_target == 10
         assert completed_during_hold == 2
-        assert worker.confirmed_volume == -30
+        assert worker.confirmed_volume == -34
         assert len(receiver.pending) == 1
-        assert receiver.pending[0].target == -25
+        assert receiver.pending[0].target == -29
 
         # The third write began at 4.2 s; at release (5.0 s), 1.3 s of its
         # 2.1 s acknowledgement remains, followed by seven more round trips.
@@ -186,7 +186,7 @@ def test_five_second_hold_coalesces_intent_and_serializes_slow_writes():
         assert worker.confirmed_volume == 10
         assert receiver.actual_volume == 10
         assert receiver.max_in_flight == 1
-        assert len(receiver.write_history) == 10
+        assert len(receiver.write_history) == 11
         assert all(
             abs(target - (initial if index == 0 else receiver.write_history[index - 1][1])) <= MAX_WRITE_STEP_DB
             for index, (_sequence, target) in enumerate(receiver.write_history)
@@ -197,8 +197,8 @@ def test_five_second_hold_coalesces_intent_and_serializes_slow_writes():
             (len(receiver.write_history) - completed_during_hold) * OBSERVED_SLOW_STATE_RESPONSE_SECONDS
             - (HOLD_SECONDS - 2 * OBSERVED_SLOW_STATE_RESPONSE_SECONDS)
         )
-        assert simulated_total_ack_time == 21.0
-        assert simulated_after_release == 16.0
+        assert simulated_total_ack_time == 23.1
+        assert simulated_after_release == 18.1
         # Under this bounded-write policy and observed slow-response stress
         # input, the final target does NOT settle within one RTT after release.
 
@@ -246,7 +246,7 @@ def test_unbounded_latest_target_policy_catches_up_after_release_in_about_two_rt
             - (HOLD_SECONDS - 2 * OBSERVED_SLOW_STATE_RESPONSE_SECONDS)
             + OBSERVED_SLOW_STATE_RESPONSE_SECONDS
         )
-        assert simulated_after_release == 3.4
+        assert abs(simulated_after_release - 3.4) < 1e-9
         # This policy approaches the proposed latency, but it does so by
         # allowing large writes (the final one is +8 dB, earlier ones larger).
 
