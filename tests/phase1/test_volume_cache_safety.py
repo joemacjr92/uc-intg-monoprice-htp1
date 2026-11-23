@@ -697,3 +697,62 @@ def test_silent_external_update_exposure_matches_candidate_age_limit(
             assert receiver.messages[0].startswith("changemso ")
 
     asyncio.run(exercise())
+
+
+def test_volume_transaction_waits_for_live_patch_before_authoritative_snapshot():
+    """Model the two serial waits measured in the Remote hold trace."""
+    async def exercise():
+        device, receiver = make_volume_device()
+        loop = asyncio.get_running_loop()
+        timeline = {}
+        tasks = []
+        live_patch_delay = 0.205
+        full_snapshot_delay = 0.128
+
+        async def delayed_live_patch(operations):
+            await asyncio.sleep(live_patch_delay)
+            candidate = copy.deepcopy(receiver.state)
+            for operation in operations:
+                apply_json_patch(
+                    candidate,
+                    operation["op"],
+                    operation["path"],
+                    operation.get("value"),
+                )
+            receiver.state = candidate
+            timeline["live_patch"] = loop.time()
+            await device.handle_message(f"msoupdate {json.dumps(operations)}")
+
+        async def delayed_full_snapshot():
+            await asyncio.sleep(full_snapshot_delay)
+            timeline["full_snapshot"] = loop.time()
+            await device.handle_message(f"mso {json.dumps(receiver.state)}")
+
+        async def delayed_send(message):
+            receiver.messages.append(message)
+            if message.startswith("changemso "):
+                timeline["write"] = loop.time()
+                operations = json.loads(message.partition(" ")[2])
+                tasks.append(asyncio.create_task(delayed_live_patch(operations)))
+            elif message == "getmso":
+                timeline["getmso"] = loop.time()
+                tasks.append(asyncio.create_task(delayed_full_snapshot()))
+
+        receiver.send = delayed_send
+
+        result = await device.volume_up()
+        await asyncio.gather(*tasks)
+
+        assert result is True
+        assert receiver.messages == [
+            'changemso [{"op":"replace","path":"/volume","value":-19}]',
+            "getmso",
+        ]
+        assert timeline["write"] < timeline["live_patch"]
+        assert timeline["live_patch"] <= timeline["getmso"]
+        assert timeline["getmso"] < timeline["full_snapshot"]
+        assert timeline["live_patch"] - timeline["write"] >= live_patch_delay * 0.95
+        assert timeline["full_snapshot"] - timeline["getmso"] >= full_snapshot_delay * 0.95
+        assert device._state["volume"] == -19
+
+    asyncio.run(exercise())
