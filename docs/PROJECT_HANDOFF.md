@@ -559,3 +559,24 @@ For QA commit `4f6ff939065056c003fc340d8d4bca6695e680b1`:
 The additional just-below-0.5-second limitation test is on the newer QA commit `1888dbccd01cae3b867c29f593569cb17c9d7ec7`; its final Phase 1 run is still pending at the time of this handoff update. The focused Ruff correctness checks passed. The broader Ruff scan remains diagnostic/non-gating and still reports existing findings; do not describe it as clean.
 
 **Acceptance boundary:** deterministic tests are authoritative for the injected state, timing, and event-order behavior. No physical HTP-1/Remote hardware test was performed for this cache policy. No merge, upstream PR, release, or deployment has been performed.
+
+### Pre-change regression comparison and hardware acceptance gate
+
+The new `tests/phase1/test_volume_cache_safety.py` suite was run against the pre-cache-hardening implementation commit `b8ee891275ac38d8122e3a7a9354094aa67bf88f` using an isolated implementation checkout. The focused baseline run produced **22 failures and 14 passes**. The failures expose the expected missing protections: unconditional pre-write refresh despite a delivered fresh update, no per-dependency freshness metadata, stale/malformed cache remaining trusted, missing/invalid calibration inputs being accepted, and failure to invalidate an unconfirmed cache after a failed final snapshot. This confirms the new regressions distinguish the hardened implementation from the previous head; the baseline failure is intentional, not a current-branch CI failure.
+
+Baseline run: [Phase 1 WebSocket Safety QA run 45102729576](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45102729576), focused test step output: 22 failed, 14 passed. The workflow also ran the full existing regression suite against the baseline and stopped there with 15 failures, 80 passed, 1 skipped because the current QA test fixtures now assert the new invalidation behavior and use the new cache metadata helpers. That broader baseline failure is expected for this comparison and is not a clean full-suite baseline.
+
+The temporary baseline-only workflow changes were reverted. `.github/workflows/phase1-qa.yml` again defaults to `feature-validation` and contains no baseline-only step.
+
+**Hardware acceptance remains outstanding and cannot be performed from the GitHub CI environment.** It requires the actual HTP-1 and Remote in normal operating mode. Before merging, record:
+
+1. Starting receiver volume and Remote-displayed volume.
+2. Hold volume-up for exactly 5 seconds, then release. Record the number of button repeats if visible, the time from release until the Remote display reaches the receiver's final volume, and whether any `Receiver state mismatch after transaction` messages appear.
+3. Repeat with volume-down to confirm symmetric behaviour.
+4. For the silent-update check, change volume externally on the HTP-1 while the integration does not receive the corresponding WebSocket update. Run the check once after a 0.5-second cache age and once after a 2-second cache age. Confirm the resulting relative step is based on the receiver's externally changed value, not the stale cached value. Record the raw receiver value, cached/displayed value, command target, and whether a pre-write `getmso` occurred.
+5. Restore normal connectivity and verify a full snapshot re-establishes the displayed state before further volume commands.
+
+Do not simulate a dropped WebSocket update by simply pausing all traffic unless the test also preserves the ability to observe the subsequent refresh; the point is to distinguish an actually omitted volume patch from a disconnected or invalid connection, which should already force refresh. If the receiver cannot be made to omit exactly one update while remaining connected, record that limitation rather than treating a normal external volume change as a lost-update test.
+
+The 0.5-second maximum age remains provisional pending those measurements. The 2-second check is a comparison point, not the current production setting. Do not merge until the hardware results are reviewed and the threshold is either confirmed or revised.
+
