@@ -452,7 +452,7 @@ Validation status at the time of this handoff update:
 **Acceptance boundary:** this is a deterministic model of the proposed architecture, not an implementation test of production volume commands and not hardware validation. It cannot establish how the actual Remote displays optimistic volume changes or how the physical HTP-1 orders delayed state events. Keep the five-second hold test with the actual Remote and HTP-1 on the deferred hardware-validation list. No production source, release, merge, upstream PR, or deployment was changed by this simulation work.
 
 
-### Volume worker simulation — normal response-time model (2026-11-23)
+### Volume worker simulation — normal response-time model (2026-11-22)
 
 The earlier 2.1-second Dirac/full-state proxy simulation is retained above as a historical stress case, but it is not representative of normal volume-write response time. The revised deterministic QA model uses the normal 0.3–0.5 second response-time estimate discussed from the earlier captures. These values are simulation inputs based on the capture-derived estimate; this rerun is not a new timed hardware measurement.
 
