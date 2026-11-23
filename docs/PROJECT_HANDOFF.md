@@ -450,3 +450,42 @@ Validation status at the time of this handoff update:
 - Phase 1 test suite step passed on the same commit. The complete Phase 1 workflow was still running its isolated Dirac stress repetitions and TLS checks: [run 45092006882](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45092006882).
 
 **Acceptance boundary:** this is a deterministic model of the proposed architecture, not an implementation test of production volume commands and not hardware validation. It cannot establish how the actual Remote displays optimistic volume changes or how the physical HTP-1 orders delayed state events. Keep the five-second hold test with the actual Remote and HTP-1 on the deferred hardware-validation list. No production source, release, merge, upstream PR, or deployment was changed by this simulation work.
+
+
+### Volume worker simulation — normal response-time model (2026-11-23)
+
+The earlier 2.1-second Dirac/full-state proxy simulation is retained above as a historical stress case, but it is not representative of normal volume-write response time. The revised deterministic QA model uses the normal 0.3–0.5 second response-time estimate discussed from the earlier captures. These values are simulation inputs based on the capture-derived estimate; this rerun is not a new timed hardware measurement.
+
+Model assumptions:
+- Five-second hold at 10 relative requests per second: 50 one-decibel requests, from an assumed stress rate rather than a measured Remote repeat rate.
+- Start at -40 dB and finish at +10 dB.
+- One volume write may be outstanding at a time.
+- Every write is limited to a maximum 5 dB change.
+- A write is modeled as complete when a matching post-send `/volume` `msoupdate` arrives.
+- The worker immediately sends the latest bounded target after a completion if the target differs from confirmed volume.
+- No pre-write `getmso` refresh and no full-state readback after each write.
+- One authoritative full snapshot is requested after the worker becomes idle. For this comparison, its latency is also modeled as 0.3–0.5 seconds.
+- No automatic retry is modeled.
+
+Results:
+
+| Matching `msoupdate` response time | Serialized writes | Final write completes | Idle snapshot completes | Time after 5 s release |
+|---:|---:|---:|---:|---:|
+| 0.30 s | 18 | 5.4 s | 5.7 s | 0.7 s |
+| 0.40 s | 14 | 5.6 s | 6.0 s | 1.0 s |
+| 0.50 s | 11 | 5.5 s | 6.0 s | 1.0 s |
+
+Interpretation:
+- All three cases settle the final authoritative snapshot within about one second after the five-second hold ends.
+- At 0.50 seconds, roughly five button presses accumulate between completions, so the worker uses 11 writes, each no larger than 5 dB.
+- At 0.30 seconds, only about three presses accumulate between completions. The worker therefore sends smaller bounded changes more frequently (18 writes), but catches up sooner after release.
+- The write count is not fixed at 11: it depends on the relationship between button-repeat rate and response latency. The 5 dB cap is preserved in every case.
+- The model eliminates the old 2.1-second assumption from the ordinary-volume path and represents the proposed optimization: no pre-write refresh and one full snapshot at idle rather than a full read after every write.
+
+The updated QA simulation is in `tests/phase1/test_volume_worker_simulation.py`. Four deterministic tests cover the latency sweep, 5 dB per-write cap, single-write serialization, one idle snapshot, and coalescing of 50 requests. Local pytest result: 4 passed.
+
+Important limitations:
+- The 0.3–0.5 second values are the earlier capture-derived normal-response estimate used as inputs, not a fresh hardware timing run.
+- The model treats a matching post-send `msoupdate` as the completion event for timing. It does not prove that an untagged update belongs to the write; ABA/stale-duplicate ambiguity and timeout handling remain separate design requirements.
+- The snapshot completion time is not the same as verified Remote display convergence. Measuring how long the Remote display takes to match the HTP-1 remains part of hardware acceptance.
+- This is a deterministic QA model, not production implementation or hardware validation. No production source, release, merge, upstream PR, or deployment was changed.
