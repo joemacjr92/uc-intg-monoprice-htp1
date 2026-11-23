@@ -82,7 +82,7 @@ The **Dirac Slot** sensor reports the receiver's confirmed Dirac state and also 
 - **Loading <target>** – the HTP-1 has accepted a calibration change and is applying the requested slot. If the target name is not available, the sensor displays **Loading calibration**.
 - **Not applied: <reason>** – the requested change was refused or could not be completed.
 
-The HTP-1 can report the requested slot index before its DSP has finished applying that calibration. During this interval, the sensor keeps showing the last confirmed state rather than presenting the requested slot as already active. After the change completes, the integration reads the receiver's state and displays the confirmed result. If the change fails, the last confirmed calibration remains displayed and the failure status explains why the request was not applied.
+The HTP-1 can report the requested slot index before its DSP has finished applying that calibration. During this interval, the sensor displays **Loading <target>** rather than presenting the requested slot as already active. After the change completes, the integration reads the receiver's state and displays the confirmed result. If the change fails, the sensor displays **Not applied: <reason>**—it does not continue to show the previous calibration name. The integration retains the last confirmed calibration internally, so the failed target is not treated as active. Common reasons include **standby**, **busy**, and **timeout**; other failures display the available error text.
 
 ## Requirements and network access
 
