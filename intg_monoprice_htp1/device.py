@@ -276,72 +276,6 @@ class HTP1Device(WebSocketDevice):
         self._sensor_data = {}
         self.push_update()
 
-    def _log_dirac_mso_state(self, source: str, updates: list[dict[str, Any]] | None = None) -> None:
-        """Log only the MSO fields useful for investigating Dirac slot changes."""
-        state = _as_dict(self._state)
-        cal = _as_dict(state.get("cal"))
-        fields = (
-            "diracSwitch",
-            "diracSwitchReply",
-            "diracApplying",
-            "currentdiracslot",
-            "diracactive",
-        )
-        snapshot = {key: cal[key] for key in fields if key in cal}
-        power = state.get("powerIsOn")
-        if power is not None:
-            snapshot["powerIsOn"] = power
-
-        if updates:
-            _LOG.info(
-                "[%s] Dirac MSO %s: updates=%s state=%s",
-                self.log_id,
-                source,
-                json.dumps(updates, sort_keys=True, separators=(",", ":")),
-                json.dumps(snapshot, sort_keys=True, separators=(",", ":")),
-            )
-        else:
-            _LOG.info(
-                "[%s] Dirac MSO %s: state=%s",
-                self.log_id,
-                source,
-                json.dumps(snapshot, sort_keys=True, separators=(",", ":")),
-            )
-
-    @staticmethod
-    def _dirac_mso_update(piece: dict[str, Any]) -> dict[str, Any] | None:
-        """Return a compact patch record when an MSO update touches Dirac or power state."""
-        path = piece.get("path")
-        if not isinstance(path, str):
-            return None
-        if path == "/cal":
-            cal = _as_dict(piece.get("value"))
-            fields = (
-                "diracSwitch",
-                "diracSwitchReply",
-                "diracApplying",
-                "currentdiracslot",
-                "diracactive",
-            )
-            value = {key: cal[key] for key in fields if key in cal}
-            return {"op": piece.get("op"), "path": path, "value": value} if value else None
-        if path == "/powerIsOn" or path in {
-            "/cal/diracSwitch",
-            "/cal/diracSwitchReply",
-            "/cal/diracApplying",
-            "/cal/currentdiracslot",
-            "/cal/diracactive",
-        } or path.startswith((
-            "/cal/diracSwitch/",
-            "/cal/diracSwitchReply/",
-        )):
-            return {
-                "op": piece.get("op"),
-                "path": path,
-                "value": piece.get("value"),
-            }
-        return None
-
     async def handle_message(self, message: str) -> None:
         if " " not in message:
             return
@@ -381,7 +315,6 @@ class HTP1Device(WebSocketDevice):
             self._state_ready.set()
             self._dirac_update_event.set()
             _LOG.debug("[%s] Received full state", self.log_id)
-            self._log_dirac_mso_state("full mso")
             self._parse_state()
             self.push_update()
 
@@ -429,14 +362,6 @@ class HTP1Device(WebSocketDevice):
                     self._dirac_request_slot = switch["slot"]
 
             self._state = candidate_state
-            dirac_updates = [
-                relevant
-                for piece in data
-                if isinstance(piece, dict)
-                if (relevant := self._dirac_mso_update(piece)) is not None
-            ]
-            if dirac_updates:
-                self._log_dirac_mso_state("msoupdate", dirac_updates)
             self._record_volume_state_observation(
                 piece["path"]
                 for piece in data
