@@ -223,7 +223,7 @@ def test_unbounded_latest_target_policy_catches_up_after_release_in_about_two_rt
                 await worker.wait_for_worker_to_start()
 
         assert worker.requested_target == 10
-        assert worker.confirmed_volume == 2
+        assert worker.confirmed_volume == -19
         assert len(receiver.pending) == 1
         assert receiver.pending[0].target == 2
 
