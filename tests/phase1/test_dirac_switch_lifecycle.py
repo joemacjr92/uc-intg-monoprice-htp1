@@ -1166,28 +1166,31 @@ def test_dirac_sensor_status_uses_short_failure_reasons():
 
 
 def test_observed_hardware_traces_correlate_refusal_and_ignore_stale_reply():
-    trace_path = Path(__file__).parents[1] / "fixtures" / "dirac_hardware_traces.json"
-    traces = json.loads(trace_path.read_text(encoding="utf-8"))
-    device, receiver = make_device()
-    try:
-        standby = traces["standby"]
-        refusal = standby["reply"]
-        assert refusal["id"] == standby["request"]["id"]
-        assert device._dirac_refusal(
-            standby["request"]["id"], standby["previous_reply"]["id"]
-        ) == refusal["message"]
+    async def exercise():
+        trace_path = Path(__file__).parents[1] / "fixtures" / "dirac_hardware_traces.json"
+        traces = json.loads(trace_path.read_text(encoding="utf-8"))
+        device, receiver = make_device()
+        try:
+            standby = traces["standby"]
+            refusal = standby["reply"]
+            assert refusal["id"] == standby["request"]["id"]
+            assert device._dirac_refusal(
+                standby["request"]["id"], standby["previous_reply"]["id"]
+            ) == refusal["message"]
 
-        success = traces["successful_switch"]
-        assert success["request"]["id"] == success["running"]["id"]
-        assert success["running"]["id"] == success["complete"]["id"]
-        assert success["complete"]["state"] == "complete"
+            success = traces["successful_switch"]
+            assert success["request"]["id"] == success["running"]["id"]
+            assert success["running"]["id"] == success["complete"]["id"]
+            assert success["complete"]["state"] == "complete"
 
-        # The standby refusal remains in the receiver snapshot during the later
-        # successful operation, but its old request ID cannot fail the new one.
-        device._state["cal"]["diracSwitch"] = success["complete"]
-        device._state["cal"]["diracSwitchReply"] = refusal
-        assert device._dirac_refusal(
-            success["request"]["id"], refusal["id"]
-        ) is None
-    finally:
-        asyncio.run(receiver.cleanup())
+            # The standby refusal remains in the receiver snapshot during the later
+            # successful operation, but its old request ID cannot fail the new one.
+            device._state["cal"]["diracSwitch"] = success["complete"]
+            device._state["cal"]["diracSwitchReply"] = refusal
+            assert device._dirac_refusal(
+                success["request"]["id"], refusal["id"]
+            ) is None
+        finally:
+            await receiver.cleanup()
+
+    asyncio.run(exercise())
