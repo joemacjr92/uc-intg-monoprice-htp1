@@ -489,3 +489,28 @@ Important limitations:
 - The model treats a matching post-send `msoupdate` as the completion event for timing. It does not prove that an untagged update belongs to the write; ABA/stale-duplicate ambiguity and timeout handling remain separate design requirements.
 - The snapshot completion time is not the same as verified Remote display convergence. Measuring how long the Remote display takes to match the HTP-1 remains part of hardware acceptance.
 - This is a deterministic QA model, not production implementation or hardware validation. No production source, release, merge, upstream PR, or deployment was changed.
+
+
+### Volume cache freshness and WebSocket event-order regressions — 2026-11-23
+
+A new QA-only test module, `tests/phase1/test_volume_cache_safety.py`, exercises the existing `feature-validation` implementation through the Phase 1 workflow. No production source or volume-command behavior was changed.
+
+The fake receiver maintains authoritative receiver state separately from the integration's cached state. It can change the receiver's volume without delivering an `msoupdate`, deliver an external volume patch, withhold full-state responses, and emit duplicate or out-of-order volume patches.
+
+Coverage includes:
+
+- **Silent lost-update gap sweep:** the receiver changes from -20 dB to -10 dB without delivering an event. The test waits 0.5, 2, 5, and 10 seconds, then invokes `volume_up`. Each case verifies that the pre-write `getmso` refresh observes -10 dB and writes -9 dB, rather than overwriting the external change with -19 dB.
+- **Delivered external update:** a valid `/volume` patch updates the cached raw volume and parsed displayed volume, and the next relative command uses the receiver's actual value.
+- **Disconnect:** loss of connection clears the state and prevents a relative volume write.
+- **Malformed patch:** the malformed batch is rejected and requests a full snapshot. If that snapshot is unavailable, the subsequent relative command fails closed without sending `changemso`.
+- **Duplicate and out-of-order events:** matching live `/volume` patches are not treated as final transaction confirmation. The authoritative full `mso` readback remains decisive.
+- **ABA replay:** the test first observes a volume value, observes it change away, and then replays the old matching value after a new write. Because the protocol has no transaction ID or sequence number, the replay is indistinguishable at the event level; the final full snapshot must reject it when the receiver's authoritative state did not change.
+
+The lost-update tests deliberately exercise the current conservative behavior: every relative volume command obtains a fresh full snapshot before calculating its write. They are a baseline safety contract, not evidence for a particular future cache-age threshold. If a later implementation removes the unconditional pre-write refresh, these tests must be adapted to prove that invalid cache state and cache age both force reconciliation before a relative write. A delivered update may keep the cache current, but a silently omitted update cannot be detected from the untagged protocol alone.
+
+Validation at the time of this entry:
+
+- Commit `cb001d8b45b81aaebf74bf12783987a86ae57837`: Standard Tests [run 45098687967](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45098687967) passed; Phase 0 and Full QA [run 45098687901](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45098687901) passed; the Phase 1 test-suite step passed in [run 45098687877](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45098687877). The complete Phase 1 workflow was still running its isolated Dirac stress repetitions and TLS checks when this entry was written.
+- The additional ABA replay case was added in commit `76b15e62a24ed94f7b13633726159d5dc616991a`; its complete CI validation is pending.
+
+**Acceptance boundary:** these deterministic tests are the authority for the integration's defined cache, transaction, and event-order behavior under the injected scenarios. They do not estimate how often a physical HTP-1 omits an event. No on-device test is required to establish these deterministic safety properties. Hardware observations may inform operational latency or freshness tuning, but must not replace the automated regression suite. No production source, release, merge, upstream PR, or deployment was changed.
