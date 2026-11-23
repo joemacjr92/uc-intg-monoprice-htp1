@@ -535,3 +535,50 @@ def test_failed_final_snapshot_invalidates_unconfirmed_volume_cache(monkeypatch)
 
     asyncio.run(exercise())
 
+@pytest.mark.parametrize(
+    ("path", "value"),
+    [
+        ("/volume", -21),
+        ("/cal/vpl", -79),
+        ("/cal/vph", 11),
+        ("/cal/zeroPoint", -6),
+    ],
+)
+def test_each_volume_dependency_patch_refreshes_only_its_own_timestamp(path, value):
+    async def exercise():
+        clock = FakeClock()
+        device, _receiver = make_volume_device(clock=clock)
+        clock.advance(0.2)
+
+        await device.handle_message(
+            "msoupdate "
+            + json.dumps([{"op": "replace", "path": path, "value": value}])
+        )
+
+        for dependency in device._volume_state_timestamps:
+            expected = 0.2 if dependency == path else 0.0
+            assert device._volume_state_timestamps[dependency] == expected
+
+    asyncio.run(exercise())
+
+
+def test_full_snapshot_refreshes_all_volume_dependency_timestamps():
+    async def exercise():
+        clock = FakeClock()
+        device, receiver = make_volume_device(clock=clock)
+        receiver.state["volume"] = -15
+        clock.advance(0.2)
+
+        await device.handle_message(f"mso {json.dumps(receiver.state)}")
+
+        assert device._state["volume"] == -15
+        assert set(device._volume_state_timestamps) == {
+            "/volume",
+            "/cal/vpl",
+            "/cal/vph",
+            "/cal/zeroPoint",
+        }
+        assert set(device._volume_state_timestamps.values()) == {0.2}
+
+    asyncio.run(exercise())
+
