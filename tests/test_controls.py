@@ -12,6 +12,7 @@ def make_device():
 
 def install_transaction_test_doubles(device, sent):
     async def refresh():
+        device._record_volume_state_observation()
         return True
 
     async def capture_locked(operations):
