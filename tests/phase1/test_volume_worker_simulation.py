@@ -168,7 +168,7 @@ def test_five_second_hold_coalesces_intent_and_serializes_slow_writes():
         for index, _timestamp in enumerate(request_times):
             assert worker.request_step(+1)
             await worker.wait_for_worker_to_start()
-            if index in (21, 42):
+            if index in (20, 41):
                 receiver.acknowledge_next()
                 completed_during_hold += 1
                 await worker.wait_for_worker_to_start()
@@ -218,7 +218,7 @@ def test_unbounded_latest_target_policy_catches_up_after_release_in_about_two_rt
         for index in range(50):
             assert worker.request_step(+1)
             await worker.wait_for_worker_to_start()
-            if index in (21, 42):
+            if index in (20, 41):
                 receiver.acknowledge_next()
                 await worker.wait_for_worker_to_start()
 
