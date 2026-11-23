@@ -720,3 +720,12 @@ The user supplied real HTP-1 MSO traces for a standby refusal and a successful p
 
 **Next action when the user returns:** install/review the ARM64 test artifact on the Remote and verify the sensor displays Loading during a real slot change, Not applied after an off/standby refusal, and the confirmed slot after a successful powered-on change. Check the calibration select remains correct. Then decide whether to remove temporary diagnostic logging in a separate commit. Do not merge, open upstream PRs, release, or deploy without explicit authorization. Automated validation does not replace physical Remote/HTP-1 acceptance.
 
+
+
+### Normal-operation Remote/HTP-1 hardware validation — 2026-11-23
+
+The user operated the integration during normal everyday use with the actual Unfolded Circle Remote and physical Monoprice HTP-1 and reported that it worked as expected. Record this as **normal-operation hardware validation passed**. This is real Remote-plus-receiver evidence, not a fake-receiver or simulator result.
+
+The session was not itemized by command, duration, or feature, so do not infer that every control or failure scenario was individually exercised. Keep targeted edge-case acceptance distinct: stress/concurrency, disconnect/reconnect during transactions, Dirac refusal/lifecycle display, BEQ placement/routing, and the previously deferred power/Dirac slow-response cases remain outstanding unless separately verified. The two earlier physical HTP-1 deferred-volume observations and their unresolved immediate readback warning remain separately documented; this normal-use report does not resolve that warning.
+
+No production code, QA tests, release, merge, upstream PR, or deployment was changed by this hardware session. QA documentation remains on `tests-and-docs`.
