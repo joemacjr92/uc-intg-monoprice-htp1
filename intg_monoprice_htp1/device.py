@@ -12,6 +12,7 @@ import logging
 import math
 from enum import Enum
 import re
+import time
 from typing import Any
 
 import aiohttp
@@ -30,6 +31,8 @@ KEEPALIVE_INTERVAL = 20
 KEEPALIVE_TIMEOUT = 10
 PROBE_TIMEOUT = 5.0
 STATE_REFRESH_TIMEOUT = 5.0
+VOLUME_STATE_MAX_AGE = 0.5
+VOLUME_STATE_PATHS = ("/volume", "/cal/vpl", "/cal/vph", "/cal/zeroPoint")
 WRITE_CONVERGENCE_TIMEOUT = 2.0
 DIRAC_SWITCH_TIMEOUT = 15.0
 
@@ -128,6 +131,9 @@ class HTP1Device(WebSocketDevice):
         super().__init__(device_config, reconnect=True, ping_interval=0, **kwargs)
         self._device_config = device_config
         self._state: dict[str, Any] | None = None
+        self._volume_state_timestamps: dict[str, float] = {}
+        self._volume_state_max_age = VOLUME_STATE_MAX_AGE
+        self._clock = time.monotonic
         self._state_ready = asyncio.Event()
         self._state_update_event = asyncio.Event()
         self._state_update_paths: set[str] = set()
@@ -177,6 +183,7 @@ class HTP1Device(WebSocketDevice):
         _LOG.info("[%s] WebSocket connected", self.log_id)
         self._connection_generation += 1
         self._state = None
+        self._volume_state_timestamps.clear()
         self._state_ready.clear()
         await asyncio.sleep(0.1)
         await self.send_message("getmso")
@@ -193,6 +200,7 @@ class HTP1Device(WebSocketDevice):
         _LOG.info("[%s] WebSocket disconnected", self.log_id)
         self._connection_generation += 1
         self._state = None
+        self._volume_state_timestamps.clear()
         self._state_ready.set()
         self._state_update_event.set()
         self._dirac_update_event.set()
@@ -259,7 +267,7 @@ class HTP1Device(WebSocketDevice):
         self._is_connected = False
         self._connection_generation += 1
         self._state = None
-        self._state_ready.set()
+        self._volume_state_timestamps.clear()
         # Wake in-flight state and Dirac lifecycle waiters on disconnect.
         self._state_ready.set()
         self._dirac_update_event.set()
@@ -301,6 +309,7 @@ class HTP1Device(WebSocketDevice):
                 await self.send_message("getmso")
                 return
             self._state = data
+            self._record_volume_state_observation()
             self._state_ready.set()
             self._dirac_update_event.set()
             _LOG.debug("[%s] Received full state", self.log_id)
@@ -351,6 +360,11 @@ class HTP1Device(WebSocketDevice):
                     self._dirac_request_slot = switch["slot"]
 
             self._state = candidate_state
+            self._record_volume_state_observation(
+                piece["path"]
+                for piece in data
+                if isinstance(piece, dict) and isinstance(piece.get("path"), str)
+            )
             self._state_update_paths.update(
                 piece["path"]
                 for piece in data
@@ -366,11 +380,40 @@ class HTP1Device(WebSocketDevice):
         if self._state is not None:
             _LOG.warning("[%s] Invalidating cached HTP-1 state: %s", self.log_id, reason)
         self._state = None
+        self._volume_state_timestamps.clear()
         self._state_ready.clear()
         # Wake waiters so they can observe that the current snapshot is no
         # longer usable instead of continuing with stale cached values.
         self._state_update_event.set()
         self._dirac_update_event.set()
+
+    def _record_volume_state_observation(self, paths=None) -> None:
+        """Record monotonic observation times for volume dependencies only."""
+        now = self._clock()
+        if paths is None:
+            for path in VOLUME_STATE_PATHS:
+                self._volume_state_timestamps[path] = now
+            return
+
+        calibration_paths = {"/cal/vpl", "/cal/vph", "/cal/zeroPoint"}
+        for path in paths:
+            if path == "/volume":
+                self._volume_state_timestamps["/volume"] = now
+            elif path == "/cal":
+                for dependency in calibration_paths:
+                    self._volume_state_timestamps[dependency] = now
+            elif path in calibration_paths:
+                self._volume_state_timestamps[path] = now
+
+    def _volume_state_is_fresh(self) -> bool:
+        """Require every relative-volume dependency to have a recent observation."""
+        if any(path not in self._volume_state_timestamps for path in VOLUME_STATE_PATHS):
+            return False
+        now = self._clock()
+        return all(
+            0 <= now - self._volume_state_timestamps[path] < self._volume_state_max_age
+            for path in VOLUME_STATE_PATHS
+        )
 
     def _volume_state_is_valid(self) -> bool:
         """Return whether the full snapshot contains safe relative-volume inputs."""
@@ -1022,7 +1065,10 @@ class HTP1Device(WebSocketDevice):
                 return captured
             if self._dirac_commands_blocked():
                 return False
-            if not await self._refresh_state_locked() or not self._volume_state_is_valid():
+            if not self._volume_state_is_valid() or not self._volume_state_is_fresh():
+                if not await self._refresh_state_locked():
+                    return False
+            if not self._volume_state_is_valid() or not self._volume_state_is_fresh():
                 return False
             current = self._state["volume"]
             if not _is_finite_number(self.vph):
