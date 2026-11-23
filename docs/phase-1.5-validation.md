@@ -4,7 +4,7 @@
 
 Phase 1.5 hardens the integration's connection lifecycle, entity synchronization, command/state round trips, BEQ browser behavior, and state-changing WebSocket transactions. It is a test-hardening phase; QA-only tests, fixtures, and workflow changes remain on `tests-and-docs`. Production corrections remain on `feature-validation`.
 
-**Status: Automated implementation and validation complete; two limited physical HTP-1 Dirac-volume tests passed; full Remote/HTP-1 hardware acceptance remains pending.**
+**Status: Automated implementation and validation complete; normal-operation testing with the actual Remote and HTP-1 passed; targeted edge-case hardware acceptance remains pending.**
 
 ## Production implementation
 
@@ -173,3 +173,14 @@ Regression coverage in `tests/phase1/test_dirac_switch_lifecycle.py` checks load
 - Temporary Dirac MSO diagnostic logging remains on `feature-validation`; removal is deferred until after the user's hardware review.
 - Automated validation is complete. Actual Remote/HTP-1 hardware acceptance of the new sensor display remains pending.
 
+
+
+### Normal-operation hardware validation — 2026-11-23
+
+The user operated the integration during normal everyday use with the actual Unfolded Circle Remote and physical Monoprice HTP-1. The user reported that the device operated as expected and no unexpected behavior was observed during this normal-use session.
+
+**Result: normal-operation Remote/HTP-1 hardware validation passed.** This is direct hardware evidence beyond the fake-receiver and CI tests. The exact commands, duration, and individual feature coverage were not itemized, so this observation must not be expanded into a claim that every control or edge case was individually exercised.
+
+This does not close the broader hardware-acceptance work. Stress/concurrency, disconnect/reconnect during transactions, Dirac refusal and lifecycle display checks, BEQ placement/routing, and the previously deferred power/Dirac slow-response cases remain separate checks unless independently recorded as completed. Keep the earlier limited physical HTP-1 deferred-volume observations and the unresolved immediate readback warning as separate evidence.
+
+No production code, QA tests, release, merge, upstream PR, or deployment was changed by this hardware session.
