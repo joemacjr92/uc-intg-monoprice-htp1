@@ -194,6 +194,7 @@ class HTP1Device(WebSocketDevice):
         self._connection_generation += 1
         self._state = None
         self._state_ready.set()
+        self._state_update_event.set()
         self._dirac_update_event.set()
         self._sensor_data = {}
         self.push_update()
@@ -258,6 +259,7 @@ class HTP1Device(WebSocketDevice):
         self._is_connected = False
         self._connection_generation += 1
         self._state = None
+        self._state_ready.clear()
         # Wake in-flight state and Dirac lifecycle waiters on disconnect.
         self._state_ready.set()
         self._dirac_update_event.set()
@@ -287,11 +289,16 @@ class HTP1Device(WebSocketDevice):
             data = json.loads(payload)
         except json.JSONDecodeError as err:
             _LOG.error("[%s] Failed to decode JSON payload: %s", self.log_id, err)
+            if cmd in {"mso", "msoupdate"}:
+                self._invalidate_state("malformed JSON payload")
+                await self.send_message("getmso")
             return
 
         if cmd == "mso":
             if not isinstance(data, dict):
                 _LOG.error("[%s] Ignoring invalid full-state payload (%s)", self.log_id, type(data).__name__)
+                self._invalidate_state("invalid full-state payload")
+                await self.send_message("getmso")
                 return
             self._state = data
             self._state_ready.set()
@@ -322,6 +329,7 @@ class HTP1Device(WebSocketDevice):
                     apply_json_patch(candidate_state, op, path_str, piece.get("value"))
             except (KeyError, IndexError, TypeError, ValueError) as err:
                 _LOG.error("[%s] Rejecting incomplete msoupdate; requesting fresh state: %s", self.log_id, err)
+                self._invalidate_state("malformed msoupdate patch batch")
                 await self.send_message("getmso")
                 return
 
@@ -352,6 +360,35 @@ class HTP1Device(WebSocketDevice):
             self._dirac_update_event.set()
             self._parse_state()
             self.push_update()
+
+    def _invalidate_state(self, reason: str) -> None:
+        """Discard an untrustworthy snapshot until a new full mso arrives."""
+        if self._state is not None:
+            _LOG.warning("[%s] Invalidating cached HTP-1 state: %s", self.log_id, reason)
+        self._state = None
+        self._state_ready.clear()
+        # Wake waiters so they can observe that the current snapshot is no
+        # longer usable instead of continuing with stale cached values.
+        self._state_update_event.set()
+        self._dirac_update_event.set()
+
+    def _volume_state_is_valid(self) -> bool:
+        """Return whether the full snapshot contains safe relative-volume inputs."""
+        state = self._state
+        if not isinstance(state, dict):
+            return False
+        volume = state.get("volume")
+        cal = state.get("cal")
+        if (
+            isinstance(volume, bool)
+            or not isinstance(volume, int)
+            or not isinstance(cal, dict)
+        ):
+            return False
+        values = (cal.get("vpl"), cal.get("vph"), cal.get("zeroPoint"))
+        if not all(_is_finite_number(value) for value in values):
+            return False
+        return cal["vpl"] < cal["vph"]
 
     def _parse_state(self) -> None:
         """Orchestrate the parsing of the HTP-1 state dictionary."""
@@ -985,10 +1022,10 @@ class HTP1Device(WebSocketDevice):
                 return captured
             if self._dirac_commands_blocked():
                 return False
-            if not await self._refresh_state_locked() or not self._state:
+            if not await self._refresh_state_locked() or not self._volume_state_is_valid():
                 return False
-            current = self._state.get("volume")
-            if isinstance(current, bool) or not isinstance(current, int) or not _is_finite_number(self.vph):
+            current = self._state["volume"]
+            if not _is_finite_number(self.vph):
                 return False
             if current >= self.vph:
                 return True
@@ -1004,13 +1041,10 @@ class HTP1Device(WebSocketDevice):
                 return captured
             if self._dirac_commands_blocked():
                 return False
-            if not await self._refresh_state_locked() or not self._state:
+            if not await self._refresh_state_locked() or not self._volume_state_is_valid():
                 return False
-            current = self._state.get("volume")
-            if (
-                isinstance(current, bool) or not isinstance(current, int)
-                or not _is_finite_number(self.vpl) or not _is_finite_number(self.zp)
-            ):
+            current = self._state["volume"]
+            if not _is_finite_number(self.vpl) or not _is_finite_number(self.zp):
                 return False
             limit = self.vpl - self.zp
             if current - self.zp <= limit:
