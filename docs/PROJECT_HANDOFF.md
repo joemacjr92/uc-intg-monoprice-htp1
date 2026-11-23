@@ -580,3 +580,43 @@ Do not simulate a dropped WebSocket update by simply pausing all traffic unless 
 
 The 0.5-second maximum age remains provisional pending those measurements. The 2-second check is a comparison point, not the current production setting. Do not merge until the hardware results are reviewed and the threshold is either confirmed or revised.
 
+
+
+### Real Remote volume-hold trace: cache-age threshold comparison — 2026-11-22
+
+The uploaded UCR3_logs_2026-11-23.txt contains a volume-down sequence for the HTP-1 at .56 followed by volume-up. The timestamps below are the integration's inner log timestamps (local time).
+
+**Observed sequence**
+- Volume down: 11 volume_down commands and 11 one-decibel writes, from 22:33:05.847 through 22:33:11.626; targets progress from -28 dB to -38 dB.
+- Volume up: 12 volume_up commands and 12 one-decibel writes, from 22:33:14.947 through 22:33:21.090; targets progress from -37 dB to -26 dB.
+- Each successful write is followed by the existing getmso and full-state readback. This post-write snapshot updates the volume cache timestamps before the next repeat command.
+- The first down command had no prior full-state baseline and therefore required a refresh. The first up command arrived 2.997 seconds after the previous full snapshot and also required a pre-write refresh.
+- For the other 21 command starts, cache age measured from the preceding Received full state to the next Command: volume_* was between 0.020 and 0.216 seconds. No additional pre-write refresh was needed during either sustained sequence.
+- No Receiver state mismatch after transaction warning appears in the captured volume-command window.
+
+**Candidate threshold replay**
+
+The QA test file tests/phase1/test_volume_cache_safety.py now replays those 23 observed cache ages against the production freshness predicate, with the candidate maximum age varied independently of production configuration.
+
+| Candidate maximum age | Pre-write refreshes in this trace |
+|---:|---:|
+| 0.5 s | 2 |
+| 1.0 s | 2 |
+| 2.0 s | 2 |
+| 3.0 s | 1 |
+| 5.0 s | 1 |
+
+The first refresh is required because the initial baseline is absent. At 0.5, 1.0, and 2.0 seconds, the second refresh is required because the next hold begins 2.997 seconds after the previous full snapshot. At 3.0 or 5.0 seconds, that refresh would be skipped. All other observed cache ages are below 0.22 seconds, so raising the limit from 0.5 to 1.0 or 2.0 seconds does not reduce pre-write refreshes during the recorded holds.
+
+**Safety trade-off tests**
+
+The same test file now parameterizes silent external changes across candidate limits of 0.5, 1.0, and 2.0 seconds, with cache ages from 0.25 to 5 seconds, for both volume directions. It verifies that a missed external update is reconciled only once its age reaches the configured limit. Below that limit, the stale relative step remains possible; this explicitly measures the increased exposure window rather than treating a larger limit as free performance.
+
+**Interpretation**
+
+- This trace does not provide evidence that the 0.5-second threshold caused repeated pre-write getmso calls during a held volume command. The repeated getmso messages are the existing post-write authoritative readbacks.
+- Raising the threshold to 1.0 or 2.0 seconds would not have changed the number of pre-write refreshes in this particular trace. It would, however, increase the maximum silent-lost-update exposure from under 0.5 seconds to under 1.0 or 2.0 seconds.
+- Raising it to 3.0 seconds or more would skip the refresh after the observed 2.997-second idle interval, so the trace shows a concrete case where a larger limit changes behavior without demonstrating a useful improvement during the holds.
+- The log does not measure Remote display catch-up after button release, nor does it include a deliberately omitted external volume patch. It cannot establish actual event-loss frequency or prove that any candidate threshold is safe under all operating conditions.
+
+**Decision:** Keep the production VOLUME_STATE_MAX_AGE = 0.5 seconds unchanged for now. The trace-based tests are QA-only analysis and do not modify production behavior. The current evidence does not justify increasing the threshold: 1.0 and 2.0 seconds produce no observed reduction in refreshes, while weakening the stale-update protection. Further responsiveness work should focus on measuring/optimizing the per-command transaction and authoritative readback path, not relaxing cache freshness based on this trace alone.
