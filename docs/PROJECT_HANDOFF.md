@@ -422,3 +422,31 @@ Final automated validation after both passes:
 - Focused Ruff correctness checks passed. The broader Ruff rule-family scan remains diagnostic/non-gating and must not be described as clean.
 
 **Acceptance boundary:** these are automated fake-receiver/unit tests and an ARM64 package build. No actual Unfolded Circle Remote or physical HTP-1 acceptance test was performed as part of these two passes. The earlier two limited physical HTP-1 deferred-volume observations and their immediate-readback warning remain as documented above. No merge, upstream PR, release, or deployment has been performed.
+
+
+### Volume command coalescing simulation — 2026-11-23
+
+A QA-only design simulation was added in `tests/phase1/test_volume_worker_simulation.py` on `tests-and-docs`. No production volume-command behavior was changed.
+
+The simulation is informed by the slow-response trace in `dumps/integration.log`:
+- At 15:12:43.664, the volume-down request path began while Dirac was applying.
+- The associated `getmso` response arrived at 15:12:45.754, approximately 2.09 seconds later.
+- The trace then recorded a live-convergence timeout at 15:12:47.767 and a later confirmation `getmso` response at 15:12:50.215, approximately 2.45 seconds after that request.
+
+These are observations from the Dirac slow-response scenario, not a measured ordinary volume-write round-trip. The tests use 2.1 seconds as a deliberately slow per-write acknowledgement proxy; this is a simplifying simulation input, not a claim about every HTP-1 volume transaction.
+
+The stress profile is a five-second hold at 10 relative requests per second (50 one-decibel requests), explicitly an assumed test rate rather than a measured Remote repeat rate. It compares two possible write policies:
+
+- **Bounded 5 dB writes:** preserve a conservative maximum per-write change. Starting at -40 dB and targeting +10 dB, the immediate first one-decibel write plus subsequent five-decibel chunks require 11 serialized writes. At the 2.1-second proxy, that is 23.1 seconds of acknowledgement time and approximately 18.1 seconds after release.
+- **Unbounded latest-target writes:** allow each write to jump directly to the latest accumulated target. The same timeline needs four serialized writes and settles approximately 3.4 seconds after release (the remaining 1.3 seconds of the in-flight write plus one final 2.1-second acknowledgement). This is closer to the proposed responsiveness, but permits larger individual jumps (+20 dB, +21 dB, and +8 dB in this model).
+
+The 5 dB limit is not currently applied to ordinary `volume_up`/`volume_down` one-decibel commands; it is used by normalized volume setting and Dirac consolidation. The simulation therefore compares the two policies rather than declaring either one to be the required production behavior. The result makes the safety/responsiveness trade-off explicit: the one-round-trip-after-release expectation is optimistic; even the unbounded policy takes about 1.6 proxy round-trips in this timeline.
+
+The model also reflects the HTP-1 protocol accurately in one important respect: live state patches do not carry transaction sequence IDs. A delayed patch may temporarily change the reported snapshot, but it must not overwrite the worker's logical target or transaction-confirmed base. The worker advances from its own authoritative transaction result/readback. Tests cover serialized writes, rapid relative-step accumulation, stale untagged state patches, failure reconciliation without automatic retry, volume bounds, and disconnect cancellation.
+
+Validation status at the time of this handoff update:
+- Standard Tests passed on QA commit `14955cb7e131cdafef1efd4b898217a458880583`: [run 45092006864](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45092006864).
+- Phase 0 and Full QA passed on the same commit: [run 45092006809](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45092006809).
+- Phase 1 test suite step passed on the same commit. The complete Phase 1 workflow was still running its isolated Dirac stress repetitions and TLS checks: [run 45092006882](https://github.com/joemacjr92/uc-intg-monoprice-htp1/actions/runs/45092006882).
+
+**Acceptance boundary:** this is a deterministic model of the proposed architecture, not an implementation test of production volume commands and not hardware validation. It cannot establish how the actual Remote displays optimistic volume changes or how the physical HTP-1 orders delayed state events. Keep the five-second hold test with the actual Remote and HTP-1 on the deferred hardware-validation list. No production source, release, merge, upstream PR, or deployment was changed by this simulation work.
