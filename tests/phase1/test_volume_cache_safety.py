@@ -283,25 +283,41 @@ def test_delivered_calibration_update_refreshes_relative_volume_dependencies():
     asyncio.run(exercise())
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Malformed JSON msoupdate currently logs and returns without invalidating/requesting a fresh snapshot.",
-)
 def test_malformed_json_msoupdate_invalidates_cache_and_requests_snapshot():
+    async def exercise():
+        device, receiver = make_volume_device(reply_to_getmso=False)
+
+        await device.handle_message('msoupdate [{"op":"replace","path":"/volume"')
+
+        assert receiver.messages == ["getmso"]
+        assert device._state is None
+
+        # A partial patch cannot restore a discarded full-state baseline.
+        await device.handle_message(
+            'msoupdate [{"op":"replace","path":"/volume","value":-19}]'
+        )
+        assert device._state is None
+        assert await device.volume_up() is False
+        assert receiver.writes == []
+        assert receiver.messages.count("getmso") >= 2
+
+    asyncio.run(exercise())
+
+
+def test_malformed_json_msoupdate_recovers_only_from_a_full_snapshot():
     async def exercise():
         device, receiver = make_volume_device()
 
         await device.handle_message('msoupdate [{"op":"replace","path":"/volume"')
 
-        assert receiver.messages == ["getmso"]
+        # The fake receiver answers the recovery getmso with a complete mso.
+        assert device._state == receiver.state
+        assert await device.volume_up() is True
+        assert written_volume_targets(receiver) == [-19]
 
     asyncio.run(exercise())
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="A syntactically valid full snapshot missing calibration fields currently falls back to parser defaults.",
-)
 def test_incomplete_full_snapshot_fails_closed_for_relative_volume():
     async def exercise():
         receiver_state = json.loads(FULL_FIXTURE.read_text(encoding="utf-8"))
@@ -310,6 +326,49 @@ def test_incomplete_full_snapshot_fails_closed_for_relative_volume():
         device, receiver = make_volume_device(receiver_state=receiver_state)
 
         assert await device.volume_up() is False
+        assert receiver.writes == []
+
+    asyncio.run(exercise())
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("volume", True),
+        ("volume", -20.5),
+        ("vpl", None),
+        ("vph", float("nan")),
+        ("zeroPoint", float("inf")),
+        ("zeroPoint", "0"),
+    ],
+)
+def test_invalid_relative_volume_inputs_fail_closed(field, value):
+    async def exercise():
+        receiver_state = json.loads(FULL_FIXTURE.read_text(encoding="utf-8"))
+        receiver_state["volume"] = -20
+        if field == "volume":
+            receiver_state["volume"] = value
+        else:
+            receiver_state["cal"][field] = value
+        device, receiver = make_volume_device(receiver_state=receiver_state)
+
+        assert await device.volume_up() is False
+        assert await device.volume_down() is False
+        assert receiver.writes == []
+
+    asyncio.run(exercise())
+
+
+def test_inverted_volume_bounds_fail_closed():
+    async def exercise():
+        receiver_state = json.loads(FULL_FIXTURE.read_text(encoding="utf-8"))
+        receiver_state["volume"] = -20
+        receiver_state["cal"]["vpl"] = -10
+        receiver_state["cal"]["vph"] = -30
+        device, receiver = make_volume_device(receiver_state=receiver_state)
+
+        assert await device.volume_up() is False
+        assert await device.volume_down() is False
         assert receiver.writes == []
 
     asyncio.run(exercise())
