@@ -1174,6 +1174,9 @@ def test_observed_hardware_traces_correlate_refusal_and_ignore_stale_reply():
             standby = traces["standby"]
             refusal = standby["reply"]
             assert refusal["id"] == standby["request"]["id"]
+            # Apply the captured reply to the test receiver snapshot before
+            # checking how the integration correlates it with the request.
+            device._state["cal"]["diracSwitchReply"] = refusal
             assert device._dirac_refusal(
                 standby["request"]["id"], standby["previous_reply"]["id"]
             ) == refusal["message"]
