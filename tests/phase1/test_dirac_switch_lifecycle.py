@@ -309,6 +309,10 @@ def test_dirac_busy_error_without_accepted_request_is_reported():
             assert receiver.change_count == 1
             assert receiver.getmso_count == 1
             assert device._dirac_error.startswith("Dirac is busy")
+            assert device._dirac_lifecycle_state is DiracLifecycleState.FAILED
+            assert not device._dirac_operation_lock.locked()
+            assert device._dirac_task is None
+            assert device._dirac_volume_snapshot is None
         finally:
             await receiver.cleanup()
 
