@@ -53,6 +53,7 @@ class DiracReceiver:
             await self.device.handle_message(f"msoupdate {json.dumps(operations)}")
             return
         slot = operations[0]["value"]
+        self.request_id = f"receiver-request-{self.change_count}"
         if self.mode == "disconnect-before-acceptance":
             self.device._on_connection_lost()
             return
@@ -876,14 +877,14 @@ def test_non_volume_mutation_queued_before_dirac_start_is_rejected_after_lock_re
             async with device._transaction_lock:
                 pending = asyncio.create_task(device.mute_toggle(True))
                 await asyncio.sleep(0)
-                device._dirac_accepting = True
+                device._set_dirac_lifecycle_state(DiracLifecycleState.REQUESTED)
 
             assert await asyncio.wait_for(pending, timeout=0.2) is False
             assert receiver.messages == []
             assert receiver.change_count == 0
             assert receiver.getmso_count == 0
         finally:
-            device._dirac_accepting = False
+            device._set_dirac_lifecycle_state(DiracLifecycleState.FAILED)
             await receiver.cleanup()
 
     asyncio.run(exercise())
@@ -896,14 +897,14 @@ def test_absolute_volume_requests_queued_before_dirac_start_are_captured_after_l
                 pending = asyncio.create_task(device.set_volume(-40))
                 await asyncio.sleep(0)
                 device._begin_dirac_volume_capture()
-                device._dirac_accepting = True
+                device._set_dirac_lifecycle_state(DiracLifecycleState.REQUESTED)
 
             assert await asyncio.wait_for(pending, timeout=0.2) is True
             assert device._dirac_volume_absolute_db == -33
             assert device._dirac_volume_delta == 0
             assert receiver.messages == []
         finally:
-            device._dirac_accepting = False
+            device._set_dirac_lifecycle_state(DiracLifecycleState.FAILED)
             device._discard_dirac_volume_capture()
             await receiver.cleanup()
 
@@ -913,7 +914,7 @@ def test_absolute_volume_requests_queued_before_dirac_start_are_captured_after_l
                 pending = asyncio.create_task(device.set_volume_level(0.5))
                 await asyncio.sleep(0)
                 device._begin_dirac_volume_capture()
-                device._dirac_accepting = True
+                device._set_dirac_lifecycle_state(DiracLifecycleState.REQUESTED)
 
             assert await asyncio.wait_for(pending, timeout=0.2) is True
             snapshot = device._dirac_volume_snapshot
@@ -923,7 +924,7 @@ def test_absolute_volume_requests_queued_before_dirac_start_are_captured_after_l
             assert device._dirac_volume_delta == 0
             assert receiver.messages == []
         finally:
-            device._dirac_accepting = False
+            device._set_dirac_lifecycle_state(DiracLifecycleState.FAILED)
             device._discard_dirac_volume_capture()
             await receiver.cleanup()
 
