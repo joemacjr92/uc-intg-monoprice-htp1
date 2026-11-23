@@ -145,6 +145,8 @@ class HTP1Device(WebSocketDevice):
         self._dirac_update_event = asyncio.Event()
         self._dirac_error: str | None = None
         self._dirac_lifecycle_state = DiracLifecycleState.IDLE
+        self._dirac_target_slot_name: str | None = None
+        self._dirac_failure_reason: str | None = None
         self._dirac_acceptance_timeout = 2.0
         self._dirac_operation_lock = asyncio.Lock()
         self._dirac_task: asyncio.Task | None = None
@@ -651,7 +653,7 @@ class HTP1Device(WebSocketDevice):
             "sound_mode": self.sound_mode_display,
             "audio_format": getattr(self, "audio_format", "none"),
             "output_audio_format": getattr(self, "output_audio_format", ""),
-            "dirac_slot": self.dirac_slot_name,
+            "dirac_slot": self.dirac_status_text,
             "video_mode": getattr(self, "video_mode", "-----"),
             "connection": "Connected" if self.is_connected else "Disconnected",
             "beq_active": self.beq_active or "None",
@@ -883,7 +885,7 @@ class HTP1Device(WebSocketDevice):
         return False
 
     def _set_dirac_lifecycle_state(self, state: DiracLifecycleState) -> None:
-        """Apply one legal Dirac lifecycle transition."""
+        """Apply a legal lifecycle transition and publish visible status changes."""
         current = getattr(self, "_dirac_lifecycle_state", DiracLifecycleState.IDLE)
         if state is current:
             return
@@ -891,7 +893,48 @@ class HTP1Device(WebSocketDevice):
             raise ValueError(
                 f"Invalid Dirac lifecycle transition: {current.value} -> {state.value}"
             )
+
+        previous_text = self.dirac_status_text
+        if state is DiracLifecycleState.REQUESTED:
+            self._dirac_failure_reason = None
+        elif state is DiracLifecycleState.COMPLETE:
+            self._dirac_failure_reason = None
+            self._dirac_target_slot_name = None
+        elif state is DiracLifecycleState.FAILED and not self._dirac_failure_reason:
+            self._dirac_failure_reason = "Dirac slot change failed"
+
         self._dirac_lifecycle_state = state
+        status_text = self.dirac_status_text
+        if status_text != previous_text:
+            self._sensor_data["dirac_slot"] = status_text
+            self.push_update()
+
+    @property
+    def dirac_status_text(self) -> str:
+        """Return the user-facing status for the existing Dirac slot sensor."""
+        state = getattr(self, "_dirac_lifecycle_state", DiracLifecycleState.IDLE)
+        if state in {
+            DiracLifecycleState.REQUESTED,
+            DiracLifecycleState.ACCEPTED,
+            DiracLifecycleState.APPLYING,
+        }:
+            target = getattr(self, "_dirac_target_slot_name", None)
+            return f"Loading {target}" if target else "Loading calibration"
+        if state is DiracLifecycleState.FAILED:
+            reason = getattr(self, "_dirac_failure_reason", None) or "unknown error"
+            normalized = reason.lower()
+            if "standby" in normalized or "processor starts" in normalized:
+                reason = "standby"
+            elif "busy" in normalized or "applying a correction" in normalized:
+                reason = "busy"
+            elif "timed out" in normalized or "timeout" in normalized:
+                reason = "timeout"
+            else:
+                reason = reason.strip().rstrip(".")
+                if len(reason) > 80:
+                    reason = f"{reason[:77]}..."
+            return f"Not applied: {reason}"
+        return self.dirac_slot_name or "Unknown"
 
     @property
     def _dirac_display_held(self) -> bool:
@@ -1272,18 +1315,7 @@ class HTP1Device(WebSocketDevice):
 
         reply = _as_dict(cal.get("diracSwitchReply"))
         reply_id = reply.get("id")
-        if (
-            reply.get("state") in {"refused", "failed", "error"}
-            and (
-                reply_id == request_id
-                or (
-                    isinstance(reply_id, str)
-                    and reply_id
-                    and reply_id != previous_reply_id
-                    and not reply_id.startswith("nr-")
-                )
-            )
-        ):
+        if reply.get("state") in {"refused", "failed", "error"} and reply_id == request_id:
             return str(reply.get("message") or "The HTP-1 refused the Dirac slot change")
         return None
 
@@ -1417,6 +1449,7 @@ class HTP1Device(WebSocketDevice):
                 request_id, previous_reply_id, connection_generation
             )
             if failure:
+                self._dirac_failure_reason = failure
                 _LOG.warning("[%s] Dirac slot change failed: %s", self.log_id, failure)
                 return
 
@@ -1428,6 +1461,7 @@ class HTP1Device(WebSocketDevice):
                     or self._connection_generation != connection_generation
                     or not await self._refresh_state_locked()
                 ):
+                    self._dirac_failure_reason = "Could not confirm the completed Dirac slot change"
                     _LOG.warning(
                         "[%s] Could not confirm the completed Dirac slot change",
                         self.log_id,
@@ -1442,6 +1476,7 @@ class HTP1Device(WebSocketDevice):
                     and cal.get("currentdiracslot") == slot_idx
                 )
                 if not verified:
+                    self._dirac_failure_reason = "Final slot readback did not match the requested calibration"
                     _LOG.warning(
                         "[%s] Dirac request %s completed but final slot readback did not match",
                         self.log_id,
@@ -1452,6 +1487,10 @@ class HTP1Device(WebSocketDevice):
                 volume_applied = await self._apply_deferred_dirac_volume_locked()
                 if not volume_applied:
                     _LOG.warning("[%s] Dirac completed, but deferred volume could not be applied safely", self.log_id)
+                # The receiver snapshot and request ID have both been verified;
+                # release the held display using the confirmed target name.
+                if self._dirac_target_slot_name:
+                    self.dirac_slot_name = self._dirac_target_slot_name
                 self._set_dirac_lifecycle_state(DiracLifecycleState.COMPLETE)
                 self._parse_state()
                 self.push_update()
@@ -1463,6 +1502,7 @@ class HTP1Device(WebSocketDevice):
         except asyncio.CancelledError:
             raise
         except Exception:
+            self._dirac_failure_reason = "Unexpected error while monitoring the Dirac slot change"
             _LOG.exception("[%s] Unexpected error monitoring Dirac slot change", self.log_id)
         finally:
             if verified:
@@ -1472,6 +1512,8 @@ class HTP1Device(WebSocketDevice):
                 }:
                     self._set_dirac_lifecycle_state(DiracLifecycleState.COMPLETE)
             else:
+                if not self._dirac_failure_reason:
+                    self._dirac_failure_reason = "Dirac slot change was not confirmed"
                 if self._dirac_lifecycle_state is not DiracLifecycleState.FAILED:
                     self._set_dirac_lifecycle_state(DiracLifecycleState.FAILED)
                 self._discard_dirac_volume_capture()
@@ -1488,6 +1530,7 @@ class HTP1Device(WebSocketDevice):
             DiracLifecycleState.ACCEPTED,
             DiracLifecycleState.APPLYING,
         }:
+            self._dirac_failure_reason = "Dirac operation monitoring stopped unexpectedly"
             self._set_dirac_lifecycle_state(DiracLifecycleState.FAILED)
             self._discard_dirac_volume_capture()
         if self._dirac_operation_lock.locked():
@@ -1529,6 +1572,8 @@ class HTP1Device(WebSocketDevice):
 
                 self._dirac_update_event.clear()
                 self._dirac_error = None
+                self._dirac_target_slot_name = slot_name
+                self._dirac_failure_reason = None
                 self._dirac_request_id = None
                 self._dirac_request_slot = None
                 self._begin_dirac_volume_capture()
@@ -1541,6 +1586,7 @@ class HTP1Device(WebSocketDevice):
                 }
                 payload = json.dumps([operation], separators=(",", ":"))
                 if not await self.send_message(f"changemso {payload}"):
+                    self._dirac_failure_reason = "Could not send the Dirac slot change request"
                     self._set_dirac_lifecycle_state(DiracLifecycleState.FAILED)
                     self._discard_dirac_volume_capture()
                     self._parse_state()
@@ -1556,6 +1602,7 @@ class HTP1Device(WebSocketDevice):
                         self.log_id,
                         failure or "No receiver request ID was observed",
                     )
+                    self._dirac_failure_reason = failure or "No receiver request ID was observed"
                     self._set_dirac_lifecycle_state(DiracLifecycleState.FAILED)
                     self._discard_dirac_volume_capture()
                     self._parse_state()
@@ -1586,6 +1633,8 @@ class HTP1Device(WebSocketDevice):
                     DiracLifecycleState.ACCEPTED,
                     DiracLifecycleState.APPLYING,
                 }:
+                    if not self._dirac_failure_reason:
+                        self._dirac_failure_reason = "Dirac slot change was not completed"
                     self._set_dirac_lifecycle_state(DiracLifecycleState.FAILED)
                 self._discard_dirac_volume_capture()
                 self._dirac_operation_lock.release()
