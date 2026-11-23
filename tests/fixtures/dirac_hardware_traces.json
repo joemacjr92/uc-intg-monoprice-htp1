@@ -1,0 +1,73 @@
+{
+  "standby": {
+    "powerIsOn": false,
+    "previous_slot": 0,
+    "previous_switch": {
+      "id": "mwsddonz-b1a4yz27na",
+      "slot": 0,
+      "state": "complete",
+      "locked": false,
+      "message": "Slot change verified.",
+      "version": 1
+    },
+    "previous_reply": {
+      "id": "mwtb5vqz-ikbqrh7xi0",
+      "slot": 0,
+      "state": "refused",
+      "locked": false,
+      "message": "Dirac slot changes are unavailable in standby and while the processor starts.",
+      "version": 1
+    },
+    "request": {
+      "id": "mwtbi9ka-l54d9x5pbp",
+      "slot": 3,
+      "state": "requested",
+      "locked": true,
+      "message": "Changing Dirac slot. Wait for completion before selecting another slot.",
+      "version": 1
+    },
+    "reply": {
+      "id": "mwtbi9ka-l54d9x5pbp",
+      "slot": 0,
+      "state": "refused",
+      "locked": false,
+      "message": "Dirac slot changes are unavailable in standby and while the processor starts.",
+      "version": 1
+    },
+    "restored_slot": 0
+  },
+  "successful_switch": {
+    "powerIsOn": true,
+    "previous_slot": 0,
+    "request": {
+      "id": "mwtble47-j075t0exj6",
+      "slot": 4,
+      "state": "requested",
+      "locked": true,
+      "message": "Changing Dirac slot. Wait for completion before selecting another slot.",
+      "version": 1
+    },
+    "applying": true,
+    "running": {
+      "id": "mwtble47-j075t0exj6",
+      "slot": 4,
+      "state": "running",
+      "locked": true,
+      "muteHold": true,
+      "message": "Changing Dirac slot. Additional requests are blocked until completion.",
+      "version": 1
+    },
+    "applying_finished": false,
+    "complete": {
+      "id": "mwtble47-j075t0exj6",
+      "slot": 4,
+      "state": "complete",
+      "locked": false,
+      "muteHold": false,
+      "message": "Slot change verified.",
+      "version": 1
+    },
+    "confirmed_slot": 4,
+    "stale_reply_id": "mwtbi9ka-l54d9x5pbp"
+  }
+}
