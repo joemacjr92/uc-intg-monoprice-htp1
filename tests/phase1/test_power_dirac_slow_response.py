@@ -169,7 +169,10 @@ def test_slow_post_write_state_response_does_not_claim_power_or_dirac_success(
             if command == "power":
                 assert result is False
                 assert receiver.getmso_count == 2
-                assert device._state == receiver.state
+                # The write reached the receiver, but the final full snapshot
+                # timed out. Do not keep the live echo as a trusted baseline.
+                assert device._state is None
+                assert device._volume_state_timestamps == {}
                 assert receiver.state["powerIsOn"] is True
             else:
                 # Dirac acknowledges receiver acceptance; final verification
