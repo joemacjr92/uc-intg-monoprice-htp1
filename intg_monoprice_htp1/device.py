@@ -1285,10 +1285,10 @@ class HTP1Device(WebSocketDevice):
                     )
                     return
 
-                self._set_dirac_lifecycle_state(DiracLifecycleState.COMPLETE)
                 volume_applied = await self._apply_deferred_dirac_volume_locked()
                 if not volume_applied:
                     _LOG.warning("[%s] Dirac completed, but deferred volume could not be applied safely", self.log_id)
+                self._set_dirac_lifecycle_state(DiracLifecycleState.COMPLETE)
                 self._parse_state()
                 self.push_update()
                 _LOG.info(
@@ -1301,7 +1301,13 @@ class HTP1Device(WebSocketDevice):
         except Exception:
             _LOG.exception("[%s] Unexpected error monitoring Dirac slot change", self.log_id)
         finally:
-            if not verified:
+            if verified:
+                if self._dirac_lifecycle_state not in {
+                    DiracLifecycleState.COMPLETE,
+                    DiracLifecycleState.FAILED,
+                }:
+                    self._set_dirac_lifecycle_state(DiracLifecycleState.COMPLETE)
+            else:
                 if self._dirac_lifecycle_state is not DiracLifecycleState.FAILED:
                     self._set_dirac_lifecycle_state(DiracLifecycleState.FAILED)
                 self._discard_dirac_volume_capture()
