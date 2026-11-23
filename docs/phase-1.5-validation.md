@@ -145,3 +145,19 @@ The documentation audit was completed on tests-and-docs only:
 - This validation record was reconciled again after its initial update; the current file on tests-and-docs is authoritative.
 
 The README Credits, License, and Support & Community block was checked against the approved wording and preserved verbatim.
+
+### Dirac slot sensor lifecycle visibility
+
+The existing `sensor.<device_id>.dirac_slot` now has a lifecycle-aware display value; no second entity is introduced. The calibration select continues to use the confirmed `dirac_slot_name` and is not bound to the transient status text.
+
+- During a correlated receiver request, the sensor displays `Loading <target slot name>`.
+- On successful receiver completion and final authoritative MSO readback, it returns to the confirmed slot name.
+- On refusal or failure, it displays `Not applied: <reason>` and retains that failure until a new slot request begins.
+- A refusal is accepted only when `diracSwitchReply.id` matches the active request ID. Historical replies remain in the MSO and must not affect later requests.
+- The receiver's early optimistic `currentdiracslot` update is not success. The previous confirmed slot remains displayed until completion and readback agree.
+- `diracApplying` is an independent activity signal; it does not independently establish completion.
+
+Real-device evidence captured 2026-11-23 is preserved in `tests/fixtures/dirac_hardware_traces.json`. It records a standby refusal (request slot 3, matching refused reply, restoration to slot 0) and a successful powered-on change to slot 4 (requested, running with mute hold, complete, authoritative slot 4). The fixture is sanitized to include only the relevant protocol fields and no network identifiers.
+
+Regression coverage in `tests/phase1/test_dirac_switch_lifecycle.py` checks loading and completion display, persistent refusal and reset on the next request, concise failure reasons, exact request/reply correlation, and an unrelated stale reply with a non-reserved ID. The temporary focused MSO diagnostic logging remains in production during implementation and hardware verification; removal is deferred to a separate cleanup change.
+
