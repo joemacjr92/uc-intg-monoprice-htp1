@@ -29,6 +29,7 @@ def test_driver_waits_for_receiver_connection_before_registry():
 
 def _install_transaction_test_doubles(device, sent):
     async def refresh():
+        device._record_volume_state_observation()
         return True
 
     async def capture_locked(operations):
