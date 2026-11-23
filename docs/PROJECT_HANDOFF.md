@@ -621,3 +621,42 @@ The same test file now parameterizes silent external changes across candidate li
 - The log does not measure Remote display catch-up after button release, nor does it include a deliberately omitted external volume patch. It cannot establish actual event-loss frequency or prove that any candidate threshold is safe under all operating conditions.
 
 **Decision:** Keep the production VOLUME_STATE_MAX_AGE = 0.5 seconds unchanged for now. The trace-based tests are QA-only analysis and do not modify production behavior. The current evidence does not justify increasing the threshold: 1.0 and 2.0 seconds produce no observed reduction in refreshes, while weakening the stale-update protection. Further responsiveness work should focus on measuring/optimizing the per-command transaction and authoritative readback path, not relaxing cache freshness based on this trace alone.
+
+
+### Volume transaction-path investigation — 2026-11-22
+
+The five-second Remote hold trace contains 23 volume writes. For each write, the integration sends one subsequent getmso and receives one full-state response. The per-write timings can be split using the log timestamps:
+
+| Segment | Median | 90th percentile | Range |
+|---|---:|---:|---:|
+| changemso sent → getmso sent | 205 ms | 307 ms | 187–711 ms |
+| getmso sent → full mso received | 128 ms | 155 ms | 81–650 ms |
+| changemso sent → full mso received | 338 ms | 808 ms | 273–855 ms |
+
+Percentiles use nearest-rank ordering. The first segment contains the wait for the matching live update plus local scheduling/processing. The log does not record individual msoupdate timestamps, so it cannot isolate receiver patch latency from integration-side wait time. The second segment is the observable getmso/full-state response interval. Two unusually slow full-state responses (597 and 650 ms) and one long write-to-getmso interval (711 ms) contribute materially to the tail.
+
+**Current transaction sequence in device.py**
+
+1. Under _transaction_lock, calculate the next relative target from the latest trusted cached volume.
+2. Send one changemso patch.
+3. Wait for a relevant msoupdate that makes the touched path match the expected state, with _write_convergence_timeout as the upper bound.
+4. Send getmso and wait for a complete authoritative mso snapshot.
+5. Compare the touched path against the expected value; return success only after that full-state confirmation.
+
+The transaction lock remains held across this sequence, so the next relative volume step cannot be issued until the prior step has completed its authoritative readback. The recorded log shows one changemso/getmso/full-state cycle for each of the 23 steps.
+
+**Why the two waits should not simply be removed**
+
+- The live-patch wait prevents an immediate getmso from racing ahead of the receiver applying the write. A full snapshot taken too early could report the old value.
+- The full-state readback cannot safely be replaced by a matching msoupdate alone. Existing duplicate, out-of-order, and ABA replay tests demonstrate that an untagged patch can appear to confirm a transaction even when the receiver's authoritative state did not change. The protocol messages in this integration expose no transaction identifier with which to correlate such an event.
+- The 2-second live-convergence timeout is not the normal-path latency shown by this trace; the matching update is observed before the subsequent getmso is sent. Lowering that timeout would primarily alter missing/delayed-update behavior, not the measured normal-path median.
+
+**Optimization candidates**
+
+1. **Keep the current correctness sequence and improve measurement first.** Add optional phase timing diagnostics for write-send, matching-patch wake, getmso-send, and full-state receipt. This would let a future hardware log isolate where tail latency occurs. It should be low-risk and can be disabled or debug-level to avoid routine log noise.
+2. **Investigate a volume-only coalescing worker.** Rapid +/- requests could be accumulated while one transaction is in flight and represented by a bounded target write, reducing the number of sequential write/readback cycles. This is the strongest potential way to reduce hold latency without dropping authoritative verification. It is not a trivial refactor: it must preserve direction changes, step counts, volume/calibration bounds, external volume changes, request completion semantics, disconnect behavior, Dirac deferred-volume capture, and ordering against unrelated state mutations. It must not silently turn queued requests into an unbounded absolute jump.
+3. **Do not remove the final getmso based only on the present logs.** That would improve the apparent per-step latency but would discard the authoritative confirmation that protects against untagged delayed/duplicate events.
+
+**QA addition:** The test named test_volume_transaction_waits_for_live_patch_before_authoritative_snapshot models a 205 ms live-patch delay followed by a 128 ms full-state response delay. It asserts the ordering changemso → matching msoupdate → getmso → full mso and verifies the final authoritative state. This is a deterministic transaction-order regression test, not a claim that CI reproduces physical receiver latency.
+
+**Decision:** No production transaction behavior has been changed. Keep the current live-convergence wait and authoritative full-state readback. The next implementation candidate, if approved, should be a separately tested volume-only coalescing worker rather than relaxing the cache-age threshold or removing transaction verification. Hardware validation is still required before accepting a production optimization.
