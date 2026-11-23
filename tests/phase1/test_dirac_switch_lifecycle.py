@@ -268,7 +268,7 @@ def test_delayed_standby_refusal_after_acceptance_keeps_confirmed_display():
             assert receiver.state["cal"]["currentdiracslot"] == 0
             assert receiver.getmso_count == 1  # No success readback after refusal.
             assert device.dirac_slot_name == original_display
-            assert device._dirac_display_hold is True
+            assert device._dirac_display_held is True
             assert not device._dirac_operation_lock.locked()
             assert device._dirac_task is None
             assert device._dirac_lifecycle_state is DiracLifecycleState.FAILED
