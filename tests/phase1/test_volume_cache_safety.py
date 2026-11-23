@@ -71,7 +71,7 @@ class VolumeReceiver:
             await self.device.handle_message(f"msoupdate {json.dumps(operations)}")
             return
 
-        if self.change_event_mode in {"duplicate_match", "out_of_order"}:
+        if self.change_event_mode in {"duplicate_match", "out_of_order", "aba_replay"}:
             volume_operation = next(
                 operation for operation in operations
                 if operation.get("path") == "/volume"
@@ -87,7 +87,7 @@ class VolumeReceiver:
             await self.device.handle_message(f"msoupdate {json.dumps([matching])}")
             if self.change_event_mode == "duplicate_match":
                 await self.device.handle_message(f"msoupdate {json.dumps([matching])}")
-            else:
+            elif self.change_event_mode == "out_of_order":
                 await self.device.handle_message(f"msoupdate {json.dumps([stale])}")
             return
 
@@ -209,11 +209,17 @@ def test_malformed_patch_without_recovery_snapshot_prevents_relative_volume_writ
     asyncio.run(exercise())
 
 
-@pytest.mark.parametrize("event_mode", ["duplicate_match", "out_of_order"])
+@pytest.mark.parametrize("event_mode", ["duplicate_match", "out_of_order", "aba_replay"])
 def test_untagged_duplicate_or_out_of_order_volume_patch_is_not_final_confirmation(event_mode):
     """A matching live patch is only provisional; full mso readback is decisive."""
     async def exercise():
         device, receiver = make_volume_device(change_event_mode=event_mode)
+        if event_mode == "aba_replay":
+            # The same target value existed before the transaction and then
+            # disappeared. A delayed replay of that old value is an ABA event:
+            # it looks like a match but has no transaction identity.
+            await device.handle_message('msoupdate [{"op":"replace","path":"/volume","value":-19}]')
+            await device.handle_message('msoupdate [{"op":"replace","path":"/volume","value":-20}]')
         device._write_convergence_timeout = 0.0
 
         result = await device._execute_transaction_locked(
