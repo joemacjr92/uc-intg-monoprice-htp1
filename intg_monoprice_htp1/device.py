@@ -1315,7 +1315,11 @@ class HTP1Device(WebSocketDevice):
 
         reply = _as_dict(cal.get("diracSwitchReply"))
         reply_id = reply.get("id")
-        if reply.get("state") in {"refused", "failed", "error"} and reply_id == request_id:
+        if (
+            reply.get("state") in {"refused", "failed", "error"}
+            and reply_id == request_id
+            and reply_id != previous_reply_id
+        ):
             return str(reply.get("message") or "The HTP-1 refused the Dirac slot change")
         return None
 
