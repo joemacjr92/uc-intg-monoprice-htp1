@@ -1208,7 +1208,6 @@ class HTP1Device(WebSocketDevice):
                 return refusal
             if switch.get("id") == request_id:
                 if switch.get("state") == "complete":
-                    self._set_dirac_lifecycle_state(DiracLifecycleState.COMPLETE)
                     return None
                 if switch.get("state") == "running":
                     self._set_dirac_lifecycle_state(DiracLifecycleState.APPLYING)
@@ -1227,7 +1226,6 @@ class HTP1Device(WebSocketDevice):
             if refusal:
                 return refusal
             if switch.get("id") == request_id and switch.get("state") == "complete":
-                self._set_dirac_lifecycle_state(DiracLifecycleState.COMPLETE)
                 return None
             if switch.get("id") == request_id and switch.get("state") == "running":
                 self._set_dirac_lifecycle_state(DiracLifecycleState.APPLYING)
@@ -1282,6 +1280,7 @@ class HTP1Device(WebSocketDevice):
                     )
                     return
 
+                self._set_dirac_lifecycle_state(DiracLifecycleState.COMPLETE)
                 volume_applied = await self._apply_deferred_dirac_volume_locked()
                 if not volume_applied:
                     _LOG.warning("[%s] Dirac completed, but deferred volume could not be applied safely", self.log_id)
