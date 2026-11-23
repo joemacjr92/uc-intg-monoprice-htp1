@@ -729,3 +729,14 @@ The user operated the integration during normal everyday use with the actual Unf
 The session was not itemized by command, duration, or feature, so do not infer that every control or failure scenario was individually exercised. Keep targeted edge-case acceptance distinct: stress/concurrency, disconnect/reconnect during transactions, Dirac refusal/lifecycle display, BEQ placement/routing, and the previously deferred power/Dirac slow-response cases remain outstanding unless separately verified. The two earlier physical HTP-1 deferred-volume observations and their unresolved immediate readback warning remain separately documented; this normal-use report does not resolve that warning.
 
 No production code, QA tests, release, merge, upstream PR, or deployment was changed by this hardware session. QA documentation remains on `tests-and-docs`.
+
+### Dirac sensor hardware review and diagnostic cleanup — 2026-11-23
+
+The user completed the focused Dirac Slot sensor hardware check on the actual Remote and HTP-1. The temporary Dirac MSO diagnostic logging has now served its review purpose and was removed from production source.
+
+- Production cleanup commit: `d4e0a74f9c208250350afbe12f731c1718815f4c` on `feature-validation`.
+- Removed the temporary `_log_dirac_mso_state` and `_dirac_mso_update` helpers and their full-state/update call sites from `intg_monoprice_htp1/device.py`.
+- No Dirac lifecycle, transaction, sensor presentation, or receiver-command behavior was changed by this cleanup.
+- Re-run the complete QA matrix and ARM64 artifact-only build against this exact production source before preparing the upstream PR.
+- Preserve the outstanding volume transaction observation: two earlier physical tests showed an immediate post-transaction mismatch warning followed by a later state event with the expected displayed volume. Its cause remains unresolved; do not add automatic retries or change transaction semantics without evidence.
+- The PR must be prepared from `main` using only approved production files. Exclude all tests, fixtures, QA-only workflows, handoff/validation docs, and the ARM64 test-build workflow. Do not open the PR, merge, release, or deploy without explicit user approval.
