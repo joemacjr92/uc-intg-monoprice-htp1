@@ -1,8 +1,9 @@
 """Deterministic simulation of a coalescing volume worker.
 
 This is a design-level fake, not production code. It models the proposed
-latest-target worker with serialized writes and a conservative 5 dB maximum
-per-write step. The 2.1 s acknowledgement delay is anchored to the observed
+latest-target worker with serialized writes. It compares two candidate write policies: a 5 dB
+maximum step (conservative but slow to catch up) and an unbounded latest-target
+write (fast but permits a large single jump). The 2.1 s acknowledgement delay is anchored to the observed
 15:12:42.632-15:12:45.754 (>2.09 s) HTP-1 full-state response in
 dumps/integration.log. It is a stress input, not a claim that every volume
 write takes 2.1 s.
@@ -73,7 +74,7 @@ class CoalescingVolumeWorkerModel:
         *,
         minimum: int = VOLUME_MIN_DB,
         maximum: int = VOLUME_MAX_DB,
-        max_write_step: int = MAX_WRITE_STEP_DB,
+        max_write_step: int | None = MAX_WRITE_STEP_DB,
     ):
         self.receiver = receiver
         self.confirmed_volume = initial_volume
@@ -102,7 +103,11 @@ class CoalescingVolumeWorkerModel:
     async def _run_worker(self) -> None:
         while self.connected and self.confirmed_volume != self.requested_target:
             difference = self.requested_target - self.confirmed_volume
-            step = max(-self.max_write_step, min(self.max_write_step, difference))
+            step = (
+                difference
+                if self.max_write_step is None
+                else max(-self.max_write_step, min(self.max_write_step, difference))
+            )
             target = self.confirmed_volume + step
             self._sequence += 1
             sequence = self._sequence
@@ -196,6 +201,54 @@ def test_five_second_hold_coalesces_intent_and_serializes_slow_writes():
         assert simulated_after_release == 16.0
         # Under this bounded-write policy and observed slow-response stress
         # input, the final target does NOT settle within one RTT after release.
+
+    asyncio.run(exercise())
+
+
+def test_unbounded_latest_target_policy_catches_up_after_release_in_about_two_rtts():
+    async def exercise():
+        initial = -40
+        receiver = ControlledReceiver(initial)
+        worker = CoalescingVolumeWorkerModel(
+            receiver, initial, max_write_step=None
+        )
+
+        # Same five-second / 50-step hold. The worker starts at t=0, then
+        # completes writes at t=2.1 and t=4.2 while requests keep arriving.
+        for index in range(50):
+            assert worker.request_step(+1)
+            await worker.wait_for_worker_to_start()
+            if index in (21, 42):
+                receiver.acknowledge_next()
+                await worker.wait_for_worker_to_start()
+
+        assert worker.requested_target == 10
+        assert worker.confirmed_volume == 2
+        assert len(receiver.pending) == 1
+        assert receiver.pending[0].target == 2
+
+        # The in-flight write has 1.3 s remaining at release. It confirms at
+        # 6.3 s, then the final latest-target write confirms at 8.4 s.
+        receiver.acknowledge_next()
+        await worker.wait_for_worker_to_start()
+        assert worker.confirmed_volume == 2
+        assert receiver.pending[0].target == 10
+        receiver.acknowledge_next()
+        await worker.wait_for_worker_to_start()
+        await worker._worker_task
+
+        assert worker.confirmed_volume == 10
+        assert receiver.actual_volume == 10
+        assert len(receiver.write_history) == 4
+        assert receiver.max_in_flight == 1
+        simulated_after_release = (
+            OBSERVED_SLOW_STATE_RESPONSE_SECONDS
+            - (HOLD_SECONDS - 2 * OBSERVED_SLOW_STATE_RESPONSE_SECONDS)
+            + OBSERVED_SLOW_STATE_RESPONSE_SECONDS
+        )
+        assert simulated_after_release == 3.4
+        # This policy approaches the proposed latency, but it does so by
+        # allowing large writes (the final one is +8 dB, earlier ones larger).
 
     asyncio.run(exercise())
 
